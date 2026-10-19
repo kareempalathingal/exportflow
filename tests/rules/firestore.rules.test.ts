@@ -147,6 +147,32 @@ describe('versioned records with audit', () => {
     const snap = await getDoc(doc(db, `workspaces/${actual}/settings/profile`));
     if (snap.exists()) throw new Error('DEMO write leaked into ACTUAL');
   });
+  it('masters: create, update, never delete; base unit fixed', async () => {
+    const db = dbFor(ALICE);
+    const ws = await createWorkspace(db, ALICE, 'ACTUAL');
+    const write = (coll: string, id: string, rev: number, ev: string, data: Record<string, unknown>) => {
+      const b = writeBatch(db);
+      b.set(doc(db, `workspaces/${ws}/${coll}/${id}`), { ...data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
+      b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
+        entity: coll, entityPath: `workspaces/${ws}/${coll}/${id}`, entityId: id, action: rev === 1 ? 'CREATE' : 'UPDATE',
+        rev, changes: [], reason: null, actorUid: ALICE, at: serverTimestamp(),
+      });
+      return b.commit();
+    };
+    const product = { name: 'Mat', active: true, baseUnit: 'pcs', supplyType: 'MANUFACTURED' };
+    await assertSucceeds(write('products', 'p1', 1, 'a1', product));
+    await assertSucceeds(write('products', 'p1', 2, 'a2', { ...product, active: false }));
+    await assertFails(write('products', 'p1', 3, 'a3', { ...product, baseUnit: 'sqm' }));
+    await assertFails(write('products', 'p2', 1, 'a4', { ...product, name: '' }));
+    await assertFails(write('products', 'p3', 1, 'a5', { ...product, supplyType: 'OTHER' }));
+    await assertSucceeds(write('rawMaterials', 'r1', 1, 'a6', { name: 'Fibre', active: true, baseUnit: 'kg' }));
+    await assertSucceeds(write('customers', 'c1', 1, 'a7', { name: 'Buyer', active: true }));
+    await assertSucceeds(write('boms', 'p1', 1, 'a8', { productId: 'p1', lines: [], notes: '' }));
+    await assertFails(write('boms', 'p9', 1, 'a9', { productId: 'p1', lines: [], notes: '' }));
+    const { deleteDoc } = await import('firebase/firestore');
+    await assertFails(deleteDoc(doc(db, `workspaces/${ws}/products/p1`)));
+    await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/products/p1`)));
+  });
   it('unknown collections are denied', async () => {
     const db = dbFor(ALICE);
     const ws = await createWorkspace(db, ALICE, 'ACTUAL');

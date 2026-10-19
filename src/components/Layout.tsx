@@ -35,6 +35,7 @@ export function Layout() {
         <NavLink to="/" end>
           {t('navHome')}
         </NavLink>
+        <NavLink to="/masters">{t('navMasters')}</NavLink>
         <NavLink to="/history">{t('navHistory')}</NavLink>
         <NavLink to="/settings">
           {t('navSettings')}

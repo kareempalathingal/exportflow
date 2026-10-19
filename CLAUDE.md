@@ -48,6 +48,26 @@ report the discrepancy and ask; do not silently choose.
 -   The user works from a phone only; give setup steps that can be done
     on a phone.
 
+## Phase plan changes (confirmed 19 Oct 2026, supersede Tech Plan §16)
+
+-   Phase 2 = Customer, Product, Raw Material masters + BOM + unit
+    conversion. Department and Supplier masters moved to the phases that
+    need them (stage tracking / procurement).
+-   One BOM per product, written per ONE product base unit; a different
+    recipe means a different product. BOM versions = record `rev`; Job
+    Orders (Phase 3) must snapshot the BOM lines they used.
+-   Unit conversion is deterministic (`src/lib/units.ts`): standard units
+    within a dimension; count↔area↔mass via size (L×W), GSM and weight
+    per piece; user-defined units (bale, roll) per item. Never guess a
+    missing conversion — return "Conversion needed".
+-   Base unit of products and raw materials is fixed after creation
+    (enforced in UI and rules).
+-   Masters are never deleted; they are set Inactive. Product code is
+    optional and not auto-generated until the company scheme is known.
+-   Build only company-independent parts now (Phases 2–3). Packing,
+    container estimates, workflow stages, departments, approvals and
+    procurement wait until the user has joined and seen real processes.
+
 ## Project setup (confirmed)
 
 -   Repo: `kareempalathingal/exportflow`. App URL:

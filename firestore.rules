@@ -64,6 +64,30 @@ service cloud.firestore {
         && auditPaired(wsId, docId);
     }
 
+    function isMaster(c) {
+      return c in ['customers', 'products', 'rawMaterials', 'boms'];
+    }
+
+    function namedRecord() {
+      let d = request.resource.data;
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 200 && d.active is bool;
+    }
+
+    function validMaster(c, docId) {
+      let d = request.resource.data;
+      return (c == 'customers' && namedRecord())
+        || (c == 'products' && namedRecord() && d.baseUnit is string
+            && d.supplyType in ['MANUFACTURED', 'TRADED', 'BOTH'])
+        || (c == 'rawMaterials' && namedRecord() && d.baseUnit is string)
+        || (c == 'boms' && d.productId == docId && d.lines is list && d.lines.size() <= 100);
+    }
+
+    // The BOM is written per base unit, so the base unit is fixed once created.
+    function baseUnitUnchanged(c) {
+      return !(c in ['products', 'rawMaterials'])
+        || request.resource.data.baseUnit == resource.data.baseUnit;
+    }
+
     match /workspaces/{wsId} {
       allow get: if ownWorkspaceId(wsId)
         && (resource == null || request.auth.uid in resource.data.members);
@@ -93,6 +117,15 @@ service cloud.firestore {
         allow read: if isMember(wsId);
         allow create: if validCreate(wsId, docId);
         allow update: if validUpdate(wsId, docId);
+        allow delete: if false;
+      }
+
+      // Phase 2 masters. Records are never deleted; they are made inactive.
+      match /{masterCollection}/{docId} {
+        allow read: if isMember(wsId) && isMaster(masterCollection);
+        allow create: if isMaster(masterCollection) && validCreate(wsId, docId) && validMaster(masterCollection, docId);
+        allow update: if isMaster(masterCollection) && validUpdate(wsId, docId) && validMaster(masterCollection, docId)
+          && baseUnitUnchanged(masterCollection);
         allow delete: if false;
       }
     }
