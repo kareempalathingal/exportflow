@@ -1,0 +1,53 @@
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AppProvider, useApp } from './AppContext';
+import { Layout } from './components/Layout';
+import { LoginPage } from './features/auth/LoginPage';
+import { HomePage } from './features/home/HomePage';
+import { HistoryPage } from './features/audit/HistoryPage';
+import { SettingsPage } from './features/settings/SettingsPage';
+
+function Gate() {
+  const { authReady, user, t, workspaceError, logout } = useApp();
+
+  if (!authReady) {
+    return (
+      <main className="center">
+        <p className="muted">{t('loading')}</p>
+      </main>
+    );
+  }
+  if (!user) return <LoginPage />;
+  if (workspaceError) {
+    return (
+      <main className="center">
+        <div className="card">
+          <h2>{t('errorTitle')}</h2>
+          <p className="error">{workspaceError}</p>
+          <button className="secondary" onClick={() => void logout()}>
+            {t('signOut')}
+          </button>
+        </div>
+      </main>
+    );
+  }
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<HomePage />} />
+        <Route path="history" element={<HistoryPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <HashRouter>
+        <Gate />
+      </HashRouter>
+    </AppProvider>
+  );
+}

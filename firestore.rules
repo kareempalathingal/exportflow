@@ -1,0 +1,100 @@
+rules_version = '2';
+
+// ExportFlow security rules (Phase 1).
+// - Only members of a workspace can read or write inside it.
+// - Each user owns exactly two workspaces: <uid>_actual and <uid>_demo.
+// - Every record write must bump `rev` by exactly one (optimistic concurrency):
+//   a stale offline write is rejected instead of silently overwriting.
+// - Every record write must be paired with an audit event in the same batch.
+// - Audit events are append-only.
+// - Anything not explicitly allowed is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownWorkspaceId(wsId) {
+      return signedIn() && wsId in [request.auth.uid + '_actual', request.auth.uid + '_demo'];
+    }
+
+    function wsPath(wsId) {
+      return /databases/$(database)/documents/workspaces/$(wsId);
+    }
+
+    function isMember(wsId) {
+      return signedIn()
+        && exists(wsPath(wsId))
+        && request.auth.uid in get(wsPath(wsId)).data.members;
+    }
+
+    function auditPath(wsId, eventId) {
+      return /databases/$(database)/documents/workspaces/$(wsId)/auditEvents/$(eventId);
+    }
+
+    // The audit event named in lastAuditId must be created in the same batch
+    // and describe this exact write.
+    function auditPaired(wsId, docId) {
+      let d = request.resource.data;
+      let evPath = auditPath(wsId, d.lastAuditId);
+      return d.lastAuditId is string
+        && !exists(evPath)
+        && existsAfter(evPath)
+        && getAfter(evPath).data.entityId == docId
+        && getAfter(evPath).data.rev == d.rev;
+    }
+
+    function stamped() {
+      let d = request.resource.data;
+      return d.updatedBy == request.auth.uid && d.updatedAt == request.time;
+    }
+
+    function validCreate(wsId, docId) {
+      return isMember(wsId)
+        && request.resource.data.rev == 1
+        && stamped()
+        && auditPaired(wsId, docId);
+    }
+
+    function validUpdate(wsId, docId) {
+      return isMember(wsId)
+        && request.resource.data.rev == resource.data.rev + 1
+        && stamped()
+        && auditPaired(wsId, docId);
+    }
+
+    match /workspaces/{wsId} {
+      allow get: if ownWorkspaceId(wsId)
+        && (resource == null || request.auth.uid in resource.data.members);
+      allow list: if false;
+      allow create: if ownWorkspaceId(wsId)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.members.keys().hasOnly([request.auth.uid])
+        && request.resource.data.members[request.auth.uid] == 'owner'
+        && request.resource.data.mode == (wsId == request.auth.uid + '_actual' ? 'ACTUAL' : 'DEMO');
+      allow update, delete: if false;
+
+      match /auditEvents/{eventId} {
+        allow read: if isMember(wsId);
+        allow create: if isMember(wsId)
+          && request.resource.data.actorUid == request.auth.uid
+          && request.resource.data.at == request.time
+          && request.resource.data.entityId is string
+          && request.resource.data.entity is string
+          && request.resource.data.action in ['CREATE', 'UPDATE', 'RESOLVE_CONFLICT']
+          && request.resource.data.rev is int
+          && request.resource.data.changes is list;
+        allow update, delete: if false;
+      }
+
+      // Versioned business records. New collections are added here per phase.
+      match /settings/{docId} {
+        allow read: if isMember(wsId);
+        allow create: if validCreate(wsId, docId);
+        allow update: if validUpdate(wsId, docId);
+        allow delete: if false;
+      }
+    }
+  }
+}
