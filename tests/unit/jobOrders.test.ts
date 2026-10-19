@@ -82,11 +82,11 @@ describe('status rules', () => {
     expect(canTransition('CANCELLED', 'DRAFT')).toBe(true);
     expect(canTransition('CANCELLED', 'CONFIRMED')).toBe(false);
   });
-  it('needs a reason to edit a confirmed order, cancel or reopen', () => {
+  it('needs a reason to cancel or reopen, not for edits', () => {
     expect(reasonRequired(null, 'DRAFT')).toBe(false);
     expect(reasonRequired('DRAFT', 'DRAFT')).toBe(false);
     expect(reasonRequired('DRAFT', 'CONFIRMED')).toBe(false);
-    expect(reasonRequired('CONFIRMED', 'CONFIRMED')).toBe(true);
+    expect(reasonRequired('CONFIRMED', 'CONFIRMED')).toBe(false);
     expect(reasonRequired('CONFIRMED', 'COMPLETED')).toBe(false);
     expect(reasonRequired('DRAFT', 'CANCELLED')).toBe(true);
     expect(reasonRequired('COMPLETED', 'CONFIRMED')).toBe(true);

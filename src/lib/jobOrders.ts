@@ -122,10 +122,10 @@ export function canTransition(from: JoStatus, to: JoStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
-/** A reason is required to edit a confirmed order, cancel, or reopen (also enforced in rules). */
+/** A reason is required to cancel or reopen (also enforced in rules); edits only record what changed. */
 export function reasonRequired(from: JoStatus | null, to: JoStatus): boolean {
   if (from === null) return false;
-  return (from === 'CONFIRMED' && to === 'CONFIRMED') || to === 'CANCELLED' || from === 'COMPLETED' || from === 'CANCELLED';
+  return to === 'CANCELLED' || from === 'COMPLETED' || from === 'CANCELLED';
 }
 
 export function isEditable(s: JoStatus): boolean {

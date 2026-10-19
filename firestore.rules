@@ -115,14 +115,14 @@ service cloud.firestore {
         || (from == 'CANCELLED' && to == 'DRAFT');
     }
 
-    // Editing a confirmed order, cancelling and reopening need a reason in the audit event.
+    // Cancelling and reopening need a reason in the audit event (edits do not).
     function reasonGiven(wsId) {
       let r = getAfter(auditPath(wsId, request.resource.data.lastAuditId)).data.reason;
       return r is string && r.size() > 0;
     }
 
     function needsReason(from, to) {
-      return (from == 'CONFIRMED' && to == 'CONFIRMED') || to == 'CANCELLED' || from in ['COMPLETED', 'CANCELLED'];
+      return to == 'CANCELLED' || from in ['COMPLETED', 'CANCELLED'];
     }
 
     match /workspaces/{wsId} {

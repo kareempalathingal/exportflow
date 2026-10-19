@@ -85,6 +85,7 @@ export function JobOrderPage() {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
   const loaded = useRef<string | null>(isNew ? 'new' : item ? `${item.id}:${item.rev}` : null);
   const savedDraft = useRef(JSON.stringify(d));
 
@@ -196,6 +197,12 @@ export function JobOrderPage() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (!isNew && !dirty && !reason.trim()) {
+      setError(null);
+      setInfo('No changes to save.');
+      setTimeout(() => setInfo(null), 2500);
+      return;
+    }
     save(status, reason);
   }
 
@@ -489,6 +496,7 @@ export function JobOrderPage() {
           </div>
         )}
         {saved && <p className="ok small">{t('saved')}</p>}
+        {info && <p className="muted small">{info}</p>}
       </form>
     </section>
   );

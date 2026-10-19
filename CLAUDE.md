@@ -83,9 +83,11 @@ report the discrepancy and ask; do not silently choose.
     buy with over-allocation warnings; 3c print/share as PDF via the
     Android share sheet (JO summary, To buy, To produce).
 -   JO status: Draft → Confirmed → Completed, or Cancelled. Completed
-    can be reopened to Confirmed, Cancelled to Draft. Editing a
-    confirmed JO, cancelling and reopening require a reason (rules
-    check the paired audit event). A later BOM change never alters a
+    can be reopened to Confirmed, Cancelled to Draft. Cancelling and
+    reopening require a reason (rules check the paired audit event);
+    editing a confirmed JO does not (history records old/new values).
+    Whether stock-quantity changes need a reason (Req. §31.3 says yes)
+    is decided in the 3b design. A later BOM change never alters a
     confirmed JO; it shows a notice and "Use latest BOMs" (with reason).
 -   Order Period starts on the JO received date. Delivery Date Type:
     Not confirmed yet / Factory dispatch / Port / Arrival at customer.

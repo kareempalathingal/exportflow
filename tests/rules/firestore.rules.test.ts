@@ -197,14 +197,14 @@ describe('versioned records with audit', () => {
     await assertFails(write(2, 'b4', { ...jo, status: 'COMPLETED', bomSnapshot: {} })); // Draft cannot jump to Completed
     await assertFails(write(2, 'b5', { ...jo, status: 'CONFIRMED' })); // confirm needs the BOM snapshot
     await assertSucceeds(write(2, 'b6', { ...jo, status: 'CONFIRMED', bomSnapshot: {} }));
-    await assertFails(write(3, 'b7', { ...jo, status: 'CONFIRMED', bomSnapshot: {}, notes: 'x' })); // edit needs a reason
-    await assertSucceeds(write(3, 'b8', { ...jo, status: 'CONFIRMED', bomSnapshot: {}, notes: 'x' }, 'Customer changed date'));
-    await assertSucceeds(write(4, 'b9', { ...jo, status: 'COMPLETED', bomSnapshot: {} }));
-    await assertFails(write(5, 'c1', { ...jo, status: 'COMPLETED', bomSnapshot: {}, notes: 'y' }, 'x')); // completed is read-only
-    await assertFails(write(5, 'c2', { ...jo, status: 'CONFIRMED', bomSnapshot: {} })); // reopen needs a reason
-    await assertSucceeds(write(5, 'c3', { ...jo, status: 'CONFIRMED', bomSnapshot: {} }, 'Short shipment'));
-    await assertFails(write(6, 'c4', { ...jo, status: 'CANCELLED', bomSnapshot: {} }));
-    await assertSucceeds(write(6, 'c5', { ...jo, status: 'CANCELLED', bomSnapshot: {} }, 'Customer cancelled'));
+    await assertSucceeds(write(3, 'b7', { ...jo, status: 'CONFIRMED', bomSnapshot: {}, notes: 'x' })); // edits: reason optional
+    await assertSucceeds(write(4, 'b8', { ...jo, status: 'CONFIRMED', bomSnapshot: {}, notes: 'y' }, 'Customer changed date'));
+    await assertSucceeds(write(5, 'b9', { ...jo, status: 'COMPLETED', bomSnapshot: {} }));
+    await assertFails(write(6, 'c1', { ...jo, status: 'COMPLETED', bomSnapshot: {}, notes: 'z' }, 'x')); // completed is read-only
+    await assertFails(write(6, 'c2', { ...jo, status: 'CONFIRMED', bomSnapshot: {} })); // reopen needs a reason
+    await assertSucceeds(write(6, 'c3', { ...jo, status: 'CONFIRMED', bomSnapshot: {} }, 'Short shipment'));
+    await assertFails(write(7, 'c4', { ...jo, status: 'CANCELLED', bomSnapshot: {} }));
+    await assertSucceeds(write(7, 'c5', { ...jo, status: 'CANCELLED', bomSnapshot: {} }, 'Customer cancelled'));
     const { deleteDoc } = await import('firebase/firestore');
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/jobOrders/j1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/jobOrders/j1`)));
