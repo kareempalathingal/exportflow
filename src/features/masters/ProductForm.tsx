@@ -22,6 +22,7 @@ import {
   type CustomUnitDraft,
   type TrackedNumberDraft,
 } from './fields';
+import { safeReturnTo } from './returnTo';
 import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
 import { BomEditor } from './BomEditor';
@@ -53,6 +54,7 @@ export function ProductForm() {
   const [error, setError] = useState<string | null>(null);
   const loaded = useRef<string | null>(null);
   const [params, setParams] = useSearchParams();
+  const returnTo = safeReturnTo(params);
   const master = useMasterData(workspaceId);
 
   useEffect(() => {
@@ -128,7 +130,7 @@ export function ProductForm() {
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTIONS.products) : id;
     saveRecord({ workspaceId, collectionName: COLLECTIONS.products, docId, entity: `Product: ${draftProduct.name}`, before: isNew ? null : item, data: { ...draftProduct }, reason });
-    if (isNew) navigate(`/masters/products/${docId}?tab=${needsBom(draftProduct) ? 'bom' : 'details'}`, { replace: true });
+    if (isNew) navigate(returnTo ?? `/masters/products/${docId}?tab=${needsBom(draftProduct) ? 'bom' : 'details'}`, { replace: true });
     return true;
   }
 
@@ -143,7 +145,7 @@ export function ProductForm() {
   const formEl = (
       <FormShell
         title={isNew ? 'New product' : 'Details'}
-        backTo={isNew ? '/masters?tab=products' : ''}
+        backTo={isNew ? (returnTo ?? '/masters?tab=products') : ''}
         isNew={isNew}
         active={active}
         onActiveChange={setActive}

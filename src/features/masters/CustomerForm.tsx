@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTIONS, findDuplicate, type Customer, type CustomerType } from '../../lib/masters';
 import { saveRecord } from '../sync/records';
 import { FormShell } from './FormShell';
 import { TextField } from './fields';
+import { safeReturnTo } from './returnTo';
 import { newId, useCollection, useDocument } from './useCollection';
 
 const EMPTY: Customer = { name: '', active: true, notes: '', country: '', customerType: 'DIRECT', contactPerson: '', phone: '', email: '' };
@@ -14,6 +15,8 @@ export function CustomerForm() {
   const isNew = id === 'new';
   const { workspaceId, t } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = safeReturnTo(searchParams);
   const { item, loading } = useDocument<Customer>(workspaceId, COLLECTIONS.customers, isNew ? null : id);
   const all = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
   const [d, setD] = useState<Customer>(EMPTY);
@@ -51,14 +54,14 @@ export function CustomerForm() {
       email: d.email.trim(),
     };
     saveRecord({ workspaceId, collectionName: COLLECTIONS.customers, docId, entity: `Customer: ${data.name}`, before: isNew ? null : item, data: { ...data }, reason });
-    if (isNew) navigate(`/masters/customers/${docId}`, { replace: true });
+    if (isNew) navigate(returnTo ?? `/masters/customers/${docId}`, { replace: true });
     return true;
   }
 
   return (
     <FormShell
       title={isNew ? 'New customer' : d.name || 'Customer'}
-      backTo="/masters?tab=customers"
+      backTo={returnTo ?? "/masters?tab=customers"}
       isNew={isNew}
       active={d.active}
       onActiveChange={(active) => set({ active })}

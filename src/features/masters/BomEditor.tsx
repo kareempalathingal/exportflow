@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { withReturnTo } from './returnTo';
 import { useApp } from '../../AppContext';
 import { availableUnits, formatQty, unitLabel } from '../../lib/units';
 import {
@@ -61,13 +62,16 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const loaded = useRef<string | null>(null);
+  const savedDraft = useRef<string>('[]');
 
   useEffect(() => {
     if (loading) return;
     const key = `${product.id}:${bom?.rev ?? 0}`;
     if (loaded.current === key) return;
     loaded.current = key;
-    setLines((bom?.lines ?? []).map(toDraft));
+    const initial = (bom?.lines ?? []).map(toDraft);
+    savedDraft.current = JSON.stringify(initial);
+    setLines(initial);
     setNotes(bom?.notes ?? '');
   }, [bom, loading, product.id]);
 
@@ -127,6 +131,13 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
     setTimeout(() => setSaved(false), 2500);
   }
 
+  const here = `/masters/products/${product.id}?tab=bom`;
+  const dirty = JSON.stringify(lines) !== savedDraft.current;
+  // Leaving to create an item drops unsaved BOM edits, so ask first.
+  function guard(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (dirty && !window.confirm('You have unsaved BOM changes. Leave without saving them?')) e.preventDefault();
+  }
+
   if (loading) return <p className="muted">{t('loading')}</p>;
 
   return (
@@ -139,9 +150,7 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
         Components can be raw materials or other products (for example yarn made in-house).
       </p>
       {activeRms.length === 0 && otherProducts.length === 0 && (
-        <p className="muted small">
-          Nothing to add yet. <Link to="/masters/raw-materials/new">Add a raw material</Link> first.
-        </p>
+        <p className="muted small">Nothing to choose from yet — add a raw material or product below.</p>
       )}
       {lines.map((l, i) => {
         const units = unitsFor(l.key);
@@ -162,15 +171,18 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
                 }}
               >
                 <option value="">— choose —</option>
-                {activeRms.length > 0 && (
-                  <optgroup label="Raw materials">
-                    {activeRms.map((r) => (
-                      <option key={r.id} value={`RAW_MATERIAL:${r.id}`}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+                <optgroup label="Raw materials">
+                  {activeRms.length === 0 && (
+                    <option value="" disabled>
+                      none yet — use “+ New raw material” below
+                    </option>
+                  )}
+                  {activeRms.map((r) => (
+                    <option key={r.id} value={`RAW_MATERIAL:${r.id}`}>
+                      {r.name}
+                    </option>
+                  ))}
+                </optgroup>
                 {otherProducts.length > 0 && (
                   <optgroup label="Products">
                     {otherProducts.map((p) => {
@@ -210,7 +222,7 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
           </fieldset>
         );
       })}
-      {(activeRms.length > 0 || otherProducts.length > 0) && (
+      <div className="row gap">
         <button
           type="button"
           className="secondary small"
@@ -218,7 +230,17 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
         >
           + Add component
         </button>
-      )}
+      </div>
+      <p className="small create-links">
+        Not in the list?{' '}
+        <Link to={withReturnTo('/masters/raw-materials/new', here)} onClick={guard}>
+          + New raw material
+        </Link>{' '}
+        ·{' '}
+        <Link to={withReturnTo('/masters/products/new', here)} onClick={guard}>
+          + New product
+        </Link>
+      </p>
       <label>
         BOM notes
         <textarea rows={2} value={notes} maxLength={1000} onChange={(e) => setNotes(e.target.value)} />

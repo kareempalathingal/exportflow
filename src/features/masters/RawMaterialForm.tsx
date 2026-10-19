@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTIONS, findDuplicate, rawMaterialContext, type RawMaterial } from '../../lib/masters';
 import { saveRecord } from '../sync/records';
@@ -16,6 +16,7 @@ import {
   type CustomUnitDraft,
   type TrackedNumberDraft,
 } from './fields';
+import { safeReturnTo } from './returnTo';
 import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
 
@@ -24,6 +25,8 @@ export function RawMaterialForm() {
   const isNew = id === 'new';
   const { workspaceId, t } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = safeReturnTo(searchParams);
   const { item, loading } = useDocument<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials, isNew ? null : id);
   const all = useCollection<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials);
 
@@ -69,7 +72,7 @@ export function RawMaterialForm() {
     const docId = isNew ? newId(workspaceId, COLLECTIONS.rawMaterials) : id;
     const data: RawMaterial = { name: name.trim(), baseUnit, notes: notes.trim(), active: isNew ? true : active, gsm: gsmParsed, customUnits: unitsParsed };
     saveRecord({ workspaceId, collectionName: COLLECTIONS.rawMaterials, docId, entity: `Raw material: ${data.name}`, before: isNew ? null : item, data: { ...data }, reason });
-    if (isNew) navigate(`/masters/raw-materials/${docId}`, { replace: true });
+    if (isNew) navigate(returnTo ?? `/masters/raw-materials/${docId}`, { replace: true });
     return true;
   }
 
@@ -77,7 +80,7 @@ export function RawMaterialForm() {
     <>
       <FormShell
         title={isNew ? 'New raw material' : name || 'Raw material'}
-        backTo="/masters?tab=raw-materials"
+        backTo={returnTo ?? "/masters?tab=raw-materials"}
         isNew={isNew}
         active={active}
         onActiveChange={setActive}

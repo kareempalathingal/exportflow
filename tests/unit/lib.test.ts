@@ -111,3 +111,16 @@ describe('sync state', () => {
     expect(summarize(kept)).toEqual({ PENDING: 0, SYNCED: 20, FAILED: 0, CONFLICT: 1 });
   });
 });
+
+import { safeReturnTo, withReturnTo } from '../../src/features/masters/returnTo';
+describe('returnTo links', () => {
+  it('round-trips an in-app BOM path', () => {
+    const url = withReturnTo('/masters/raw-materials/new', '/masters/products/abc?tab=bom');
+    expect(safeReturnTo(new URLSearchParams(url.split('?').slice(1).join('?')))).toBe('/masters/products/abc?tab=bom');
+  });
+  it('rejects anything outside masters', () => {
+    expect(safeReturnTo(new URLSearchParams('returnTo=https://evil.example'))).toBeNull();
+    expect(safeReturnTo(new URLSearchParams('returnTo=//evil.example/masters/'))).toBeNull();
+    expect(safeReturnTo(new URLSearchParams('returnTo=/settings'))).toBeNull();
+  });
+});
