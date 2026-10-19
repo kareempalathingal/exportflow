@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { useProfile } from '../settings/useProfile';
 import { formatDateTime } from '../../lib/time';
-import { COLLECTIONS, masterAttention, type AttentionItem, type Bom, type Product, type RawMaterial } from '../../lib/masters';
-import { useCollection } from '../masters/useCollection';
+import { masterAttention, type AttentionItem } from '../../lib/masters';
+import { useMasterData } from '../masters/useMasterData';
 
 const KIND: Record<AttentionItem['kind'], { title: string; hint: string; cls: string; tab: string }> = {
   BOM_MISSING: { title: 'BOM missing', hint: 'Raw materials cannot be calculated for this product.', cls: 'bad', tab: 'bom' },
@@ -15,21 +15,12 @@ const KIND: Record<AttentionItem['kind'], { title: string; hint: string; cls: st
 export function HomePage() {
   const { t, workspaceId, mode } = useApp();
   const { profile } = useProfile(workspaceId);
-  const products = useCollection<Product>(workspaceId, COLLECTIONS.products);
-  const boms = useCollection<Bom>(workspaceId, COLLECTIONS.boms);
-  const rms = useCollection<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials);
+  const master = useMasterData(workspaceId);
+  const products = master.products;
   const company = profile?.companyName?.value;
 
-  const attention = useMemo(
-    () =>
-      masterAttention(
-        products.items,
-        new Map(boms.items.map((b) => [b.id, b])),
-        new Map(rms.items.map((r) => [r.id, r])),
-      ),
-    [products.items, boms.items, rms.items],
-  );
-  const loading = products.loading || boms.loading || rms.loading;
+  const attention = useMemo(() => masterAttention(products.items, master.md), [products.items, master.md]);
+  const loading = master.loading;
 
   return (
     <section>

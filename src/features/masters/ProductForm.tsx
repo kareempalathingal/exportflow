@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { bomStatus, COLLECTIONS, findDuplicate, needsBom, productContext, type Bom, type Product, type RawMaterial, type SupplyType } from '../../lib/masters';
+import { bomStatus, COLLECTIONS, findDuplicate, needsBom, productContext, type Product, type SupplyType } from '../../lib/masters';
+import { useMasterData } from './useMasterData';
 import { completeFacts, LENGTH_UNITS, areaFromSize, formatQty } from '../../lib/units';
 import type { DataStatus } from '../../lib/dataStatus';
 import { saveRecord } from '../sync/records';
@@ -52,8 +53,7 @@ export function ProductForm() {
   const [error, setError] = useState<string | null>(null);
   const loaded = useRef<string | null>(null);
   const [params, setParams] = useSearchParams();
-  const bomDoc = useDocument<Bom>(workspaceId, COLLECTIONS.boms, isNew ? null : id);
-  const rmList = useCollection<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials);
+  const master = useMasterData(workspaceId);
 
   useEffect(() => {
     if (!item) return;
@@ -138,7 +138,7 @@ export function ProductForm() {
   const requested = params.get('tab') as TabId | null;
   const tab: TabId = isNew ? 'details' : requested && (tabs as readonly string[]).includes(requested) ? requested : tabs[0];
   const TAB_LABEL: Record<string, string> = { bom: 'BOM', details: 'Details', conversion: 'Conversion' };
-  const status = item ? bomStatus(item, bomDoc.item, new Map(rmList.items.map((r) => [r.id, r]))) : 'MISSING';
+  const status = item ? bomStatus(id, master.md) : 'MISSING';
 
   const formEl = (
       <FormShell
@@ -203,7 +203,7 @@ export function ProductForm() {
 
   return (
     <>
-      {item && <ProductSummary product={item} bomStatus={status} bomVersion={bomDoc.item?.rev ?? 0} />}
+      {item && <ProductSummary product={item} bomStatus={status} bomVersion={master.boms.items.find((b) => b.id === id)?.rev ?? 0} />}
       <div className="tabs" role="tablist">
         {tabs.map((x) => (
           <button key={x} role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setParams({ tab: x }, { replace: true })}>

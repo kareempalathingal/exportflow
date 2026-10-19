@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areaFromSize, availableUnits, completeFacts, convert, type ConversionContext } from '../../src/lib/units';
-import { bomRequirement, bomStatus, findDuplicate, masterAttention, productContext, type Bom, type Product, type RawMaterial } from '../../src/lib/masters';
+import { bomStatus, createsCycle, explodeBom, findDuplicate, masterAttention, productContext, type Bom, type MasterData, type Product, type RawMaterial } from '../../src/lib/masters';
 
 const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-9);
 
@@ -72,46 +72,115 @@ describe('custom units', () => {
   });
 });
 
-describe('BOM requirement', () => {
-  const product: Product = {
-    name: 'Mat A', active: true, notes: '', code: '', baseUnit: 'pcs', supplyType: 'MANUFACTURED', specifications: '',
-    size: { length: 40, width: 60, unit: 'cm', status: 'VERIFIED' },
-    thicknessMm: { value: null, status: 'UNAVAILABLE', source: '' },
-    gsm: { value: 1500, status: 'VERIFIED', source: '' },
-    weightPerPieceKg: { value: null, status: 'UNAVAILABLE', source: '' },
-    customUnits: [],
+
+// Example numbers only — not company data.
+const NA = { value: null, status: 'UNAVAILABLE' as const, source: '' };
+function prod(name: string, extra: Partial<Product> = {}): Product {
+  return {
+    name, active: true, notes: '', code: '', baseUnit: 'pcs', supplyType: 'MANUFACTURED', specifications: '',
+    size: { length: null, width: null, unit: 'cm', status: 'UNAVAILABLE' },
+    thicknessMm: NA, gsm: NA, weightPerPieceKg: NA, customUnits: [], ...extra,
   };
-  const fibre: RawMaterial = { name: 'Fibre', active: true, notes: '', baseUnit: 'kg', gsm: { value: null, status: 'UNAVAILABLE', source: '' }, customUnits: [] };
-  const latex: RawMaterial = { name: 'Latex', active: true, notes: '', baseUnit: 'l', gsm: { value: null, status: 'UNAVAILABLE', source: '' }, customUnits: [] };
-  const rms = new Map([['f', fibre], ['l', latex]]);
-  const bom: Bom = {
-    productId: 'p', notes: '',
-    lines: [
-      { rawMaterialId: 'f', qty: 300, unit: 'g', wastagePct: 5, status: 'VERIFIED', source: '' },
-      { rawMaterialId: 'l', qty: 0.05, unit: 'l', wastagePct: 0, status: 'ESTIMATED', source: '' },
-    ],
+}
+const rmat = (name: string, baseUnit: string): RawMaterial => ({ name, active: true, notes: '', baseUnit, gsm: NA, customUnits: [] });
+const L = (type: 'RAW_MATERIAL' | 'PRODUCT', id: string, qty: number, unit: string, wastagePct = 0, status: 'VERIFIED' | 'ESTIMATED' = 'VERIFIED') =>
+  ({ componentType: type, componentId: id, qty, unit, wastagePct, status, source: '' });
+
+function data(): MasterData {
+  return {
+    products: new Map<string, Product>([
+      ['mat', prod('Mat', { size: { length: 40, width: 60, unit: 'cm', status: 'VERIFIED' }, gsm: { value: 1500, status: 'VERIFIED', source: '' } })],
+      ['yarn', prod('Yarn', { baseUnit: 'kg', supplyType: 'BOTH' })],
+      ['label', prod('Label', { supplyType: 'TRADED' })],
+    ]),
+    rawMaterials: new Map([['fibre', rmat('Fibre', 'kg')], ['latex', rmat('Latex', 'l')]]),
+    boms: new Map<string, Bom>([
+      ['mat', { productId: 'mat', notes: '', lines: [L('PRODUCT', 'yarn', 400, 'g', 0), L('RAW_MATERIAL', 'latex', 0.05, 'l'), L('PRODUCT', 'label', 1, 'pcs')] }],
+      ['yarn', { productId: 'yarn', notes: '', lines: [L('RAW_MATERIAL', 'fibre', 1.1, 'kg')] }],
+    ]),
   };
-  it('scales per-unit recipe, converts units and applies wastage', () => {
-    const r = bomRequirement(product, bom, rms, 1000, 'pcs');
+}
+const find = (rows: { id: string; qty: number }[], id: string) => rows.find((r) => r.id === id)?.qty;
+
+describe('multi-level BOM explosion', () => {
+  it('explodes product → sub-product → raw material', () => {
+    const r = explodeBom('mat', 1000, 'pcs', data());
+    expect(r.errors).toEqual([]);
+    near(find(r.toProduce, 'yarn')!, 400); // 1000 × 0.4 kg
+    near(find(r.toBuy, 'fibre')!, 440); // 400 × 1.1
+    near(find(r.toBuy, 'latex')!, 50);
+    near(find(r.toBuy, 'label')!, 1000); // traded product is bought, not exploded
+    expect(r.provisional).toBe(false);
+  });
+  it('accepts the order in another unit and applies wastage at each level', () => {
+    const md = data();
+    md.boms.set('yarn', { productId: 'yarn', notes: '', lines: [L('RAW_MATERIAL', 'fibre', 1.1, 'kg', 10)] });
+    const r = explodeBom('mat', 240, 'sqm', md); // 240 m² = 1000 pcs
     near(r.productBaseQty!, 1000);
-    near(r.lines[0]!.gross, 1000 * 0.3 * 1.05);
-    near(r.lines[1]!.gross, 50);
-    expect(r.lines[0]!.provisional).toBe(false);
-    expect(r.lines[1]!.provisional).toBe(true);
+    near(find(r.toBuy, 'fibre')!, 400 * 1.1 * 1.1);
+  });
+  it('adds up the same component reached by different paths', () => {
+    const md = data();
+    md.boms.get('mat')!.lines.push(L('RAW_MATERIAL', 'fibre', 0.1, 'kg'));
+    near(find(explodeBom('mat', 1000, 'pcs', md).toBuy, 'fibre')!, 440 + 100);
+  });
+  it('flags a missing sub-BOM instead of guessing', () => {
+    const md = data();
+    md.boms.delete('yarn');
+    const r = explodeBom('mat', 10, 'pcs', md);
+    expect(r.errors).toContain('BOM missing for Yarn');
     expect(r.provisional).toBe(true);
+    expect(find(r.toBuy, 'fibre')).toBeUndefined();
   });
-  it('accepts the order in another unit (sq m → pcs via size)', () => {
-    const r = bomRequirement(product, bom, rms, 240, 'sqm'); // 240 m² = 1000 pcs
-    near(r.productBaseQty!, 1000);
+  it('marks results provisional when any level is estimated', () => {
+    const md = data();
+    md.boms.set('yarn', { productId: 'yarn', notes: '', lines: [L('RAW_MATERIAL', 'fibre', 1.1, 'kg', 0, 'ESTIMATED')] });
+    const r = explodeBom('mat', 10, 'pcs', md);
+    expect(r.provisional).toBe(true);
+    expect(r.toBuy.find((x) => x.id === 'fibre')!.provisional).toBe(true);
+    expect(r.toBuy.find((x) => x.id === 'latex')!.provisional).toBe(false);
   });
-  it('reports a missing product conversion instead of guessing', () => {
-    const noSize = { ...product, size: { ...product.size, length: null }, gsm: { value: null, status: 'UNAVAILABLE' as const, source: '' } };
-    const r = bomRequirement(noSize, bom, rms, 100, 'kg');
-    expect(r.productBaseQty).toBeNull();
-    expect(r.productError).toMatch(/Conversion needed/);
+  it('detects loops before saving and survives them when exploding', () => {
+    const md = data();
+    expect(createsCycle('yarn', 'mat', md)).toBe(true); // mat already uses yarn
+    expect(createsCycle('mat', 'mat', md)).toBe(true);
+    expect(createsCycle('mat', 'label', md)).toBe(false);
+    md.boms.get('yarn')!.lines.push(L('PRODUCT', 'mat', 1, 'pcs'));
+    const r = explodeBom('mat', 1, 'pcs', md);
+    expect(r.errors.some((e) => e.startsWith('Loop in BOM'))).toBe(true);
+  });
+  it('reads early BOM lines saved with rawMaterialId', () => {
+    const md = data();
+    md.boms.set('yarn', { productId: 'yarn', notes: '', lines: [{ rawMaterialId: 'fibre', qty: 1, unit: 'kg', wastagePct: 0, status: 'VERIFIED', source: '' }] });
+    near(find(explodeBom('yarn', 5, 'kg', md).toBuy, 'fibre')!, 5);
+  });
+});
+
+describe('BOM status and attention list', () => {
+  it('classifies BOMs, including sub-products', () => {
+    const md = data();
+    expect(bomStatus('label', md)).toBe('NOT_NEEDED');
+    expect(bomStatus('mat', md)).toBe('READY');
+    md.boms.set('yarn', { productId: 'yarn', notes: '', lines: [L('RAW_MATERIAL', 'fibre', 1.1, 'kg', 0, 'ESTIMATED')] });
+    expect(bomStatus('yarn', md)).toBe('PROVISIONAL');
+    expect(bomStatus('mat', md)).toBe('PROVISIONAL'); // because its yarn is not confirmed
+    md.boms.delete('yarn');
+    expect(bomStatus('yarn', md)).toBe('MISSING');
+    expect(bomStatus('mat', md)).toBe('PROVISIONAL');
+  });
+  it('lists what still needs data, skipping inactive products', () => {
+    const md = data();
+    md.boms.delete('yarn');
+    const list = [...md.products.entries()].map(([id, p]) => ({ ...p, id }));
+    list.push({ ...prod('Old'), id: 'old', active: false });
+    const items = masterAttention(list, md).map((i) => `${i.productId}:${i.kind}`);
+    expect(items).toContain('mat:BOM_PROVISIONAL');
+    expect(items).toContain('yarn:BOM_MISSING');
+    expect(items.some((x) => x.startsWith('old:'))).toBe(false);
+    expect(items).not.toContain('mat:NO_CONVERSION');
   });
   it('uses product size facts in its context', () => {
-    near(productContext(product).areaPerPieceSqm!.value, 0.24);
+    near(productContext(data().products.get('mat')!).areaPerPieceSqm!.value, 0.24);
   });
 });
 
@@ -124,38 +193,5 @@ describe('duplicate names', () => {
     expect(findDuplicate('  coir   mat ', items)?.id).toBe('1');
     expect(findDuplicate('old mat', items)).toBeUndefined();
     expect(findDuplicate('Coir Mat', items, '1')).toBeUndefined();
-  });
-});
-
-
-describe('BOM status and attention list', () => {
-  const base: Product = {
-    name: 'Mat', active: true, notes: '', code: '', baseUnit: 'pcs', supplyType: 'MANUFACTURED', specifications: '',
-    size: { length: 40, width: 60, unit: 'cm', status: 'VERIFIED' },
-    thicknessMm: { value: null, status: 'UNAVAILABLE', source: '' },
-    gsm: { value: 1500, status: 'VERIFIED', source: '' },
-    weightPerPieceKg: { value: null, status: 'UNAVAILABLE', source: '' },
-    customUnits: [],
-  };
-  const fibre: RawMaterial = { name: 'Fibre', active: true, notes: '', baseUnit: 'kg', gsm: { value: null, status: 'UNAVAILABLE', source: '' }, customUnits: [] };
-  const rms = new Map([['f', fibre]]);
-  const line = { rawMaterialId: 'f', qty: 300, unit: 'g', wastagePct: 0, status: 'VERIFIED' as const, source: '' };
-
-  it('classifies BOMs', () => {
-    expect(bomStatus({ ...base, supplyType: 'TRADED' }, null, rms)).toBe('NOT_NEEDED');
-    expect(bomStatus(base, null, rms)).toBe('MISSING');
-    expect(bomStatus(base, { productId: 'p', notes: '', lines: [] }, rms)).toBe('MISSING');
-    expect(bomStatus(base, { productId: 'p', notes: '', lines: [line] }, rms)).toBe('READY');
-    expect(bomStatus(base, { productId: 'p', notes: '', lines: [{ ...line, status: 'ESTIMATED' }] }, rms)).toBe('PROVISIONAL');
-    expect(bomStatus(base, { productId: 'p', notes: '', lines: [{ ...line, rawMaterialId: 'gone' }] }, rms)).toBe('PROVISIONAL');
-  });
-  it('lists what still needs data, skipping inactive products', () => {
-    const noFacts = { ...base, id: 'b', name: 'B', size: { ...base.size, length: null, width: null }, gsm: { value: null, status: 'UNAVAILABLE' as const, source: '' } };
-    const items = masterAttention(
-      [{ ...base, id: 'a' }, noFacts, { ...base, id: 'c', active: false }],
-      new Map([['a', { productId: 'a', notes: '', lines: [line] }]]),
-      rms,
-    );
-    expect(items.map((i) => `${i.productId}:${i.kind}`)).toEqual(['b:BOM_MISSING', 'b:NO_CONVERSION']);
   });
 });

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { bomStatus, COLLECTIONS, normalizeName, type Bom, type Customer, type Product, type RawMaterial } from '../../lib/masters';
+import { bomStatus, COLLECTIONS, normalizeName, type Customer } from '../../lib/masters';
+import { useMasterData } from './useMasterData';
 import { BomBadge } from './ProductSummary';
 import { unitLabel } from '../../lib/units';
 import { useCollection, type WithMeta } from './useCollection';
@@ -32,12 +33,10 @@ export function MastersPage() {
   const [q, setQ] = useState('');
   const [showInactive, setShowInactive] = useState(false);
 
-  const products = useCollection<Product>(workspaceId, COLLECTIONS.products);
-  const rms = useCollection<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials);
+  const master = useMasterData(workspaceId);
+  const products = master.products;
+  const rms = master.rawMaterials;
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
-  const boms = useCollection<Bom>(workspaceId, COLLECTIONS.boms);
-  const bomMap = useMemo(() => new Map(boms.items.map((b) => [b.id, b])), [boms.items]);
-  const rmMap = useMemo(() => new Map(rms.items.map((r) => [r.id, r])), [rms.items]);
   const fp = useFiltered(products.items, q, showInactive);
   const fr = useFiltered(rms.items, q, showInactive);
   const fc = useFiltered(customers.items, q, showInactive);
@@ -78,7 +77,7 @@ export function MastersPage() {
               <Link to={`/masters/products/${p.id}`} className={`card link ${p.active === false ? 'inactive' : ''}`}>
                 <div className="row between">
                   <strong>{p.name}</strong>
-                  <BomBadge status={bomStatus(p, bomMap.get(p.id), rmMap)} />
+                  <BomBadge status={bomStatus(p.id, master.md)} />
                 </div>
                 <p className="muted small">
                   {SUPPLY_LABEL[p.supplyType]} · {unitLabel(p.baseUnit)}

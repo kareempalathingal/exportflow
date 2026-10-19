@@ -72,7 +72,7 @@ describe('Phase 2 screens render', () => {
   it('manufactured product opens on the BOM tab with a summary', () => {
     const html = render('/masters/products/p1', '/masters/products/:id', <ProductForm />);
     expect(html).toContain('BOM ready');
-    expect(html).toContain('raw materials for 1');
+    expect(html).toContain('components for 1');
     expect(html).toContain('Production time');
   });
   it('product details and conversion tabs render', () => {

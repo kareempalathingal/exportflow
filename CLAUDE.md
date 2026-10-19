@@ -54,7 +54,14 @@ report the discrepancy and ask; do not silently choose.
     conversion. Department and Supplier masters moved to the phases that
     need them (stage tracking / procurement).
 -   One BOM per product, written per ONE product base unit; a different
-    recipe means a different product. BOM versions = record `rev`; Job
+    recipe means a different product.
+-   Multi-level BOM: a BOM line's component is a raw material OR another
+    product (one item = one record; never duplicate an item as both).
+    Raw Material = bought and never sold; anything made or sold is a
+    Product. `explodeBom()` walks sub-products (MANUFACTURED/BOTH are
+    produced, TRADED are bought), sums repeated components, refuses loops
+    (`createsCycle()`), and marks the result provisional if any level is
+    missing or unconfirmed. BOTH is assumed "made" until a Job Order decides. BOM versions = record `rev`; Job
     Orders (Phase 3) must snapshot the BOM lines they used.
 -   Unit conversion is deterministic (`src/lib/units.ts`): standard units
     within a dimension; count↔area↔mass via size (L×W), GSM and weight

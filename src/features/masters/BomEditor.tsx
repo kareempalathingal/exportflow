@@ -1,15 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { availableUnits, formatQty, unitLabel } from '../../lib/units';
-import { bomRequirement, COLLECTIONS, productContext, rawMaterialContext, type Bom, type BomLine, type Product, type RawMaterial } from '../../lib/masters';
+import {
+  COLLECTIONS,
+  componentContext,
+  createsCycle,
+  explodeBom,
+  lineComponent,
+  needsBom,
+  productContext,
+  type BomLine,
+  type ComponentType,
+  type ExplodedLine,
+  type MasterData,
+  type Product,
+} from '../../lib/masters';
 import type { DataStatus } from '../../lib/dataStatus';
 import { saveRecord } from '../sync/records';
 import { parseNum, StatusSelect, UnitSelect } from './fields';
-import { useCollection, useDocument, type WithMeta } from './useCollection';
+import type { WithMeta } from './useCollection';
+import { useMasterData } from './useMasterData';
 
 interface LineDraft {
-  rawMaterialId: string;
+  key: string; // "RAW_MATERIAL:<id>" | "PRODUCT:<id>" | ""
   qtyText: string;
   unit: string;
   wastageText: string;
@@ -18,14 +32,29 @@ interface LineDraft {
 }
 
 function toDraft(l: BomLine): LineDraft {
-  return { rawMaterialId: l.rawMaterialId, qtyText: String(l.qty), unit: l.unit, wastageText: l.wastagePct ? String(l.wastagePct) : '', status: l.status, source: l.source ?? '' };
+  const c = lineComponent(l);
+  return {
+    key: c.id ? `${c.type}:${c.id}` : '',
+    qtyText: String(l.qty),
+    unit: l.unit,
+    wastageText: l.wastagePct ? String(l.wastagePct) : '',
+    status: l.status,
+    source: l.source ?? '',
+  };
 }
+
+function splitKey(key: string): { type: ComponentType; id: string } | null {
+  const i = key.indexOf(':');
+  if (i < 0) return null;
+  return { type: key.slice(0, i) as ComponentType, id: key.slice(i + 1) };
+}
+
+const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'bought', BOTH: 'made/bought' } as const;
 
 export function BomEditor({ product }: { product: WithMeta<Product> }) {
   const { workspaceId, t } = useApp();
-  const { item: bom, loading } = useDocument<Bom>(workspaceId, COLLECTIONS.boms, product.id);
-  const rms = useCollection<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials);
-  const rmMap = useMemo(() => new Map(rms.items.map((r) => [r.id, r])), [rms.items]);
+  const { md, loading, boms, rawMaterials, products } = useMasterData(workspaceId);
+  const bom = boms.items.find((b) => b.id === product.id) ?? null;
   const [lines, setLines] = useState<LineDraft[]>([]);
   const [notes, setNotes] = useState('');
   const [reason, setReason] = useState('');
@@ -43,23 +72,38 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
   }, [bom, loading, product.id]);
 
   const set = (i: number, patch: Partial<LineDraft>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
-  const activeRms = rms.items.filter((r) => r.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+  const activeRms = rawMaterials.items.filter((r) => r.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+  const otherProducts = products.items
+    .filter((p) => p.id !== product.id && p.active !== false)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  function unitsFor(key: string): string[] {
+    const c = splitKey(key);
+    const comp = c ? componentContext(c.type, c.id, md) : null;
+    return comp ? availableUnits(comp.ctx) : [];
+  }
 
   function parse(): BomLine[] | string {
     const out: BomLine[] = [];
     const seen = new Set<string>();
     for (const [i, l] of lines.entries()) {
       const n = i + 1;
-      const rm = rmMap.get(l.rawMaterialId);
-      if (!rm) return `Line ${n}: choose a raw material`;
-      if (seen.has(rm.id)) return `${rm.name} is listed twice`;
-      seen.add(rm.id);
+      const c = splitKey(l.key);
+      const comp = c ? componentContext(c.type, c.id, md) : null;
+      if (!c || !comp) return `Line ${n}: choose a raw material or product`;
+      if (seen.has(l.key)) return `${comp.name} is listed twice`;
+      seen.add(l.key);
+      if (c.type === 'PRODUCT' && createsCycle(product.id, c.id, md)) {
+        return `Line ${n}: ${comp.name} already uses ${product.name} — this would create a loop`;
+      }
       const qty = parseNum(l.qtyText);
       if (qty === null || !Number.isFinite(qty) || qty <= 0) return `Line ${n}: quantity must be a positive number`;
       const w = parseNum(l.wastageText) ?? 0;
       if (!Number.isFinite(w) || w < 0 || w >= 100) return `Line ${n}: wastage must be between 0 and 99 %`;
-      if (!availableUnits(rawMaterialContext(rm)).includes(l.unit)) return `Line ${n}: ${unitLabel(l.unit)} cannot be converted to ${unitLabel(rm.baseUnit)} for ${rm.name}`;
-      out.push({ rawMaterialId: rm.id, qty, unit: l.unit, wastagePct: w, status: l.status, source: l.source.trim() });
+      if (!availableUnits(comp.ctx).includes(l.unit)) {
+        return `Line ${n}: ${unitLabel(l.unit)} cannot be converted to ${unitLabel(comp.ctx.baseUnit)} for ${comp.name}`;
+      }
+      out.push({ componentType: c.type, componentId: c.id, qty, unit: l.unit, wastagePct: w, status: l.status, source: l.source.trim() });
     }
     return out;
   }
@@ -83,41 +127,63 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
     setTimeout(() => setSaved(false), 2500);
   }
 
-  if (loading || rms.loading) return <p className="muted">{t('loading')}</p>;
+  if (loading) return <p className="muted">{t('loading')}</p>;
 
   return (
     <div className="card">
       <div className="row between">
-        <h3>BOM — raw materials for 1 {unitLabel(product.baseUnit)}</h3>
+        <h3>BOM — components for 1 {unitLabel(product.baseUnit)}</h3>
         <span className="muted small">Version {bom?.rev ?? 0}</span>
       </div>
-      {activeRms.length === 0 && (
+      <p className="muted small">
+        Components can be raw materials or other products (for example yarn made in-house).
+      </p>
+      {activeRms.length === 0 && otherProducts.length === 0 && (
         <p className="muted small">
-          No raw materials yet. <Link to="/masters/raw-materials/new">Add a raw material</Link> first.
+          Nothing to add yet. <Link to="/masters/raw-materials/new">Add a raw material</Link> first.
         </p>
       )}
       {lines.map((l, i) => {
-        const rm = rmMap.get(l.rawMaterialId);
-        const unitOptions = rm ? availableUnits(rawMaterialContext(rm)) : [];
+        const units = unitsFor(l.key);
+        const c = splitKey(l.key);
+        const current = c ? componentContext(c.type, c.id, md) : null;
         return (
           <fieldset key={i} className="tracked">
             <legend>Line {i + 1}</legend>
             <label>
-              Raw material
+              Component
               <select
-                value={l.rawMaterialId}
+                value={l.key}
                 onChange={(e) => {
-                  const r = rmMap.get(e.target.value);
-                  set(i, { rawMaterialId: e.target.value, unit: r?.baseUnit ?? l.unit });
+                  const k = e.target.value;
+                  const sc = splitKey(k);
+                  const comp = sc ? componentContext(sc.type, sc.id, md) : null;
+                  set(i, { key: k, unit: comp?.ctx.baseUnit ?? l.unit });
                 }}
               >
                 <option value="">— choose —</option>
-                {activeRms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-                {rm && rm.active === false && <option value={rm.id}>{rm.name} (inactive)</option>}
+                {activeRms.length > 0 && (
+                  <optgroup label="Raw materials">
+                    {activeRms.map((r) => (
+                      <option key={r.id} value={`RAW_MATERIAL:${r.id}`}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {otherProducts.length > 0 && (
+                  <optgroup label="Products">
+                    {otherProducts.map((p) => {
+                      const loop = createsCycle(product.id, p.id, md);
+                      return (
+                        <option key={p.id} value={`PRODUCT:${p.id}`} disabled={loop}>
+                          {p.name} ({SUPPLY_SHORT[p.supplyType]}){loop ? ' — would create a loop' : ''}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                )}
+                {l.key && !current && <option value={l.key}>(missing item)</option>}
               </select>
             </label>
             <div className="grid3">
@@ -125,7 +191,7 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
                 Quantity
                 <input inputMode="decimal" value={l.qtyText} onChange={(e) => set(i, { qtyText: e.target.value })} />
               </label>
-              <UnitSelect label="Unit" value={l.unit} onChange={(unit) => set(i, { unit })} units={unitOptions.length ? unitOptions : [l.unit]} />
+              <UnitSelect label="Unit" value={l.unit} onChange={(unit) => set(i, { unit })} units={units.length ? units : [l.unit]} />
               <label>
                 Wastage %
                 <input inputMode="decimal" value={l.wastageText} placeholder="0" onChange={(e) => set(i, { wastageText: e.target.value })} />
@@ -144,13 +210,13 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
           </fieldset>
         );
       })}
-      {activeRms.length > 0 && (
+      {(activeRms.length > 0 || otherProducts.length > 0) && (
         <button
           type="button"
           className="secondary small"
-          onClick={() => setLines((ls) => [...ls, { rawMaterialId: '', qtyText: '', unit: 'kg', wastageText: '', status: 'PENDING_VERIFICATION', source: '' }])}
+          onClick={() => setLines((ls) => [...ls, { key: '', qtyText: '', unit: 'kg', wastageText: '', status: 'PENDING_VERIFICATION', source: '' }])}
         >
-          + Add raw material
+          + Add component
         </button>
       )}
       <label>
@@ -173,59 +239,80 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
         </button>
       </div>
       {saved && <p className="ok small">{t('saved')}</p>}
-      {bom && bom.lines.length > 0 && <BomCalculator product={product} bom={bom} rmMap={rmMap} />}
+      {bom && bom.lines.length > 0 && <BomCalculator product={product} productId={product.id} md={md} />}
     </div>
   );
 }
 
-function BomCalculator({ product, bom, rmMap }: { product: Product; bom: Bom; rmMap: Map<string, RawMaterial> }) {
+function ResultTable({ title, rows, empty }: { title: string; rows: ExplodedLine[]; empty: string }) {
+  return (
+    <>
+      <h4>{title}</h4>
+      {rows.length === 0 ? (
+        <p className="muted small">{empty}</p>
+      ) : (
+        <table className="conv">
+          <tbody>
+            {rows.map((l) => (
+              <tr key={`${l.type}:${l.id}`}>
+                <td>
+                  {l.name}
+                  {l.type === 'PRODUCT' && <span className="muted small"> · product</span>}
+                </td>
+                <td className="num">
+                  {formatQty(l.qty)} {unitLabel(l.unit)}
+                </td>
+                <td>{l.provisional && <span className="status-tag s-estimated">Provisional</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  );
+}
+
+function BomCalculator({ product, productId, md }: { product: Product; productId: string; md: MasterData }) {
   const [qtyText, setQty] = useState('1000');
   const [unit, setUnit] = useState(product.baseUnit);
   const qty = parseNum(qtyText);
-  const result = qty !== null && Number.isFinite(qty) && qty > 0 ? bomRequirement(product, bom, rmMap, qty, unit) : null;
   const unitOptions = availableUnits(productContext(product));
+  const u = unitOptions.includes(unit) ? unit : product.baseUnit;
+  const result = qty !== null && Number.isFinite(qty) && qty > 0 ? explodeBom(productId, qty, u, md) : null;
+  const hasBoth = result?.toProduce.some((l) => md.products.get(l.id)?.supplyType === 'BOTH');
 
   return (
     <div className="calc">
-      <h3>Raw material needed (saved BOM)</h3>
+      <h3>Requirement for an order (saved BOM)</h3>
       <div className="grid2">
         <label>
           Order quantity
           <input inputMode="decimal" value={qtyText} onChange={(e) => setQty(e.target.value)} />
         </label>
-        <UnitSelect label="Unit" value={unitOptions.includes(unit) ? unit : product.baseUnit} onChange={setUnit} units={unitOptions} />
+        <UnitSelect label="Unit" value={u} onChange={setUnit} units={unitOptions} />
       </div>
       {!result && <p className="muted small">Enter a positive number.</p>}
-      {result?.productError && <p className="error small">{result.productError}</p>}
       {result && result.productBaseQty !== null && (
         <>
           <p className="muted small">
             = {formatQty(result.productBaseQty)} {unitLabel(product.baseUnit)}
           </p>
-          <table className="conv">
-            <thead>
-              <tr>
-                <th>Raw material</th>
-                <th className="num">Gross incl. wastage</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {result.lines.map((l) => (
-                <tr key={l.rawMaterialId}>
-                  <td>{l.name}</td>
-                  <td className="num">{l.error ? <span className="error small">{l.error}</span> : `${formatQty(l.gross)} ${unitLabel(l.unit)}`}</td>
-                  <td>{l.provisional && <span className="status-tag s-estimated">Provisional</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {result.provisional && (
-            <p className="warn small">Provisional: some BOM lines or conversions are not Verified / User-Provided.</p>
+          {(result.toProduce.length > 0 || needsBom(product)) && (
+            <ResultTable title="To produce (sub-products)" rows={result.toProduce} empty="No sub-products — made directly from raw materials." />
           )}
-          <p className="muted small">Before stock is deducted. Stock confirmation per Job Order comes in Phase 3.</p>
+          <ResultTable title="To buy" rows={result.toBuy} empty="Nothing to buy." />
         </>
       )}
+      {result && result.errors.length > 0 && (
+        <ul className="error small">
+          {result.errors.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      )}
+      {result?.provisional && <p className="warn small">Provisional: some data is missing, estimated or not yet verified.</p>}
+      {hasBoth && <p className="muted small">Sub-products marked “made/bought” are assumed made here; the choice is made per Job Order.</p>}
+      <p className="muted small">Includes wastage. Stock is not deducted yet — stock confirmation per Job Order comes in Phase 3.</p>
     </div>
   );
 }

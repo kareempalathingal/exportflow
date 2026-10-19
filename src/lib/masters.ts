@@ -8,6 +8,8 @@ import {
   type Fact,
 } from './units';
 
+const FIRM: DataStatus[] = ['VERIFIED', 'USER_PROVIDED'];
+
 export type SupplyType = 'MANUFACTURED' | 'TRADED' | 'BOTH';
 export type CustomerType = 'DIRECT' | 'AGENT';
 
@@ -50,13 +52,23 @@ export interface RawMaterial extends MasterBase {
   customUnits: CustomUnit[];
 }
 
+export type ComponentType = 'RAW_MATERIAL' | 'PRODUCT';
+
 export interface BomLine {
-  rawMaterialId: string;
-  qty: number; // per ONE base unit of the product
-  unit: string; // any unit convertible for that raw material
+  /** RAW_MATERIAL (bought, never sold) or PRODUCT (made or traded; may have its own BOM). */
+  componentType?: ComponentType; // absent on early records = RAW_MATERIAL
+  componentId?: string;
+  /** Legacy field from the first Phase 2 release; read via lineComponent(). */
+  rawMaterialId?: string;
+  qty: number; // per ONE base unit of the parent product
+  unit: string; // any unit convertible for the component
   wastagePct: number;
   status: DataStatus;
   source: string;
+}
+
+export function lineComponent(l: BomLine): { type: ComponentType; id: string } {
+  return { type: l.componentType ?? 'RAW_MATERIAL', id: l.componentId ?? l.rawMaterialId ?? '' };
 }
 
 export interface Bom {
@@ -94,66 +106,6 @@ export function rawMaterialContext(r: Pick<RawMaterial, 'baseUnit' | 'customUnit
   return { baseUnit: r.baseUnit, customUnits: r.customUnits ?? [], gsm: fact(r.gsm) };
 }
 
-export interface RequirementLine {
-  rawMaterialId: string;
-  name: string;
-  unit: string; // raw material base unit
-  netPerBase: number; // per one product base unit, before wastage
-  gross: number; // including wastage
-  provisional: boolean;
-  error?: string;
-}
-
-export interface RequirementResult {
-  productBaseQty: number | null;
-  productError?: string;
-  lines: RequirementLine[];
-  provisional: boolean;
-}
-
-const FIRM: DataStatus[] = ['VERIFIED', 'USER_PROVIDED'];
-
-/**
- * Raw-material requirement for `qty` of a product expressed in `unit`
- * (any unit convertible for that product). Pure and deterministic.
- */
-export function bomRequirement(
-  product: Product,
-  bom: Bom,
-  rawMaterials: Map<string, RawMaterial>,
-  qty: number,
-  unit: string,
-): RequirementResult {
-  const base = convert(qty, unit, product.baseUnit, productContext(product));
-  if (!base.ok) return { productBaseQty: null, productError: base.error, lines: [], provisional: true };
-
-  let provisional = base.provisional;
-  const lines: RequirementLine[] = bom.lines.map((line) => {
-    const rm = rawMaterials.get(line.rawMaterialId);
-    if (!rm) {
-      provisional = true;
-      return { rawMaterialId: line.rawMaterialId, name: '(missing raw material)', unit: '', netPerBase: 0, gross: 0, provisional: true, error: 'Raw material not found' };
-    }
-    const perBase = convert(line.qty, line.unit, rm.baseUnit, rawMaterialContext(rm));
-    if (!perBase.ok) {
-      provisional = true;
-      return { rawMaterialId: line.rawMaterialId, name: rm.name, unit: rm.baseUnit, netPerBase: 0, gross: 0, provisional: true, error: perBase.error };
-    }
-    const wastage = Number.isFinite(line.wastagePct) && line.wastagePct > 0 ? line.wastagePct : 0;
-    const lineProvisional = perBase.provisional || !FIRM.includes(line.status);
-    if (lineProvisional) provisional = true;
-    return {
-      rawMaterialId: line.rawMaterialId,
-      name: rm.name,
-      unit: rm.baseUnit,
-      netPerBase: perBase.value,
-      gross: base.value * perBase.value * (1 + wastage / 100),
-      provisional: lineProvisional,
-    };
-  });
-  return { productBaseQty: base.value, lines, provisional };
-}
-
 export function normalizeName(s: string): string {
   return s.trim().replace(/\s+/g, ' ').toLowerCase();
 }
@@ -166,24 +118,165 @@ export function findDuplicate<T extends MasterBase>(name: string, items: (T & { 
 
 export type BomStatus = 'NOT_NEEDED' | 'MISSING' | 'PROVISIONAL' | 'READY';
 
+export interface MasterData {
+  products: Map<string, Product>;
+  rawMaterials: Map<string, RawMaterial>;
+  boms: Map<string, Bom>;
+}
+
 export function needsBom(p: Pick<Product, 'supplyType'>): boolean {
   return p.supplyType === 'MANUFACTURED' || p.supplyType === 'BOTH';
 }
 
+const MAX_DEPTH = 20;
+
+/** Conversion context of a BOM component, or null if it does not exist. */
+export function componentContext(type: ComponentType, id: string, md: MasterData): { name: string; ctx: ConversionContext } | null {
+  if (type === 'RAW_MATERIAL') {
+    const r = md.rawMaterials.get(id);
+    return r ? { name: r.name, ctx: rawMaterialContext(r) } : null;
+  }
+  const p = md.products.get(id);
+  return p ? { name: p.name, ctx: productContext(p) } : null;
+}
+
 /**
- * READY: every line points to an existing raw material, converts without a
- * guessed factor, and has a Verified / User-Provided quantity.
+ * Would adding `componentId` to `parentId`'s BOM create a loop?
+ * True if parentId is the component itself or appears anywhere below it.
  */
-export function bomStatus(product: Product, bom: Bom | null | undefined, rawMaterials: Map<string, RawMaterial>): BomStatus {
-  if (!needsBom(product)) return 'NOT_NEEDED';
+export function createsCycle(parentId: string, componentId: string, md: MasterData): boolean {
+  const seen = new Set<string>();
+  const stack = [componentId];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (id === parentId) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const l of md.boms.get(id)?.lines ?? []) {
+      const c = lineComponent(l);
+      if (c.type === 'PRODUCT') stack.push(c.id);
+    }
+  }
+  return false;
+}
+
+/**
+ * READY: every line exists, converts without a guessed factor, has a Verified /
+ * User-Provided quantity, and every manufactured sub-product is itself READY.
+ */
+export function bomStatus(productId: string, md: MasterData, depth = 0, path: Set<string> = new Set()): BomStatus {
+  const product = md.products.get(productId);
+  if (!product || !needsBom(product)) return 'NOT_NEEDED';
+  const bom = md.boms.get(productId);
   if (!bom || bom.lines.length === 0) return 'MISSING';
+  if (depth > MAX_DEPTH || path.has(productId)) return 'PROVISIONAL';
+  const nextPath = new Set(path).add(productId);
   for (const line of bom.lines) {
-    const rm = rawMaterials.get(line.rawMaterialId);
-    if (!rm || !FIRM.includes(line.status)) return 'PROVISIONAL';
-    const c = convert(line.qty, line.unit, rm.baseUnit, rawMaterialContext(rm));
+    const { type, id } = lineComponent(line);
+    const comp = componentContext(type, id, md);
+    if (!comp || !FIRM.includes(line.status)) return 'PROVISIONAL';
+    const c = convert(line.qty, line.unit, comp.ctx.baseUnit, comp.ctx);
     if (!c.ok || c.provisional) return 'PROVISIONAL';
+    if (type === 'PRODUCT') {
+      const sub = bomStatus(id, md, depth + 1, nextPath);
+      if (sub === 'MISSING' || sub === 'PROVISIONAL') return 'PROVISIONAL';
+    }
   }
   return 'READY';
+}
+
+export interface ExplodedLine {
+  type: ComponentType;
+  id: string;
+  name: string;
+  unit: string; // component base unit
+  qty: number; // total, including wastage
+  provisional: boolean;
+}
+
+export interface Explosion {
+  productBaseQty: number | null;
+  /** Manufactured sub-products that must be made (BOTH is assumed made; decided per Job Order later). */
+  toProduce: ExplodedLine[];
+  /** Raw materials and traded products to buy. */
+  toBuy: ExplodedLine[];
+  errors: string[];
+  provisional: boolean;
+}
+
+/**
+ * Multi-level BOM explosion for `qty` of a product in `unit`. Quantities of
+ * the same component reached by different paths are added together.
+ * Pure and deterministic; stock is not deducted here (Phase 3).
+ */
+export function explodeBom(productId: string, qty: number, unit: string, md: MasterData): Explosion {
+  const out: Explosion = { productBaseQty: null, toProduce: [], toBuy: [], errors: [], provisional: false };
+  const product = md.products.get(productId);
+  if (!product) return { ...out, errors: ['Product not found'], provisional: true };
+  const base = convert(qty, unit, product.baseUnit, productContext(product));
+  if (!base.ok) return { ...out, errors: [base.error], provisional: true };
+  out.productBaseQty = base.value;
+  out.provisional = base.provisional;
+
+  const produce = new Map<string, ExplodedLine>();
+  const buy = new Map<string, ExplodedLine>();
+  const add = (bucket: Map<string, ExplodedLine>, l: ExplodedLine) => {
+    const key = `${l.type}:${l.id}`;
+    const prev = bucket.get(key);
+    bucket.set(key, prev ? { ...prev, qty: prev.qty + l.qty, provisional: prev.provisional || l.provisional } : l);
+  };
+
+  const walk = (pid: string, parentQty: number, depth: number, path: string[], inheritedProvisional: boolean) => {
+    const p = md.products.get(pid)!;
+    if (depth > MAX_DEPTH) {
+      out.errors.push(`BOM is nested too deeply under ${p.name}`);
+      out.provisional = true;
+      return;
+    }
+    const bom = md.boms.get(pid);
+    if (!bom || bom.lines.length === 0) {
+      out.errors.push(`BOM missing for ${p.name}`);
+      out.provisional = true;
+      return;
+    }
+    for (const line of bom.lines) {
+      const { type, id } = lineComponent(line);
+      const comp = componentContext(type, id, md);
+      if (!comp) {
+        out.errors.push(`${p.name}: a BOM line points to a missing ${type === 'PRODUCT' ? 'product' : 'raw material'}`);
+        out.provisional = true;
+        continue;
+      }
+      if (type === 'PRODUCT' && path.includes(id)) {
+        out.errors.push(`Loop in BOM: ${[...path.map((x) => md.products.get(x)?.name ?? x), comp.name].join(' → ')}`);
+        out.provisional = true;
+        continue;
+      }
+      const perBase = convert(line.qty, line.unit, comp.ctx.baseUnit, comp.ctx);
+      if (!perBase.ok) {
+        out.errors.push(`${p.name} → ${comp.name}: ${perBase.error}`);
+        out.provisional = true;
+        continue;
+      }
+      const wastage = Number.isFinite(line.wastagePct) && line.wastagePct > 0 ? line.wastagePct : 0;
+      const need = parentQty * perBase.value * (1 + wastage / 100);
+      const provisional = inheritedProvisional || perBase.provisional || !FIRM.includes(line.status);
+      if (provisional) out.provisional = true;
+      const row: ExplodedLine = { type, id, name: comp.name, unit: comp.ctx.baseUnit, qty: need, provisional };
+      const sub = type === 'PRODUCT' ? md.products.get(id)! : null;
+      if (sub && needsBom(sub)) {
+        add(produce, row);
+        walk(id, need, depth + 1, [...path, id], provisional);
+      } else {
+        add(buy, row);
+      }
+    }
+  };
+  walk(productId, base.value, 0, [productId], base.provisional);
+
+  out.toProduce = [...produce.values()].sort((a, b) => a.name.localeCompare(b.name));
+  out.toBuy = [...buy.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return out;
 }
 
 /** True when the product can be converted between pieces, area and weight. */
@@ -198,15 +291,11 @@ export interface AttentionItem {
   productName: string;
 }
 
-export function masterAttention(
-  products: (Product & { id: string })[],
-  boms: Map<string, Bom>,
-  rawMaterials: Map<string, RawMaterial>,
-): AttentionItem[] {
+export function masterAttention(products: (Product & { id: string })[], md: MasterData): AttentionItem[] {
   const out: AttentionItem[] = [];
   for (const p of products) {
     if (p.active === false) continue;
-    const s = bomStatus(p, boms.get(p.id), rawMaterials);
+    const s = bomStatus(p.id, md);
     if (s === 'MISSING') out.push({ kind: 'BOM_MISSING', productId: p.id, productName: p.name });
     if (s === 'PROVISIONAL') out.push({ kind: 'BOM_PROVISIONAL', productId: p.id, productName: p.name });
     if (!hasPhysicalFacts(p)) out.push({ kind: 'NO_CONVERSION', productId: p.id, productName: p.name });
