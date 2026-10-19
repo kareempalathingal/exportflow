@@ -209,6 +209,28 @@ describe('versioned records with audit', () => {
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/jobOrders/j1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/jobOrders/j1`)));
   });
+  it('stock counts: validated, one per item, never deleted', async () => {
+    const db = dbFor(ALICE);
+    const ws = await createWorkspace(db, ALICE, 'ACTUAL');
+    const write = (id: string, rev: number, ev: string, data: Record<string, unknown>) => {
+      const b = writeBatch(db);
+      b.set(doc(db, `workspaces/${ws}/stockCounts/${id}`), { ...data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
+      b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
+        entity: 'Stock count', entityPath: `workspaces/${ws}/stockCounts/${id}`, entityId: id, action: rev === 1 ? 'CREATE' : 'UPDATE',
+        rev, changes: [], reason: null, actorUid: ALICE, at: serverTimestamp(),
+      });
+      return b.commit();
+    };
+    const count = { itemType: 'RAW_MATERIAL', itemId: 'r1', qty: 1200, unit: 'kg', countedOn: '2026-10-15', notes: '' };
+    await assertSucceeds(write('RAW_MATERIAL_r1', 1, 's1', count));
+    await assertSucceeds(write('RAW_MATERIAL_r1', 2, 's2', { ...count, qty: 0 }));
+    await assertFails(write('RAW_MATERIAL_r1', 3, 's3', { ...count, qty: -5 }));
+    await assertFails(write('RAW_MATERIAL_r9', 1, 's4', count)); // id must match the item
+    await assertFails(write('PRODUCT_r1', 1, 's5', { ...count, itemType: 'OTHER' }));
+    const { deleteDoc } = await import('firebase/firestore');
+    await assertFails(deleteDoc(doc(db, `workspaces/${ws}/stockCounts/RAW_MATERIAL_r1`)));
+    await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/stockCounts/RAW_MATERIAL_r1`)));
+  });
   it('unknown collections are denied', async () => {
     const db = dbFor(ALICE);
     const ws = await createWorkspace(db, ALICE, 'ACTUAL');

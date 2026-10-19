@@ -6,10 +6,14 @@ import { normalizeName } from '../../lib/masters';
 import { istDateKey } from '../../lib/time';
 import { useCollection } from '../masters/useCollection';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
+import { ToBuyList } from './ToBuyList';
+import { useMasterData } from '../masters/useMasterData';
+import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
 
-type Tab = 'open' | 'completed' | 'cancelled';
+type Tab = 'open' | 'to-buy' | 'completed' | 'cancelled';
 const TABS: { id: Tab; label: string; statuses: JoStatus[] }[] = [
   { id: 'open', label: 'Open', statuses: ['DRAFT', 'CONFIRMED'] },
+  { id: 'to-buy', label: 'To buy', statuses: [] },
   { id: 'completed', label: 'Completed', statuses: ['COMPLETED'] },
   { id: 'cancelled', label: 'Cancelled', statuses: ['CANCELLED'] },
 ];
@@ -21,6 +25,8 @@ export function OrdersPage() {
   const [q, setQ] = useState('');
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
   const today = istDateKey(new Date());
+  const master = useMasterData(workspaceId);
+  const counts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
 
   const list = useMemo(() => {
     const n = normalizeName(q);
@@ -50,10 +56,13 @@ export function OrdersPage() {
           </button>
         ))}
       </div>
-      <input className="search" type="search" placeholder="Search JO number, customer, PO" value={q} onChange={(e) => setQ(e.target.value)} />
       {jos.loading && <p className="muted">{t('loading')}</p>}
       {jos.error && <p className="error">{permissionHint(jos.error)}</p>}
-      {!jos.loading && !jos.error && list.length === 0 && (
+      {tab.id === 'to-buy' && !jos.loading && !jos.error && <ToBuyList jos={jos.items} md={master.md} counts={counts.items} />}
+      {tab.id !== 'to-buy' && (
+        <input className="search" type="search" placeholder="Search JO number, customer, PO" value={q} onChange={(e) => setQ(e.target.value)} />
+      )}
+      {tab.id !== 'to-buy' && !jos.loading && !jos.error && list.length === 0 && (
         <p className="muted">{q ? 'No matching Job Orders.' : tab.id === 'open' ? 'No open Job Orders. Tap “+ New JO” to add one.' : 'None.'}</p>
       )}
       <ul className="master-list">

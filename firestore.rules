@@ -125,6 +125,16 @@ service cloud.firestore {
       return to == 'CANCELLED' || from in ['COMPLETED', 'CANCELLED'];
     }
 
+    // ---- Phase 3b: manual stock counts (one per item, latest count) ------
+    function validStockCount(d, docId) {
+      return d.itemType in ['RAW_MATERIAL', 'PRODUCT']
+        && d.itemId is string && d.itemId.size() > 0
+        && docId == d.itemType + '_' + d.itemId
+        && d.qty is number && d.qty >= 0
+        && d.unit is string
+        && isDate(d.countedOn);
+    }
+
     match /workspaces/{wsId} {
       allow get: if ownWorkspaceId(wsId)
         && (resource == null || request.auth.uid in resource.data.members);
@@ -163,6 +173,13 @@ service cloud.firestore {
         allow create: if isMaster(masterCollection) && validCreate(wsId, docId) && validMaster(masterCollection, docId);
         allow update: if isMaster(masterCollection) && validUpdate(wsId, docId) && validMaster(masterCollection, docId)
           && baseUnitUnchanged(masterCollection);
+        allow delete: if false;
+      }
+
+      match /stockCounts/{docId} {
+        allow read: if isMember(wsId);
+        allow create: if validCreate(wsId, docId) && validStockCount(request.resource.data, docId);
+        allow update: if validUpdate(wsId, docId) && validStockCount(request.resource.data, docId);
         allow delete: if false;
       }
 

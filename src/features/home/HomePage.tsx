@@ -8,6 +8,8 @@ import { COLLECTION_JOB_ORDERS, formatDay, isEditable, jobOrderAttention, type J
 import { useMasterData } from '../masters/useMasterData';
 import { useCollection } from '../masters/useCollection';
 import { permissionHint } from '../orders/OrderBits';
+import { COLLECTION_STOCK_COUNTS, overAllocated, parseItemKey, type StockCount } from '../../lib/materials';
+import { formatQty, unitLabel } from '../../lib/units';
 
 const KIND: Record<AttentionItem['kind'], { title: string; hint: string; cls: string; tab: string }> = {
   BOM_MISSING: { title: 'BOM missing', hint: 'Raw materials cannot be calculated for this product.', cls: 'bad', tab: 'bom' },
@@ -29,6 +31,7 @@ export function HomePage() {
   const { profile } = useProfile(workspaceId);
   const master = useMasterData(workspaceId);
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
+  const counts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
   const products = master.products;
   const company = profile?.companyName?.value;
   const today = istDateKey(new Date());
@@ -40,7 +43,11 @@ export function HomePage() {
     [jos.items],
   );
   const loading = master.loading || jos.loading;
-  const total = attention.length + joAttention.length;
+  const over = useMemo(
+    () => overAllocated(jos.items, new Map(counts.items.map((c) => [`${c.itemType}_${c.itemId}`, c]))),
+    [jos.items, counts.items],
+  );
+  const total = attention.length + joAttention.length + over.length;
   const next = open[0];
 
   return (
@@ -77,6 +84,21 @@ export function HomePage() {
         )}
         {!loading && products.items.length > 0 && total === 0 && <p className="ok small">Nothing needs attention right now.</p>}
         <ul className="attention">
+          {over.map((o) => {
+            const it = parseItemKey(o.key);
+            const name = (it && (master.md.products.get(it.id)?.name ?? master.md.rawMaterials.get(it.id)?.name)) ?? o.key;
+            const unit = (it && (master.md.products.get(it.id)?.baseUnit ?? master.md.rawMaterials.get(it.id)?.baseUnit)) ?? '';
+            return (
+              <li key={o.key}>
+                <Link to="/orders?tab=to-buy">
+                  <span className="pill bad">Stock over-allocated</span> <strong>{name}</strong>
+                  <span className="muted small block">
+                    {formatQty(o.allocation.confirmed)} {unitLabel(unit)} set aside on confirmed orders · {formatQty(o.allocation.counted ?? 0)} {unitLabel(unit)} counted
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
           {joAttention.map((a) => {
             const k = JO_KIND[a.kind];
             return (

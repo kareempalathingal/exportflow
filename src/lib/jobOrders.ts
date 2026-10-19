@@ -164,6 +164,19 @@ export interface JobOrder {
   /** BOMs used, taken when the order is confirmed (product id → BOM). */
   bomSnapshot: Record<string, BomSnapshotEntry> | null;
   confirmedOn: string | null;
+  /** Stock set aside for this order, by item key ("RAW_MATERIAL:id" / "PRODUCT:id"). Phase 3b. */
+  stock?: Record<string, StockEntry>;
+}
+
+/** Stock earmarked for one Job Order (Requirements §31.3), confirmed manually. */
+export interface StockEntry {
+  qty: number; // as entered
+  unit: string; // as entered
+  baseQty: number; // in the item's base unit (deterministic conversion at entry)
+  location: string;
+  remarks: string;
+  changedAt: string; // ISO time of the last change (client clock)
+  prevBaseQty: number | null; // value before the last change
 }
 
 /** Fixed by the product master: MANUFACTURED is always made, TRADED always bought. */

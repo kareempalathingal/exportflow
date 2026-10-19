@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import {
   changedBoms,
@@ -33,6 +33,8 @@ import { withReturnTo } from '../masters/returnTo';
 import { newId, useCollection, useDocument } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
+import { MaterialsTab } from './MaterialsTab';
+import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
 
 interface LineDraft {
   id: string;
@@ -77,6 +79,9 @@ export function JobOrderPage() {
   const today = istDateKey(new Date());
   const { item, loading, error: loadError } = useDocument<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS, isNew ? null : id);
   const all = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
+  const counts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
+  const [params, setParams] = useSearchParams();
+  const tab = !isNew && params.get('tab') === 'materials' ? 'materials' : 'order';
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
   const master = useMasterData(workspaceId);
   const { md, bomRev } = master;
@@ -175,6 +180,7 @@ export function JobOrderPage() {
       notes: d.notes.trim(),
       bomSnapshot,
       confirmedOn,
+      stock: item?.stock ?? {},
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;
@@ -329,7 +335,21 @@ export function JobOrderPage() {
         </>
       )}
 
-      <form className="card" onSubmit={submit} noValidate>
+      {!isNew && (
+        <div className="tabs" role="tablist">
+          {(['order', 'materials'] as const).map((x) => (
+            <button key={x} type="button" role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setParams(x === 'order' ? {} : { tab: x }, { replace: true })}>
+              {x === 'order' ? 'Order' : 'Materials & stock'}
+            </button>
+          ))}
+        </div>
+      )}
+      {!isNew && item && (
+        <div hidden={tab !== 'materials'}>
+          <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} />
+        </div>
+      )}
+      <form className="card" onSubmit={submit} noValidate hidden={tab !== 'order'}>
         <fieldset className="plain" disabled={!editable}>
           {!editable && <p className="muted small">This order is {status.toLowerCase()} and read-only. Reopen it to make changes.</p>}
           <div className="grid2">

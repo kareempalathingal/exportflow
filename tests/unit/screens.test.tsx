@@ -99,6 +99,21 @@ describe('Phase 2 screens render', () => {
   });
 });
 
+describe('Phase 3b materials render', () => {
+  it('materials tab explodes the order with the saved BOM', () => {
+    const html = render('/orders/j1?tab=materials', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Materials &amp; stock');
+    expect(html).toContain('Fibre');
+    expect(html).toContain('31.5 kg'); // 100 pcs × 300 g × 1.05
+    expect(html).toContain('manual only');
+  });
+  it('orders To buy tab totals confirmed orders', () => {
+    const html = render('/orders?tab=to-buy', '/orders', <OrdersPage />);
+    expect(html).toContain('Fibre');
+    expect(html).toContain('JO-77');
+  });
+});
+
 describe('Phase 3 Job Order screens render', () => {
   it('orders list shows the open order with its deadline', () => {
     const html = render('/orders', '/orders', <OrdersPage />);

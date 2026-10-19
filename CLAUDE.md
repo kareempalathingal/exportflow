@@ -98,6 +98,24 @@ report the discrepancy and ask; do not silently choose.
     target ("Share → ExportFlow") comes with import.
 -   Daily task/blocker list waits for department benchmarks; it must
     also be printable/shareable.
+-   3b stock: per-JO earmarks for finished products, made sub-products
+    (deducted before exploding their components) and raw materials;
+    qty + unit required, location/remarks optional, who/when automatic;
+    reason optional, but each entry shows when it last changed and the
+    previous value (overrides Req. §31.3 "reason required"). A manual
+    stock count per item (with date) feeds the over-allocation check:
+    warning only for Confirmed JOs, Draft earmarks shown as info; no
+    count = "manual only". Plus an all-orders To buy list.
+-   Home becomes a dashboard after 3b, layout "Option B · Track"
+    (mockup artifact "ExportFlow Home Dashboard"): status counts,
+    3-week deadline strip, planned-vs-actual bar per JO, materials from
+    stock %, To buy, needs attention. Colour follows schedule gap
+    (actual − planned), a smooth gradient green → amber → red (full red
+    at about 20% behind, configurable; or past the internal deadline),
+    always with the number shown. Until stage tracking (Phase 4) the
+    actual % is a manual per-JO slider (dated); planned % rises
+    linearly from confirmation to the internal deadline; no update =
+    "Not tracked".
 
 ## Project setup (confirmed)
 
