@@ -7,6 +7,7 @@ import { istDateKey } from '../../lib/time';
 import { useCollection } from '../masters/useCollection';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { ToBuyList } from './ToBuyList';
+import { useProfile } from '../settings/useProfile';
 import { useMasterData } from '../masters/useMasterData';
 import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
 
@@ -27,6 +28,7 @@ export function OrdersPage() {
   const today = istDateKey(new Date());
   const master = useMasterData(workspaceId);
   const counts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
+  const { profile } = useProfile(workspaceId);
 
   const list = useMemo(() => {
     const n = normalizeName(q);
@@ -58,7 +60,7 @@ export function OrdersPage() {
       </div>
       {jos.loading && <p className="muted">{t('loading')}</p>}
       {jos.error && <p className="error">{permissionHint(jos.error)}</p>}
-      {tab.id === 'to-buy' && !jos.loading && !jos.error && <ToBuyList jos={jos.items} md={master.md} counts={counts.items} />}
+      {tab.id === 'to-buy' && !jos.loading && !jos.error && <ToBuyList jos={jos.items} md={master.md} counts={counts.items} company={profile?.companyName?.value ?? ''} />}
       {tab.id !== 'to-buy' && (
         <input className="search" type="search" placeholder="Search JO number, customer, PO" value={q} onChange={(e) => setQ(e.target.value)} />
       )}

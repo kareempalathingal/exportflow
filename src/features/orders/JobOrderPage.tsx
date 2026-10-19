@@ -35,6 +35,10 @@ import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { MaterialsTab } from './MaterialsTab';
 import { ProgressCard } from './ProgressCard';
+import { DocButtons } from '../docs/DocButtons';
+import { joSummaryDoc } from '../../lib/docs/model';
+import { useProfile } from '../settings/useProfile';
+import { formatDateTime } from '../../lib/time';
 import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
 
 interface LineDraft {
@@ -81,6 +85,8 @@ export function JobOrderPage() {
   const { item, loading, error: loadError } = useDocument<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS, isNew ? null : id);
   const all = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
   const counts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
+  const { profile } = useProfile(workspaceId);
+  const company = profile?.companyName?.value ?? '';
   const [params, setParams] = useSearchParams();
   const tab = !isNew && params.get('tab') === 'materials' ? 'materials' : 'order';
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
@@ -347,9 +353,14 @@ export function JobOrderPage() {
           ))}
         </div>
       )}
+      {!isNew && item && tab === 'order' && (
+        <div className="card doc-card">
+          <DocButtons label="Job Order summary" build={() => joSummaryDoc(item, md, { company, today, generatedAt: `${formatDateTime(new Date())} IST` })} />
+        </div>
+      )}
       {!isNew && item && (
         <div hidden={tab !== 'materials'}>
-          <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} />
+          <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} company={company} />
         </div>
       )}
       <form className="card" onSubmit={submit} noValidate hidden={tab !== 'order'}>

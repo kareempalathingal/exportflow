@@ -5,9 +5,12 @@ import type { MasterData } from '../../lib/masters';
 import { allocationFor, stockCountId, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
 import { formatQty, unitLabel } from '../../lib/units';
 import type { WithMeta } from '../masters/useCollection';
+import { DocButtons } from '../docs/DocButtons';
+import { toBuyAllDoc } from '../../lib/docs/model';
+import { formatDateTime, istDateKey } from '../../lib/time';
 
 /** What must still be bought for all open orders, after the stock set aside on each. */
-export function ToBuyList({ jos, md, counts }: { jos: WithMeta<JobOrder>[]; md: MasterData; counts: WithMeta<StockCount>[] }) {
+export function ToBuyList({ jos, md, counts, company }: { jos: WithMeta<JobOrder>[]; md: MasterData; counts: WithMeta<StockCount>[]; company: string }) {
   const [includeDrafts, setIncludeDrafts] = useState(false);
   const { rows, ordersWithErrors } = useMemo(() => toBuyAcrossOrders(jos, md, includeDrafts), [jos, md, includeDrafts]);
   const countMap = useMemo(() => new Map(counts.map((c) => [stockCountId(c.itemType, c.itemId), c])), [counts]);
@@ -23,6 +26,12 @@ export function ToBuyList({ jos, md, counts }: { jos: WithMeta<JobOrder>[]; md: 
           Incomplete for {ordersWithErrors.join(', ')} (missing BOM, conversion or Make/Buy) — open the order’s Materials tab.
         </p>
       )}
+      <div className="card doc-card">
+        <DocButtons
+          label={`To buy — all ${includeDrafts ? 'confirmed and draft' : 'confirmed'} orders`}
+          build={() => toBuyAllDoc(rows, ordersWithErrors, { company, includeDrafts, today: istDateKey(new Date()), generatedAt: `${formatDateTime(new Date())} IST` })}
+        />
+      </div>
       {rows.length === 0 && <p className="muted">Nothing to buy.</p>}
       <ul className="master-list">
         {rows.map((r) => {

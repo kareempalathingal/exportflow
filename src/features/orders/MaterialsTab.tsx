@@ -16,6 +16,8 @@ import { availableUnits, formatQty, unitLabel } from '../../lib/units';
 import { parseNum, UnitSelect } from '../masters/fields';
 import type { WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
+import { DocButtons } from '../docs/DocButtons';
+import { planDoc } from '../../lib/docs/model';
 
 interface EntryDraft {
   qtyText: string;
@@ -56,8 +58,9 @@ export function MaterialsTab(props: {
   md: MasterData;
   allJos: WithMeta<JobOrder>[];
   counts: WithMeta<StockCount>[];
+  company: string;
 }) {
-  const { jo, md, allJos, counts } = props;
+  const { jo, md, allJos, counts, company } = props;
   const { workspaceId, t } = useApp();
   const editable = isEditable(jo.status);
   const [drafts, setDrafts] = useState<Record<string, EntryDraft>>(() => draftsFrom(jo.stock));
@@ -213,6 +216,12 @@ export function MaterialsTab(props: {
           ))}
         </ul>
       )}
+
+      <div className="card doc-card">
+        {dirty && <p className="warn small">PDFs show saved stock only — save your changes first.</p>}
+        <DocButtons label="To produce" build={() => planDoc('TO_PRODUCE', jo, planMaterials(jo, md), { company, generatedAt: `${formatDateTime(new Date())} IST` })} />
+        <DocButtons label="To buy (this order)" build={() => planDoc('TO_BUY', jo, planMaterials(jo, md), { company, generatedAt: `${formatDateTime(new Date())} IST` })} />
+      </div>
 
       <h3 className="section-title">To produce</h3>
       {plan.toProduce.length === 0 ? <p className="muted small">Nothing to make in this order.</p> : plan.toProduce.map((r) => rowView(r, 'To produce'))}
