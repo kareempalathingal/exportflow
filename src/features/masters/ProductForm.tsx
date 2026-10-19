@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { COLLECTIONS, findDuplicate, productContext, type Product, type SupplyType } from '../../lib/masters';
+import { bomStatus, COLLECTIONS, findDuplicate, needsBom, productContext, type Bom, type Product, type RawMaterial, type SupplyType } from '../../lib/masters';
 import { completeFacts, LENGTH_UNITS, areaFromSize, formatQty } from '../../lib/units';
 import type { DataStatus } from '../../lib/dataStatus';
 import { saveRecord } from '../sync/records';
@@ -24,6 +24,7 @@ import {
 import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
 import { BomEditor } from './BomEditor';
+import { ProductSummary } from './ProductSummary';
 
 export function ProductForm() {
   const { id = 'new' } = useParams();
@@ -50,6 +51,9 @@ export function ProductForm() {
   const [units, setUnits] = useState<CustomUnitDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const loaded = useRef<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const bomDoc = useDocument<Bom>(workspaceId, COLLECTIONS.boms, isNew ? null : id);
+  const rmList = useCollection<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials);
 
   useEffect(() => {
     if (!item) return;
@@ -124,15 +128,22 @@ export function ProductForm() {
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTIONS.products) : id;
     saveRecord({ workspaceId, collectionName: COLLECTIONS.products, docId, entity: `Product: ${draftProduct.name}`, before: isNew ? null : item, data: { ...draftProduct }, reason });
-    if (isNew) navigate(`/masters/products/${docId}`, { replace: true });
+    if (isNew) navigate(`/masters/products/${docId}?tab=${needsBom(draftProduct) ? 'bom' : 'details'}`, { replace: true });
     return true;
   }
 
-  return (
-    <>
+  const savedNeedsBom = !!item && needsBom(item);
+  const tabs = savedNeedsBom ? (['bom', 'details', 'conversion'] as const) : (['details', 'conversion'] as const);
+  type TabId = (typeof tabs)[number];
+  const requested = params.get('tab') as TabId | null;
+  const tab: TabId = isNew ? 'details' : requested && (tabs as readonly string[]).includes(requested) ? requested : tabs[0];
+  const TAB_LABEL: Record<string, string> = { bom: 'BOM', details: 'Details', conversion: 'Conversion' };
+  const status = item ? bomStatus(item, bomDoc.item, new Map(rmList.items.map((r) => [r.id, r]))) : 'MISSING';
+
+  const formEl = (
       <FormShell
-        title={isNew ? 'New product' : name || 'Product'}
-        backTo="/masters?tab=products"
+        title={isNew ? 'New product' : 'Details'}
+        backTo={isNew ? '/masters?tab=products' : ''}
         isNew={isNew}
         active={active}
         onActiveChange={setActive}
@@ -186,14 +197,23 @@ export function ProductForm() {
         <CustomUnitsEditor baseUnit={baseUnit} rows={units} onChange={setUnits} />
         <TextField label="Notes" multiline value={notes} onChange={setNotes} />
       </FormShell>
+  );
 
-      {draftProduct && <ConversionCheck ctx={productContext(draftProduct)} />}
+  if (isNew) return formEl;
 
-      {!isNew && item && (item.supplyType === 'MANUFACTURED' || item.supplyType === 'BOTH') && <BomEditor product={item} />}
-      {!isNew && item && item.supplyType === 'TRADED' && (
-        <p className="muted small card subtle">Traded product: bought from outside, so no BOM is needed.</p>
-      )}
-      {isNew && <p className="muted small">Save the product first to add its BOM.</p>}
+  return (
+    <>
+      {item && <ProductSummary product={item} bomStatus={status} bomVersion={bomDoc.item?.rev ?? 0} />}
+      <div className="tabs" role="tablist">
+        {tabs.map((x) => (
+          <button key={x} role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setParams({ tab: x }, { replace: true })}>
+            {TAB_LABEL[x]}
+          </button>
+        ))}
+      </div>
+      {tab === 'bom' && item && <BomEditor product={item} />}
+      {tab === 'details' && formEl}
+      {tab === 'conversion' && (draftProduct ? <ConversionCheck ctx={productContext(draftProduct)} /> : <p className="error">{parseError}</p>)}
     </>
   );
 }

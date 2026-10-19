@@ -163,3 +163,53 @@ export function findDuplicate<T extends MasterBase>(name: string, items: (T & { 
   const n = normalizeName(name);
   return items.find((i) => i.id !== selfId && i.active && normalizeName(i.name) === n);
 }
+
+export type BomStatus = 'NOT_NEEDED' | 'MISSING' | 'PROVISIONAL' | 'READY';
+
+export function needsBom(p: Pick<Product, 'supplyType'>): boolean {
+  return p.supplyType === 'MANUFACTURED' || p.supplyType === 'BOTH';
+}
+
+/**
+ * READY: every line points to an existing raw material, converts without a
+ * guessed factor, and has a Verified / User-Provided quantity.
+ */
+export function bomStatus(product: Product, bom: Bom | null | undefined, rawMaterials: Map<string, RawMaterial>): BomStatus {
+  if (!needsBom(product)) return 'NOT_NEEDED';
+  if (!bom || bom.lines.length === 0) return 'MISSING';
+  for (const line of bom.lines) {
+    const rm = rawMaterials.get(line.rawMaterialId);
+    if (!rm || !FIRM.includes(line.status)) return 'PROVISIONAL';
+    const c = convert(line.qty, line.unit, rm.baseUnit, rawMaterialContext(rm));
+    if (!c.ok || c.provisional) return 'PROVISIONAL';
+  }
+  return 'READY';
+}
+
+/** True when the product can be converted between pieces, area and weight. */
+export function hasPhysicalFacts(p: Product): boolean {
+  const ctx = productContext(p);
+  return convert(1, 'pcs', 'kg', ctx).ok || convert(1, 'sqm', 'kg', ctx).ok;
+}
+
+export interface AttentionItem {
+  kind: 'BOM_MISSING' | 'BOM_PROVISIONAL' | 'NO_CONVERSION';
+  productId: string;
+  productName: string;
+}
+
+export function masterAttention(
+  products: (Product & { id: string })[],
+  boms: Map<string, Bom>,
+  rawMaterials: Map<string, RawMaterial>,
+): AttentionItem[] {
+  const out: AttentionItem[] = [];
+  for (const p of products) {
+    if (p.active === false) continue;
+    const s = bomStatus(p, boms.get(p.id), rawMaterials);
+    if (s === 'MISSING') out.push({ kind: 'BOM_MISSING', productId: p.id, productName: p.name });
+    if (s === 'PROVISIONAL') out.push({ kind: 'BOM_PROVISIONAL', productId: p.id, productName: p.name });
+    if (!hasPhysicalFacts(p)) out.push({ kind: 'NO_CONVERSION', productId: p.id, productName: p.name });
+  }
+  return out;
+}

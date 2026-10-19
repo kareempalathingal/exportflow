@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { COLLECTIONS, normalizeName, type Customer, type Product, type RawMaterial } from '../../lib/masters';
+import { bomStatus, COLLECTIONS, normalizeName, type Bom, type Customer, type Product, type RawMaterial } from '../../lib/masters';
+import { BomBadge } from './ProductSummary';
 import { unitLabel } from '../../lib/units';
 import { useCollection, type WithMeta } from './useCollection';
 
@@ -34,6 +35,9 @@ export function MastersPage() {
   const products = useCollection<Product>(workspaceId, COLLECTIONS.products);
   const rms = useCollection<RawMaterial>(workspaceId, COLLECTIONS.rawMaterials);
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
+  const boms = useCollection<Bom>(workspaceId, COLLECTIONS.boms);
+  const bomMap = useMemo(() => new Map(boms.items.map((b) => [b.id, b])), [boms.items]);
+  const rmMap = useMemo(() => new Map(rms.items.map((r) => [r.id, r])), [rms.items]);
   const fp = useFiltered(products.items, q, showInactive);
   const fr = useFiltered(rms.items, q, showInactive);
   const fc = useFiltered(customers.items, q, showInactive);
@@ -74,10 +78,10 @@ export function MastersPage() {
               <Link to={`/masters/products/${p.id}`} className={`card link ${p.active === false ? 'inactive' : ''}`}>
                 <div className="row between">
                   <strong>{p.name}</strong>
-                  <span className="muted small">{unitLabel(p.baseUnit)}</span>
+                  <BomBadge status={bomStatus(p, bomMap.get(p.id), rmMap)} />
                 </div>
                 <p className="muted small">
-                  {SUPPLY_LABEL[p.supplyType]}
+                  {SUPPLY_LABEL[p.supplyType]} · {unitLabel(p.baseUnit)}
                   {p.code && ` · ${p.code}`}
                   {p.gsm?.value ? ` · ${p.gsm.value} GSM` : ''}
                   {p.active === false && ' · Inactive'}

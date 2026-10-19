@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { areaFromSize, availableUnits, completeFacts, convert, type ConversionContext } from '../../src/lib/units';
-import { bomRequirement, findDuplicate, productContext, type Bom, type Product, type RawMaterial } from '../../src/lib/masters';
+import { bomRequirement, bomStatus, findDuplicate, masterAttention, productContext, type Bom, type Product, type RawMaterial } from '../../src/lib/masters';
 
 const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-9);
 
@@ -124,5 +124,38 @@ describe('duplicate names', () => {
     expect(findDuplicate('  coir   mat ', items)?.id).toBe('1');
     expect(findDuplicate('old mat', items)).toBeUndefined();
     expect(findDuplicate('Coir Mat', items, '1')).toBeUndefined();
+  });
+});
+
+
+describe('BOM status and attention list', () => {
+  const base: Product = {
+    name: 'Mat', active: true, notes: '', code: '', baseUnit: 'pcs', supplyType: 'MANUFACTURED', specifications: '',
+    size: { length: 40, width: 60, unit: 'cm', status: 'VERIFIED' },
+    thicknessMm: { value: null, status: 'UNAVAILABLE', source: '' },
+    gsm: { value: 1500, status: 'VERIFIED', source: '' },
+    weightPerPieceKg: { value: null, status: 'UNAVAILABLE', source: '' },
+    customUnits: [],
+  };
+  const fibre: RawMaterial = { name: 'Fibre', active: true, notes: '', baseUnit: 'kg', gsm: { value: null, status: 'UNAVAILABLE', source: '' }, customUnits: [] };
+  const rms = new Map([['f', fibre]]);
+  const line = { rawMaterialId: 'f', qty: 300, unit: 'g', wastagePct: 0, status: 'VERIFIED' as const, source: '' };
+
+  it('classifies BOMs', () => {
+    expect(bomStatus({ ...base, supplyType: 'TRADED' }, null, rms)).toBe('NOT_NEEDED');
+    expect(bomStatus(base, null, rms)).toBe('MISSING');
+    expect(bomStatus(base, { productId: 'p', notes: '', lines: [] }, rms)).toBe('MISSING');
+    expect(bomStatus(base, { productId: 'p', notes: '', lines: [line] }, rms)).toBe('READY');
+    expect(bomStatus(base, { productId: 'p', notes: '', lines: [{ ...line, status: 'ESTIMATED' }] }, rms)).toBe('PROVISIONAL');
+    expect(bomStatus(base, { productId: 'p', notes: '', lines: [{ ...line, rawMaterialId: 'gone' }] }, rms)).toBe('PROVISIONAL');
+  });
+  it('lists what still needs data, skipping inactive products', () => {
+    const noFacts = { ...base, id: 'b', name: 'B', size: { ...base.size, length: null, width: null }, gsm: { value: null, status: 'UNAVAILABLE' as const, source: '' } };
+    const items = masterAttention(
+      [{ ...base, id: 'a' }, noFacts, { ...base, id: 'c', active: false }],
+      new Map([['a', { productId: 'a', notes: '', lines: [line] }]]),
+      rms,
+    );
+    expect(items.map((i) => `${i.productId}:${i.kind}`)).toEqual(['b:BOM_MISSING', 'b:NO_CONVERSION']);
   });
 });

@@ -29,6 +29,7 @@ const customer: Customer & { id: string; rev: number; pending: boolean } = {
 const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer] };
 
 vi.mock('../../src/firebase', () => ({ db: {}, auth: { currentUser: { uid: 'u1' } }, offlineCacheEnabled: true }));
+vi.mock('../../src/features/settings/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, pendingWrite: false, fromCache: false, error: null }) }));
 vi.mock('../../src/AppContext', () => ({
   useApp: () => ({ workspaceId: 'u1_actual', t: (k: string) => k, mode: 'ACTUAL', online: true }),
 }));
@@ -46,6 +47,7 @@ const { MastersPage } = await import('../../src/features/masters/MastersPage');
 const { ProductForm } = await import('../../src/features/masters/ProductForm');
 const { RawMaterialForm } = await import('../../src/features/masters/RawMaterialForm');
 const { CustomerForm } = await import('../../src/features/masters/CustomerForm');
+const { HomePage } = await import('../../src/features/home/HomePage');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -58,14 +60,24 @@ function render(path: string, pattern: string, el: React.ReactElement) {
 }
 
 describe('Phase 2 screens render', () => {
-  it('masters list shows products', () => {
-    expect(render('/masters', '/masters', <MastersPage />)).toContain('Mat A');
+  it('masters list shows products with BOM status', () => {
+    const html = render('/masters', '/masters', <MastersPage />);
+    expect(html).toContain('Mat A');
+    expect(html).toContain('BOM ready');
   });
-  it('product form renders (with BOM section once loaded)', async () => {
+  it('home shows the attention list', () => {
+    const html = render('/', '/', <HomePage />);
+    expect(html).toContain('Needs attention');
+  });
+  it('manufactured product opens on the BOM tab with a summary', () => {
     const html = render('/masters/products/p1', '/masters/products/:id', <ProductForm />);
-    if (process.env.DUMP_HTML) (await import('node:fs')).writeFileSync(process.env.DUMP_HTML, html);
-    expect(html).toContain('Size of one piece');
-    expect(html).toContain('Conversion check');
+    expect(html).toContain('BOM ready');
+    expect(html).toContain('raw materials for 1');
+    expect(html).toContain('Production time');
+  });
+  it('product details and conversion tabs render', () => {
+    expect(render('/masters/products/p1?tab=details', '/masters/products/:id', <ProductForm />)).toContain('Size of one piece');
+    expect(render('/masters/products/p1?tab=conversion', '/masters/products/:id', <ProductForm />)).toContain('Conversion check');
   });
   it('new product form renders', () => {
     expect(render('/masters/products/new', '/masters/products/:id', <ProductForm />)).toContain('New product');

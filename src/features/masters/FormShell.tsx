@@ -31,11 +31,13 @@ export function FormShell(props: {
 
   return (
     <section>
-      <p>
-        <Link to={props.backTo} className="small">
-          ← Back
-        </Link>
-      </p>
+      {props.backTo && (
+        <p>
+          <Link to={props.backTo} className="small">
+            ← Back
+          </Link>
+        </p>
+      )}
       <h2>{props.title}</h2>
       <form className="card" onSubmit={submit} noValidate>
         {props.children}
