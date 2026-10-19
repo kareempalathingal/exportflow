@@ -19,6 +19,7 @@ import {
 import { safeReturnTo } from './returnTo';
 import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
+import { ItemSuppliers } from './ItemSuppliers';
 
 export function RawMaterialForm() {
   const { id = 'new' } = useParams();
@@ -97,6 +98,7 @@ export function RawMaterialForm() {
         <CustomUnitsEditor baseUnit={baseUnit} rows={units} onChange={setUnits} />
         <TextField label="Notes" multiline value={notes} onChange={setNotes} />
       </FormShell>
+      {!isNew && item && <ItemSuppliers type="RAW_MATERIAL" id={id} name={item.name} here={`/masters/raw-materials/${id}`} />}
       {typeof unitsParsed !== 'string' && typeof gsmParsed !== 'string' && (
         <ConversionCheck ctx={rawMaterialContext({ baseUnit, customUnits: unitsParsed, gsm: gsmParsed })} />
       )}

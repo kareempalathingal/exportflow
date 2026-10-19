@@ -283,3 +283,10 @@ input[type="range"] { padding: 0; min-height: 36px; accent-color: var(--brand); 
 .doc-card { display: flex; flex-direction: column; gap: 0.6rem; }
 .doc-buttons { display: flex; flex-direction: column; gap: 0.3rem; }
 .doc-label { font-weight: 600; font-size: 0.92rem; }
+
+/* Suppliers: linked-item chips */
+.chips { list-style: none; padding: 0; margin: 0.3rem 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.15rem 0.2rem 0.15rem 0.7rem; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); font-size: 0.9rem; }
+.chip.inactive { opacity: 0.6; }
+.chip-x { min-height: 32px; min-width: 32px; padding: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 1.1rem; line-height: 1; }
+.tabs { scrollbar-width: none; }

@@ -27,6 +27,7 @@ import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
 import { BomEditor } from './BomEditor';
 import { ProductSummary } from './ProductSummary';
+import { ItemSuppliers } from './ItemSuppliers';
 
 export function ProductForm() {
   const { id = 'new' } = useParams();
@@ -229,6 +230,9 @@ export function ProductForm() {
       </div>
       {tab === 'bom' && item && <BomEditor product={item} />}
       {tab === 'details' && formEl}
+      {tab === 'details' && item && item.supplyType !== 'MANUFACTURED' && (
+        <ItemSuppliers type="PRODUCT" id={id} name={item.name} here={`/masters/products/${id}?tab=details`} />
+      )}
       {tab === 'conversion' && (draftProduct ? <ConversionCheck ctx={productContext(draftProduct)} /> : <p className="error">{parseError}</p>)}
     </>
   );

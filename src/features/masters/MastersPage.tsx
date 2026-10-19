@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { bomStatus, COLLECTIONS, normalizeName, type Customer } from '../../lib/masters';
+import { bomStatus, COLLECTIONS, normalizeName, type Customer, type Supplier } from '../../lib/masters';
 import { useMasterData } from './useMasterData';
 import { BomBadge } from './ProductSummary';
 import { unitLabel } from '../../lib/units';
 import { useCollection, type WithMeta } from './useCollection';
 
-type Tab = 'customers' | 'products' | 'raw-materials';
+type Tab = 'customers' | 'products' | 'raw-materials' | 'suppliers';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'products', label: 'Products' },
   { id: 'raw-materials', label: 'Raw materials' },
   { id: 'customers', label: 'Customers' },
+  { id: 'suppliers', label: 'Suppliers' },
 ];
 
 const SUPPLY_LABEL = { MANUFACTURED: 'Manufactured', TRADED: 'Traded', BOTH: 'Manufactured + Traded' } as const;
@@ -40,9 +41,11 @@ export function MastersPage() {
   const fp = useFiltered(products.items, q, showInactive);
   const fr = useFiltered(rms.items, q, showInactive);
   const fc = useFiltered(customers.items, q, showInactive);
+  const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
+  const fs = useFiltered(suppliers.items, q, showInactive);
 
-  const current = tab === 'products' ? products : tab === 'raw-materials' ? rms : customers;
-  const list = tab === 'products' ? fp : tab === 'raw-materials' ? fr : fc;
+  const current = tab === 'products' ? products : tab === 'raw-materials' ? rms : tab === 'suppliers' ? suppliers : customers;
+  const list = tab === 'products' ? fp : tab === 'raw-materials' ? fr : tab === 'suppliers' ? fs : fc;
 
   return (
     <section>
@@ -117,6 +120,22 @@ export function MastersPage() {
                   {c.customerType === 'AGENT' ? 'Agent / trading company' : 'Direct customer'}
                   {c.active === false && ' · Inactive'}
                   {c.pending && ' · Pending sync'}
+                </p>
+              </Link>
+            </li>
+          ))}
+        {tab === 'suppliers' &&
+          fs.map((s) => (
+            <li key={s.id}>
+              <Link to={`/masters/suppliers/${s.id}`} className={`card link ${s.active === false ? 'inactive' : ''}`}>
+                <div className="row between">
+                  <strong>{s.name}</strong>
+                  <span className="muted small">{s.place}</span>
+                </div>
+                <p className="muted small">
+                  {(s.items ?? []).length} item{(s.items ?? []).length === 1 ? '' : 's'}
+                  {s.active === false && ' · Inactive'}
+                  {s.pending && ' · Pending sync'}
                 </p>
               </Link>
             </li>

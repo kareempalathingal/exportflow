@@ -96,6 +96,11 @@ describe('workspaces', () => {
   });
 });
 
+async function deleteDocLater(db: Firestore, path: string) {
+  const { deleteDoc } = await import('firebase/firestore');
+  return deleteDoc(doc(db, path));
+}
+
 describe('versioned records with audit', () => {
   it('create rev 1 then update rev 2 with paired audit events', async () => {
     const db = dbFor(ALICE);
@@ -169,6 +174,10 @@ describe('versioned records with audit', () => {
     await assertSucceeds(write('customers', 'c1', 1, 'a7', { name: 'Buyer', active: true }));
     await assertSucceeds(write('boms', 'p1', 1, 'a8', { productId: 'p1', lines: [], notes: '' }));
     await assertFails(write('boms', 'p9', 1, 'a9', { productId: 'p1', lines: [], notes: '' }));
+    await assertSucceeds(write('suppliers', 's1', 1, 'a10', { name: 'Fibre Co', active: true, items: ['RAW_MATERIAL:r1'] }));
+    await assertSucceeds(write('suppliers', 's1', 2, 'a11', { name: 'Fibre Co', active: false, items: [] }));
+    await assertFails(write('suppliers', 's2', 1, 'a12', { name: 'No items field', active: true }));
+    await assertFails(deleteDocLater(db, `workspaces/${ws}/suppliers/s1`));
     const { deleteDoc } = await import('firebase/firestore');
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/products/p1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/products/p1`)));

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { JobOrder } from '../../lib/jobOrders';
-import type { MasterData } from '../../lib/masters';
+import { suppliersOf, type MasterData, type Supplier } from '../../lib/masters';
 import { allocationFor, stockCountId, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
 import { formatQty, unitLabel } from '../../lib/units';
 import type { WithMeta } from '../masters/useCollection';
@@ -10,7 +10,7 @@ import { toBuyAllDoc } from '../../lib/docs/model';
 import { formatDateTime, istDateKey } from '../../lib/time';
 
 /** What must still be bought for all open orders, after the stock set aside on each. */
-export function ToBuyList({ jos, md, counts, company }: { jos: WithMeta<JobOrder>[]; md: MasterData; counts: WithMeta<StockCount>[]; company: string }) {
+export function ToBuyList({ jos, md, counts, company, suppliers }: { jos: WithMeta<JobOrder>[]; md: MasterData; counts: WithMeta<StockCount>[]; company: string; suppliers: WithMeta<Supplier>[] }) {
   const [includeDrafts, setIncludeDrafts] = useState(false);
   const { rows, ordersWithErrors } = useMemo(() => toBuyAcrossOrders(jos, md, includeDrafts), [jos, md, includeDrafts]);
   const countMap = useMemo(() => new Map(counts.map((c) => [stockCountId(c.itemType, c.itemId), c])), [counts]);
@@ -48,6 +48,24 @@ export function ToBuyList({ jos, md, counts, company }: { jos: WithMeta<JobOrder
                 {r.type === 'PRODUCT' ? 'Bought product' : 'Raw material'}
                 {r.provisional && ' · provisional (estimated data)'}
                 {a.state === 'OVER' && <span className="error"> · stock over-allocated</span>}
+              </span>
+              <span className="small block">
+                {(() => {
+                  const sup = suppliersOf(r.key, suppliers);
+                  return sup.length ? (
+                    <>
+                      Suppliers:{' '}
+                      {sup.map((s, i) => (
+                        <span key={s.id}>
+                          {i > 0 && ', '}
+                          <Link to={`/masters/suppliers/${s.id}`}>{s.name}</Link>
+                        </span>
+                      ))}
+                    </>
+                  ) : (
+                    <span className="muted">No supplier linked</span>
+                  );
+                })()}
               </span>
               <span className="small block">
                 {r.orders.map((o, i) => (

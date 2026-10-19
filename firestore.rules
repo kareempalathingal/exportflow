@@ -65,7 +65,7 @@ service cloud.firestore {
     }
 
     function isMaster(c) {
-      return c in ['customers', 'products', 'rawMaterials', 'boms'];
+      return c in ['customers', 'products', 'rawMaterials', 'boms', 'suppliers'];
     }
 
     function namedRecord() {
@@ -79,7 +79,8 @@ service cloud.firestore {
         || (c == 'products' && namedRecord() && d.baseUnit is string
             && d.supplyType in ['MANUFACTURED', 'TRADED', 'BOTH'])
         || (c == 'rawMaterials' && namedRecord() && d.baseUnit is string)
-        || (c == 'boms' && d.productId == docId && d.lines is list && d.lines.size() <= 100);
+        || (c == 'boms' && d.productId == docId && d.lines is list && d.lines.size() <= 100)
+        || (c == 'suppliers' && namedRecord() && d.items is list && d.items.size() <= 500);
     }
 
     // The BOM is written per base unit, so the base unit is fixed once created.

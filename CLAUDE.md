@@ -69,6 +69,11 @@ report the discrepancy and ask; do not silently choose.
     missing conversion — return "Conversion needed".
 -   Base unit of products and raw materials is fixed after creation
     (enforced in UI and rules).
+-   Supplier master (confirmed 19 Oct 2026, label "Suppliers"): name
+    required; place, contact, phone, email, GSTIN, notes optional.
+    Supplier ↔ item links (raw materials and products) are editable from
+    both sides but stored only on the supplier (`items` = item keys).
+    No prices, lead times or payment terms until real data exists.
 -   Masters are never deleted; they are set Inactive. Product code is
     optional and not auto-generated until the company scheme is known.
 -   Build only company-independent parts now (Phases 2–3). Packing,

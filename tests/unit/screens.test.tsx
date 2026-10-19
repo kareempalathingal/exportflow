@@ -35,7 +35,9 @@ const jobOrder: JobOrder & { id: string; rev: number; pending: boolean } = {
   notes: '', bomSnapshot: { p1: { rev: 1, lines: bom.lines } }, confirmedOn: '2026-11-01',
 };
 
-const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder] };
+const supplier = { id: 's1', rev: 1, pending: false, name: 'Kerala Fibre Traders', active: true, notes: '', place: 'Alappuzha', contactPerson: '', phone: '', email: '', gstin: '', items: ['RAW_MATERIAL:r1'] };
+
+const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder], suppliers: [supplier] };
 
 vi.mock('../../src/firebase', () => ({ db: {}, auth: { currentUser: { uid: 'u1' } }, offlineCacheEnabled: true }));
 vi.mock('../../src/features/settings/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, pendingWrite: false, fromCache: false, error: null }) }));
@@ -57,6 +59,7 @@ const { ProductForm } = await import('../../src/features/masters/ProductForm');
 const { RawMaterialForm } = await import('../../src/features/masters/RawMaterialForm');
 const { CustomerForm } = await import('../../src/features/masters/CustomerForm');
 const { HomePage } = await import('../../src/features/home/HomePage');
+const { SupplierForm } = await import('../../src/features/masters/SupplierForm');
 const { OrdersPage } = await import('../../src/features/orders/OrdersPage');
 const { JobOrderPage } = await import('../../src/features/orders/JobOrderPage');
 
@@ -140,5 +143,26 @@ describe('Phase 3 Job Order screens render', () => {
     expect(html).toContain('Planned vs actual');
     expect(html).toContain('JO-77');
     expect(html).toContain('Not tracked');
+  });
+});
+
+describe('Suppliers', () => {
+  it('suppliers tab lists suppliers with their item count', () => {
+    const html = render('/masters?tab=suppliers', '/masters', <MastersPage />);
+    expect(html).toContain('Kerala Fibre Traders');
+    expect(html).toContain('1 item');
+  });
+  it('supplier form shows linked items', () => {
+    expect(render('/masters/suppliers/s1', '/masters/suppliers/:id', <SupplierForm />)).toContain('Supplies');
+  });
+  it('raw material page shows its suppliers (the reverse link)', () => {
+    const html = render('/masters/raw-materials/r1', '/masters/raw-materials/:id', <RawMaterialForm />);
+    expect(html).toContain('Suppliers');
+    expect(html).toContain('Kerala Fibre Traders');
+  });
+  it('To buy shows who can supply each item', () => {
+    const html = render('/orders?tab=to-buy', '/orders', <OrdersPage />);
+    expect(html).toContain('Suppliers: ');
+    expect(html).toContain('Kerala Fibre Traders');
   });
 });

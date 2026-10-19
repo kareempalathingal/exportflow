@@ -48,6 +48,26 @@ export interface Product extends MasterBase {
   usualSupply?: 'MAKE' | 'BUY' | null;
 }
 
+/** A supplier we can buy raw materials or traded products from. */
+export interface Supplier extends MasterBase {
+  place: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  gstin: string;
+  /** What this supplier can supply: item keys "RAW_MATERIAL:<id>" / "PRODUCT:<id>". The only place the link is stored. */
+  items: string[];
+}
+
+/** Suppliers linked to an item (by item key). */
+export function suppliersOf<T extends Pick<Supplier, 'items' | 'active'>>(key: string, suppliers: T[], includeInactive = false): T[] {
+  return suppliers.filter((s) => (includeInactive || s.active !== false) && (s.items ?? []).includes(key));
+}
+
+export function validGstin(s: string): boolean {
+  return /^[0-9]{2}[A-Z0-9]{13}$/.test(s.trim().toUpperCase());
+}
+
 export interface RawMaterial extends MasterBase {
   baseUnit: string;
   gsm: Tracked<number>;
@@ -84,6 +104,7 @@ export const COLLECTIONS = {
   products: 'products',
   rawMaterials: 'rawMaterials',
   boms: 'boms',
+  suppliers: 'suppliers',
 } as const;
 
 function fact(t: Tracked<number> | undefined): Fact | undefined {

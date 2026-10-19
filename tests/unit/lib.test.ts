@@ -125,3 +125,21 @@ describe('returnTo links', () => {
     expect(safeReturnTo(new URLSearchParams('returnTo=/orders/new'))).toBe('/orders/new');
   });
 });
+
+import { suppliersOf, validGstin } from '../../src/lib/masters';
+describe('suppliers', () => {
+  const sup = [
+    { id: 'a', active: true, items: ['RAW_MATERIAL:r1', 'PRODUCT:p1'] },
+    { id: 'b', active: false, items: ['RAW_MATERIAL:r1'] },
+    { id: 'c', active: true, items: [] },
+  ];
+  it('finds suppliers of an item from the supplier side', () => {
+    expect(suppliersOf('RAW_MATERIAL:r1', sup).map((s) => s.id)).toEqual(['a']);
+    expect(suppliersOf('RAW_MATERIAL:r1', sup, true).map((s) => s.id)).toEqual(['a', 'b']);
+    expect(suppliersOf('PRODUCT:p9', sup)).toEqual([]);
+  });
+  it('checks the GSTIN shape', () => {
+    expect(validGstin('32abcde1234f1z5')).toBe(true);
+    expect(validGstin('32ABCDE')).toBe(false);
+  });
+});
