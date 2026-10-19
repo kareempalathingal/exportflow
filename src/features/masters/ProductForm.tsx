@@ -40,6 +40,7 @@ export function ProductForm() {
   const [code, setCode] = useState('');
   const [baseUnit, setBaseUnit] = useState('pcs');
   const [supplyType, setSupplyType] = useState<SupplyType>('MANUFACTURED');
+  const [usualSupply, setUsualSupply] = useState<'MAKE' | 'BUY' | ''>('');
   const [specifications, setSpecs] = useState('');
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
@@ -66,6 +67,7 @@ export function ProductForm() {
     setCode(item.code ?? '');
     setBaseUnit(item.baseUnit);
     setSupplyType(item.supplyType);
+    setUsualSupply(item.usualSupply ?? '');
     setSpecs(item.specifications ?? '');
     setNotes(item.notes ?? '');
     setActive(item.active !== false);
@@ -106,6 +108,7 @@ export function ProductForm() {
           code: code.trim(),
           baseUnit,
           supplyType,
+          usualSupply: supplyType === 'BOTH' && usualSupply ? usualSupply : null,
           specifications: specifications.trim(),
           notes: notes.trim(),
           active: isNew ? true : active,
@@ -167,6 +170,17 @@ export function ProductForm() {
             </select>
           </label>
         </div>
+        {supplyType === 'BOTH' && (
+          <label>
+            Usually
+            <select value={usualSupply} onChange={(e) => setUsualSupply(e.target.value as 'MAKE' | 'BUY' | '')}>
+              <option value="">Not set — decide on each Job Order</option>
+              <option value="MAKE">Made in our factory</option>
+              <option value="BUY">Bought from outside</option>
+            </select>
+            <span className="muted small block">Pre-fills Make/Buy on new Job Order lines; you can still change it per order.</span>
+          </label>
+        )}
         {!isNew && <p className="muted small">The base unit is fixed after creation so the BOM stays correct.</p>}
         <TextField label="Product code (optional)" value={code} onChange={setCode} max={40} />
         <TextField label="Specifications" multiline value={specifications} onChange={setSpecs} />

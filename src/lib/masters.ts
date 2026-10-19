@@ -44,6 +44,8 @@ export interface Product extends MasterBase {
   gsm: Tracked<number>;
   weightPerPieceKg: Tracked<number>;
   customUnits: CustomUnit[];
+  /** For BOTH only: what usually happens; pre-fills Make/Buy on Job Order lines. */
+  usualSupply?: 'MAKE' | 'BUY' | null;
 }
 
 export interface RawMaterial extends MasterBase {

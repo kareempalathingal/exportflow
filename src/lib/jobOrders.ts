@@ -166,14 +166,20 @@ export interface JobOrder {
   confirmedOn: string | null;
 }
 
-export function defaultSupply(p: Pick<Product, 'supplyType'>): SupplyMethod | null {
+/** Fixed by the product master: MANUFACTURED is always made, TRADED always bought. */
+export function fixedSupply(p: Pick<Product, 'supplyType'>): SupplyMethod | null {
   return p.supplyType === 'MANUFACTURED' ? 'MAKE' : p.supplyType === 'TRADED' ? 'BUY' : null;
+}
+
+/** Pre-filled choice for a new line: fixed, or the usual choice of a BOTH product (changeable). */
+export function initialSupply(p: Pick<Product, 'supplyType' | 'usualSupply'>): SupplyMethod | null {
+  return fixedSupply(p) ?? p.usualSupply ?? null;
 }
 
 /** Make/Buy is only a choice for BOTH products; the others are fixed by the master. */
 export function effectiveSupply(line: Pick<JoLine, 'supply'>, p: Pick<Product, 'supplyType'> | undefined): SupplyMethod | null {
   if (!p) return line.supply;
-  return defaultSupply(p) ?? line.supply;
+  return fixedSupply(p) ?? line.supply;
 }
 
 // ---------------------------------------------------------------------------

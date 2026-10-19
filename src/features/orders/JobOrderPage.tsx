@@ -6,7 +6,8 @@ import {
   checkForConfirm,
   COLLECTION_JOB_ORDERS,
   computeDeadline,
-  defaultSupply,
+  fixedSupply,
+  initialSupply,
   DELIVERY_DATE_TYPES,
   findDuplicateJo,
   formatDay,
@@ -132,7 +133,7 @@ export function JobOrderPage() {
       const qty = parseNum(l.qtyText);
       if (qty === null || !Number.isFinite(qty) || qty <= 0) return `Line ${i + 1}: enter a quantity above 0`;
       const p = md.products.get(l.productId);
-      out.push({ id: l.id, productId: l.productId, productName: p?.name ?? item?.lines.find((x) => x.id === l.id)?.productName ?? '', qty, unit: l.unit, supply: p ? (defaultSupply(p) ?? l.supply) : l.supply });
+      out.push({ id: l.id, productId: l.productId, productName: p?.name ?? item?.lines.find((x) => x.id === l.id)?.productName ?? '', qty, unit: l.unit, supply: p ? (fixedSupply(p) ?? l.supply) : l.supply });
     }
     return out;
   }
@@ -393,7 +394,7 @@ export function JobOrderPage() {
                     value={l.productId}
                     onChange={(e) => {
                       const np = md.products.get(e.target.value);
-                      setLine(i, { productId: e.target.value, unit: np?.baseUnit ?? l.unit, supply: np ? defaultSupply(np) : null });
+                      setLine(i, { productId: e.target.value, unit: np?.baseUnit ?? l.unit, supply: np ? initialSupply(np) : null });
                     }}
                   >
                     <option value="">— choose —</option>
@@ -417,6 +418,7 @@ export function JobOrderPage() {
                 {p?.supplyType === 'BOTH' ? (
                   <label>
                     Make or buy?<span className="req"> *</span>
+                    {p.usualSupply && <span className="muted"> (usually {p.usualSupply === 'MAKE' ? 'made' : 'bought'})</span>}
                     <select value={l.supply ?? ''} onChange={(e) => setLine(i, { supply: (e.target.value || null) as SupplyMethod | null })}>
                       <option value="">— decide —</option>
                       <option value="MAKE">Make in our factory</option>

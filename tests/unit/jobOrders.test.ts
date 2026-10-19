@@ -166,3 +166,15 @@ describe('deadline state and attention', () => {
     expect(findDuplicateJo('JO-1', [{ ...jo, status: 'CANCELLED' }])).toBeUndefined();
   });
 });
+
+describe('usual Make/Buy for BOTH products', () => {
+  it('pre-fills from the master but the line choice wins for BOTH', async () => {
+    const { initialSupply, effectiveSupply, fixedSupply } = await import('../../src/lib/jobOrders');
+    const both = product('b', 'BOTH', { usualSupply: 'MAKE' });
+    expect(initialSupply(both)).toBe('MAKE');
+    expect(effectiveSupply({ supply: 'BUY' }, both)).toBe('BUY');
+    expect(initialSupply(product('b', 'BOTH'))).toBeNull();
+    expect(initialSupply(product('t', 'TRADED', { usualSupply: 'MAKE' }))).toBe('BUY'); // fixed types ignore it
+    expect(fixedSupply(product('m', 'MANUFACTURED'))).toBe('MAKE');
+  });
+});
