@@ -98,6 +98,14 @@ report the discrepancy and ask; do not silently choose.
     target ("Share → ExportFlow") comes with import.
 -   Daily task/blocker list waits for department benchmarks; it must
     also be printable/shareable.
+-   3c documents (`src/lib/docs/`): A4 PDF built on the phone, English,
+    simple header (company name from Settings, title, JO no., date; logo
+    and address later), PROVISIONAL band with reasons when data is
+    incomplete, no signature block. Share sheet or download; the app
+    never sends anything itself. Later templates on the same engine:
+    per-department daily to-do/targets, all-department review summary
+    (evening/next morning), supplier RFQ letters and purchase orders —
+    always drafts the user sends; no invented prices or supplier data.
 -   3b stock: per-JO earmarks for finished products, made sub-products
     (deducted before exploding their components) and raw materials;
     qty + unit required, location/remarks optional, who/when automatic;
