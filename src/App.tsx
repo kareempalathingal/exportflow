@@ -9,6 +9,8 @@ import { MastersPage } from './features/masters/MastersPage';
 import { CustomerForm } from './features/masters/CustomerForm';
 import { ProductForm } from './features/masters/ProductForm';
 import { RawMaterialForm } from './features/masters/RawMaterialForm';
+import { OrdersPage } from './features/orders/OrdersPage';
+import { JobOrderPage } from './features/orders/JobOrderPage';
 
 function Gate() {
   const { authReady, user, t, workspaceError, logout } = useApp();
@@ -38,6 +40,8 @@ function Gate() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="orders" element={<OrdersPage />} />
+        <Route path="orders/:id" element={<JobOrderPage />} />
         <Route path="masters" element={<MastersPage />} />
         <Route path="masters/products/:id" element={<ProductForm />} />
         <Route path="masters/raw-materials/:id" element={<RawMaterialForm />} />

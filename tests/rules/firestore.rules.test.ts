@@ -173,6 +173,42 @@ describe('versioned records with audit', () => {
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/products/p1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/products/p1`)));
   });
+  it('job orders: draft first, allowed transitions, reasons, no delete', async () => {
+    const db = dbFor(ALICE);
+    const ws = await createWorkspace(db, ALICE, 'ACTUAL');
+    const write = (rev: number, ev: string, data: Record<string, unknown>, reason: string | null = null) => {
+      const b = writeBatch(db);
+      b.set(doc(db, `workspaces/${ws}/jobOrders/j1`), { ...data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
+      b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
+        entity: 'Job Order', entityPath: `workspaces/${ws}/jobOrders/j1`, entityId: 'j1', action: rev === 1 ? 'CREATE' : 'UPDATE',
+        rev, changes: [], reason, actorUid: ALICE, at: serverTimestamp(),
+      });
+      return b.commit();
+    };
+    const jo = {
+      joNumber: 'JO-1', customerId: 'c1', customerName: 'Buyer', poNumber: '', receivedDate: '2026-11-01', deliveryDate: '2026-12-30',
+      deliveryDateType: 'PORT', status: 'DRAFT', lines: [], notes: '', bomSnapshot: null, confirmedOn: null,
+      deadline: { orderPeriodDays: 59, bufferDays: 6, internalDeadline: '2026-12-24', ruleVersion: 'buffer-10pct-ceil-min1/v1' },
+    };
+    await assertFails(write(1, 'b0', { ...jo, status: 'CONFIRMED', bomSnapshot: {} })); // must start as Draft
+    await assertFails(write(1, 'b1', { ...jo, deliveryDate: '2026-11-01' })); // delivery after received
+    await assertFails(write(1, 'b2', { ...jo, deadline: { ...jo.deadline, internalDeadline: '2027-01-05' } }));
+    await assertSucceeds(write(1, 'b3', jo));
+    await assertFails(write(2, 'b4', { ...jo, status: 'COMPLETED', bomSnapshot: {} })); // Draft cannot jump to Completed
+    await assertFails(write(2, 'b5', { ...jo, status: 'CONFIRMED' })); // confirm needs the BOM snapshot
+    await assertSucceeds(write(2, 'b6', { ...jo, status: 'CONFIRMED', bomSnapshot: {} }));
+    await assertFails(write(3, 'b7', { ...jo, status: 'CONFIRMED', bomSnapshot: {}, notes: 'x' })); // edit needs a reason
+    await assertSucceeds(write(3, 'b8', { ...jo, status: 'CONFIRMED', bomSnapshot: {}, notes: 'x' }, 'Customer changed date'));
+    await assertSucceeds(write(4, 'b9', { ...jo, status: 'COMPLETED', bomSnapshot: {} }));
+    await assertFails(write(5, 'c1', { ...jo, status: 'COMPLETED', bomSnapshot: {}, notes: 'y' }, 'x')); // completed is read-only
+    await assertFails(write(5, 'c2', { ...jo, status: 'CONFIRMED', bomSnapshot: {} })); // reopen needs a reason
+    await assertSucceeds(write(5, 'c3', { ...jo, status: 'CONFIRMED', bomSnapshot: {} }, 'Short shipment'));
+    await assertFails(write(6, 'c4', { ...jo, status: 'CANCELLED', bomSnapshot: {} }));
+    await assertSucceeds(write(6, 'c5', { ...jo, status: 'CANCELLED', bomSnapshot: {} }, 'Customer cancelled'));
+    const { deleteDoc } = await import('firebase/firestore');
+    await assertFails(deleteDoc(doc(db, `workspaces/${ws}/jobOrders/j1`)));
+    await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/jobOrders/j1`)));
+  });
   it('unknown collections are denied', async () => {
     const db = dbFor(ALICE);
     const ws = await createWorkspace(db, ALICE, 'ACTUAL');

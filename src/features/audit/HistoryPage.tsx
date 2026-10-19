@@ -10,7 +10,9 @@ function show(v: unknown): string {
       const val = o.value === null ? '—' : String(o.value);
       return `${val} · ${String(o.status).replace(/_/g, ' ').toLowerCase()}`;
     }
-    return JSON.stringify(v);
+    // Long structures (order lines, BOM snapshots) are shortened here; the audit record keeps them in full.
+    const s = JSON.stringify(v);
+    return s.length > 160 ? `${s.slice(0, 157)}…` : s;
   }
   return String(v);
 }

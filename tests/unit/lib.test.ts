@@ -122,5 +122,6 @@ describe('returnTo links', () => {
     expect(safeReturnTo(new URLSearchParams('returnTo=https://evil.example'))).toBeNull();
     expect(safeReturnTo(new URLSearchParams('returnTo=//evil.example/masters/'))).toBeNull();
     expect(safeReturnTo(new URLSearchParams('returnTo=/settings'))).toBeNull();
+    expect(safeReturnTo(new URLSearchParams('returnTo=/orders/new'))).toBe('/orders/new');
   });
 });

@@ -75,6 +75,28 @@ report the discrepancy and ask; do not silently choose.
     container estimates, workflow stages, departments, approvals and
     procurement wait until the user has joined and seen real processes.
 
+## Phase 3 decisions (confirmed 19 Oct 2026)
+
+-   Phase 3 is split: 3a Job Order core (header, lines, Make/Buy per
+    line, 10% deadline, status, BOM snapshot at confirmation); 3b
+    per-JO manual stock confirmation + explosion into To produce / To
+    buy with over-allocation warnings; 3c print/share as PDF via the
+    Android share sheet (JO summary, To buy, To produce).
+-   JO status: Draft → Confirmed → Completed, or Cancelled. Completed
+    can be reopened to Confirmed, Cancelled to Draft. Editing a
+    confirmed JO, cancelling and reopening require a reason (rules
+    check the paired audit event). A later BOM change never alters a
+    confirmed JO; it shows a notice and "Use latest BOMs" (with reason).
+-   Order Period starts on the JO received date. Delivery Date Type:
+    Not confirmed yet / Factory dispatch / Port / Arrival at customer.
+-   JO import (Excel, text PDF, typed images via on-device OCR) is
+    built after the user joins and has a sample format. No AI
+    extraction for now. Imported data is always a draft the user
+    confirms. Original files are kept on the phone only. Android share
+    target ("Share → ExportFlow") comes with import.
+-   Daily task/blocker list waits for department benchmarks; it must
+    also be printable/shareable.
+
 ## Project setup (confirmed)
 
 -   Repo: `kareempalathingal/exportflow`. App URL:

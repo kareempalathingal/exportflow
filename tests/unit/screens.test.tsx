@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Product, RawMaterial, Bom, Customer } from '../../src/lib/masters';
+import type { JobOrder } from '../../src/lib/jobOrders';
 
 const product: Product & { id: string; rev: number; pending: boolean } = {
   id: 'p1', rev: 3, pending: false, name: 'Mat A', code: '', active: true, notes: '', baseUnit: 'pcs', supplyType: 'MANUFACTURED', specifications: '',
@@ -26,7 +27,15 @@ const customer: Customer & { id: string; rev: number; pending: boolean } = {
   id: 'c1', rev: 1, pending: false, name: 'Buyer GmbH', active: true, notes: '', country: 'Germany', customerType: 'AGENT', contactPerson: '', phone: '', email: '',
 };
 
-const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer] };
+const jobOrder: JobOrder & { id: string; rev: number; pending: boolean } = {
+  id: 'j1', rev: 2, pending: false, joNumber: 'JO-77', customerId: 'c1', customerName: 'Buyer GmbH', poNumber: 'PO-9',
+  receivedDate: '2026-11-01', deliveryDate: '2026-12-30', deliveryDateType: 'PORT',
+  deadline: { orderPeriodDays: 59, bufferDays: 6, internalDeadline: '2026-12-24', ruleVersion: 'buffer-10pct-ceil-min1/v1' },
+  status: 'CONFIRMED', lines: [{ id: 'l1', productId: 'p1', productName: 'Mat A', qty: 24, unit: 'sqm', supply: 'MAKE' }],
+  notes: '', bomSnapshot: { p1: { rev: 1, lines: bom.lines } }, confirmedOn: '2026-11-01',
+};
+
+const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder] };
 
 vi.mock('../../src/firebase', () => ({ db: {}, auth: { currentUser: { uid: 'u1' } }, offlineCacheEnabled: true }));
 vi.mock('../../src/features/settings/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, pendingWrite: false, fromCache: false, error: null }) }));
@@ -48,6 +57,8 @@ const { ProductForm } = await import('../../src/features/masters/ProductForm');
 const { RawMaterialForm } = await import('../../src/features/masters/RawMaterialForm');
 const { CustomerForm } = await import('../../src/features/masters/CustomerForm');
 const { HomePage } = await import('../../src/features/home/HomePage');
+const { OrdersPage } = await import('../../src/features/orders/OrdersPage');
+const { JobOrderPage } = await import('../../src/features/orders/JobOrderPage');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -56,7 +67,7 @@ function render(path: string, pattern: string, el: React.ReactElement) {
         <Route path={pattern} element={el} />
       </Routes>
     </MemoryRouter>,
-  );
+  ).replace(/<!-- -->/g, '');
 }
 
 describe('Phase 2 screens render', () => {
@@ -85,5 +96,30 @@ describe('Phase 2 screens render', () => {
   it('raw material and customer forms render', () => {
     expect(render('/masters/raw-materials/r1', '/masters/raw-materials/:id', <RawMaterialForm />)).toContain('Base unit');
     expect(render('/masters/customers/c1', '/masters/customers/:id', <CustomerForm />)).toContain('Country');
+  });
+});
+
+describe('Phase 3 Job Order screens render', () => {
+  it('orders list shows the open order with its deadline', () => {
+    const html = render('/orders', '/orders', <OrdersPage />);
+    expect(html).toContain('JO-77');
+    expect(html).toContain('Buyer GmbH');
+    expect(html).toContain('24 Dec 2026');
+  });
+  it('a confirmed order shows deadline, buffer, BOM-changed notice and line conversion', () => {
+    const html = render('/orders/j1', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Internal deadline');
+    expect(html).toContain('6 days of 59');
+    expect(html).toContain('BOM changed after confirmation'); // snapshot rev 1, current BOM rev 2
+    expect(html).toContain('Mark completed');
+    expect(html).toContain('= 100 pcs');
+  });
+  it('the new Job Order form renders', () => {
+    const html = render('/orders/new', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('New Job Order');
+    expect(html).toContain('Save as draft');
+  });
+  it('home counts open orders', () => {
+    expect(render('/', '/', <HomePage />)).toContain('1 open Job Order');
   });
 });

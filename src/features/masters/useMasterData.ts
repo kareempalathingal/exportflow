@@ -15,8 +15,14 @@ export function useMasterData(workspaceId: string | null) {
     }),
     [products.items, rawMaterials.items, boms.items],
   );
+  const bomRev = useMemo(() => {
+    const revs = new Map(boms.items.map((b) => [b.id, b.rev]));
+    return (productId: string) => revs.get(productId) ?? 0;
+  }, [boms.items]);
   return {
     md,
+    /** Current BOM version (record rev) of a product; 0 if it has no BOM. */
+    bomRev,
     products,
     rawMaterials,
     boms,
