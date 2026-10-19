@@ -6,7 +6,7 @@ export function StatusPill({ status }: { status: JoStatus }) {
   return <span className={`pill ${STATUS_CLS[status]}`}>{JO_STATUS_LABEL[status]}</span>;
 }
 
-/** Days left to the internal deadline, or what has been missed. */
+/** Days left to the internal deadline (neutral: colour comes from progress, not time), or what has been missed. */
 export function DeadlinePill({ jo, today }: { jo: Pick<JobOrder, 'status' | 'deadline' | 'deliveryDate'>; today: string }) {
   const st = deadlineState(jo, today);
   if (st === 'CLOSED') return null;
@@ -14,7 +14,7 @@ export function DeadlinePill({ jo, today }: { jo: Pick<JobOrder, 'status' | 'dea
   if (st === 'OVERDUE') return <span className="pill bad">Internal deadline passed</span>;
   const left = daysBetween(today, jo.deadline.internalDeadline) ?? 0;
   const text = left === 0 ? 'Due today' : `${left} day${left === 1 ? '' : 's'} left`;
-  return <span className={`pill ${st === 'DUE_SOON' ? 'warn' : 'ok'}`}>{text}</span>;
+  return <span className="pill neutral">{text}</span>;
 }
 
 export function permissionHint(error: string | null): string | null {

@@ -6,6 +6,51 @@ import { useProfile, PROFILE_COLLECTION, PROFILE_DOC } from './useProfile';
 import { saveRecord } from '../sync/records';
 import { SyncPanel } from '../sync/SyncPanel';
 import { offlineCacheEnabled } from '../../firebase';
+import { DEFAULT_RED_AT, readRedAt, readTheme, saveRedAt, saveTheme, type ThemePref } from '../../lib/theme';
+
+function AppearanceCard() {
+  const [theme, setTheme] = useState<ThemePref>(readTheme);
+  const [redAt, setRedAt] = useState(readRedAt);
+  return (
+    <div className="card">
+      <h3>Appearance</h3>
+      <div className="segmented" role="radiogroup" aria-label="Theme">
+        {(['auto', 'light', 'dark'] as const).map((x) => (
+          <button
+            key={x}
+            role="radio"
+            aria-checked={theme === x}
+            className={theme === x ? 'on' : ''}
+            onClick={() => {
+              setTheme(x);
+              saveTheme(x);
+            }}
+          >
+            {x === 'auto' ? 'Auto' : x === 'light' ? 'Light' : 'Dark'}
+          </button>
+        ))}
+      </div>
+      <p className="muted small">Auto follows the phone’s dark mode. Saved on this phone only.</p>
+      <label>
+        Dashboard colour is full red when an order is behind plan by
+        <select
+          value={redAt}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            setRedAt(n);
+            saveRedAt(n);
+          }}
+        >
+          {[10, 15, 20, 25, 30].map((n) => (
+            <option key={n} value={n}>
+              {n}%{n === DEFAULT_RED_AT ? ' (default)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
 
 const STATUS_LABEL: Record<DataStatus, string> = {
   VERIFIED: 'Verified',
@@ -148,6 +193,8 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
+
+      <AppearanceCard />
 
       <div className="card">
         <h3>{t('account')}</h3>

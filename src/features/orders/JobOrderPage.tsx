@@ -34,6 +34,7 @@ import { newId, useCollection, useDocument } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { MaterialsTab } from './MaterialsTab';
+import { ProgressCard } from './ProgressCard';
 import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
 
 interface LineDraft {
@@ -181,6 +182,7 @@ export function JobOrderPage() {
       bomSnapshot,
       confirmedOn,
       stock: item?.stock ?? {},
+      progress: item?.progress ?? null,
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;
@@ -335,6 +337,7 @@ export function JobOrderPage() {
         </>
       )}
 
+      {!isNew && item && <ProgressCard key={`${item.id}:${item.rev}`} jo={item} />}
       {!isNew && (
         <div className="tabs" role="tablist">
           {(['order', 'materials'] as const).map((x) => (
@@ -435,7 +438,7 @@ export function JobOrderPage() {
                     )}
                   </select>
                 </label>
-                <div className="grid2">
+                <div className="qty-unit">
                   <label>
                     Quantity
                     <input inputMode="decimal" value={l.qtyText} onChange={(e) => setLine(i, { qtyText: e.target.value })} />

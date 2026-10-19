@@ -2,13 +2,16 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { useProfile } from '../settings/useProfile';
-import { formatDateTime, istDateKey } from '../../lib/time';
+import { istDateKey } from '../../lib/time';
 import { masterAttention, type AttentionItem } from '../../lib/masters';
-import { COLLECTION_JOB_ORDERS, formatDay, isEditable, jobOrderAttention, type JoAttention, type JobOrder } from '../../lib/jobOrders';
+import { addDays, COLLECTION_JOB_ORDERS, formatDay, isEditable, jobOrderAttention, type JoAttention, type JobOrder } from '../../lib/jobOrders';
 import { useMasterData } from '../masters/useMasterData';
 import { useCollection } from '../masters/useCollection';
 import { permissionHint } from '../orders/OrderBits';
-import { COLLECTION_STOCK_COUNTS, overAllocated, parseItemKey, type StockCount } from '../../lib/materials';
+import { TrackBar } from '../orders/TrackBar';
+import { COLLECTION_STOCK_COUNTS, overAllocated, parseItemKey, planMaterials, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
+import { gapColor, trackGroup, trackLabel, trackOf, type Track } from '../../lib/progress';
+import { readRedAt } from '../../lib/theme';
 import { formatQty, unitLabel } from '../../lib/units';
 
 const KIND: Record<AttentionItem['kind'], { title: string; hint: string; cls: string; tab: string }> = {
@@ -26,8 +29,27 @@ const JO_KIND: Record<JoAttention['kind'], { title: string; cls: string }> = {
   BOM_CHANGED: { title: 'BOM changed', cls: 'warn' },
 };
 
+const GROUPS = [
+  { id: 'ON_TRACK', label: 'On track', edge: 'oklch(0.58 0.13 150)' },
+  { id: 'BEHIND', label: 'Behind', edge: 'oklch(0.72 0.15 75)' },
+  { id: 'LATE', label: 'Late', edge: 'oklch(0.56 0.19 28)' },
+  { id: 'NOT_TRACKED', label: 'Not tracked', edge: 'var(--line)' },
+] as const;
+
+const STRIP_DAYS = 21;
+const dayHead = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** Urgency order: late, then furthest behind, then untracked, drafts last. */
+function urgency(t: Track): number {
+  if (t.kind === 'LATE') return -1000 + t.daysLeft;
+  if (t.kind === 'TRACKED') return t.gap ?? 0;
+  if (t.kind === 'NOT_TRACKED') return 500;
+  if (t.kind === 'DONE') return 800;
+  return 900;
+}
+
 export function HomePage() {
-  const { t, workspaceId, mode } = useApp();
+  const { t, workspaceId } = useApp();
   const { profile } = useProfile(workspaceId);
   const master = useMasterData(workspaceId);
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
@@ -35,41 +57,181 @@ export function HomePage() {
   const products = master.products;
   const company = profile?.companyName?.value;
   const today = istDateKey(new Date());
+  const redAt = readRedAt();
+
+  const open = useMemo(() => {
+    return jos.items
+      .filter((j) => isEditable(j.status))
+      .map((j) => {
+        const track = trackOf(j, today);
+        return { jo: j, track, color: gapColor(track, redAt) };
+      })
+      .sort((a, b) => urgency(a.track) - urgency(b.track));
+  }, [jos.items, today, redAt]);
+
+  const groupCount = useMemo(() => {
+    const c: Record<string, number> = { ON_TRACK: 0, BEHIND: 0, LATE: 0, NOT_TRACKED: 0 };
+    for (const o of open) c[trackGroup(o.track)]! += 1;
+    return c;
+  }, [open]);
+
+  // Next three weeks: internal deadlines (solid) and customer deliveries (light).
+  const strip = useMemo(() => {
+    const days = Array.from({ length: STRIP_DAYS }, (_, i) => addDays(today, i)!);
+    const events: { date: string; label: string; color: string; strong: boolean }[] = [];
+    for (const o of open) {
+      if (o.jo.status !== 'CONFIRMED') continue;
+      events.push({ date: o.jo.deadline.internalDeadline, label: `${o.jo.joNumber} internal deadline`, color: o.color, strong: true });
+      events.push({ date: o.jo.deliveryDate, label: `${o.jo.joNumber} delivery`, color: o.color, strong: false });
+    }
+    const inRange = events.filter((e) => e.date >= today && e.date <= days[days.length - 1]!).sort((a, b) => a.date.localeCompare(b.date));
+    const cells = days.map((d) => {
+      const ev = inRange.filter((e) => e.date === d);
+      const strong = ev.find((e) => e.strong);
+      return { date: d, today: d === today, color: strong?.color ?? ev[0]?.color ?? null, light: !strong && ev.length > 0 };
+    });
+    return { cells, events: inRange };
+  }, [open, today]);
+
+  // Materials: how many required items are fully covered by stock set aside (confirmed orders).
+  const materials = useMemo(() => {
+    let covered = 0;
+    let total = 0;
+    for (const j of jos.items) {
+      if (j.status !== 'CONFIRMED') continue;
+      const p = planMaterials(j, master.md);
+      for (const r of [...p.toProduce, ...p.toBuy]) {
+        if (!(r.gross > 0)) continue;
+        total += 1;
+        if (r.net === 0) covered += 1;
+      }
+    }
+    const buy = toBuyAcrossOrders(jos.items, master.md, false);
+    return { covered, total, toBuy: buy.rows.length, incomplete: buy.ordersWithErrors.length };
+  }, [jos.items, master.md]);
 
   const attention = useMemo(() => masterAttention(products.items, master.md), [products.items, master.md]);
-  const joAttention = useMemo(() => jobOrderAttention(jos.items, master.md, master.bomRev, today), [jos.items, master.md, master.bomRev, today]);
-  const open = useMemo(
-    () => jos.items.filter((j) => isEditable(j.status)).sort((a, b) => a.deadline.internalDeadline.localeCompare(b.deadline.internalDeadline)),
-    [jos.items],
+  const joAttention = useMemo(
+    () => jobOrderAttention(jos.items, master.md, master.bomRev, today).filter((a) => a.kind !== 'DUE_SOON'),
+    [jos.items, master.md, master.bomRev, today],
   );
-  const loading = master.loading || jos.loading;
   const over = useMemo(
     () => overAllocated(jos.items, new Map(counts.items.map((c) => [`${c.itemType}_${c.itemId}`, c]))),
     [jos.items, counts.items],
   );
+  const loading = master.loading || jos.loading;
   const total = attention.length + joAttention.length + over.length;
-  const next = open[0];
 
   return (
-    <section>
-      <h2>{t('homeTitle')}</h2>
-      <p className="muted small">{formatDateTime(new Date())} IST</p>
-      <div className="card">
-        <p className="kicker">{mode}</p>
-        <p className="lead">{company ?? t('appName')}</p>
-        {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
-        {!jos.loading && !jos.error && open.length === 0 && <p className="muted">{t('homeEmpty')}</p>}
-        {next && (
-          <p>
-            <Link to="/orders">
-              {open.length} open Job Order{open.length === 1 ? '' : 's'}
-            </Link>
-            <span className="muted small block">
-              Next internal deadline: {formatDay(next.deadline.internalDeadline)} ({next.joNumber})
+    <section className="dash">
+      <div className="row between dash-head">
+        <div>
+          <span className="mono muted small caps">{dayHead.format(new Date(`${today}T00:00:00Z`))}</span>
+          <h2>Where orders stand</h2>
+          {company && <span className="muted small">{company}</span>}
+        </div>
+        <Link className="button primary small" to="/orders/new">
+          + New JO
+        </Link>
+      </div>
+
+      {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
+
+      <section aria-label="Order status counts" className="counts">
+        {GROUPS.map((g) => (
+          <div key={g.id} style={{ boxShadow: `inset 0 4px 0 ${g.edge}` }}>
+            <span className="mono count">{loading ? '–' : groupCount[g.id]}</span>
+            <span className="muted small">{g.label}</span>
+          </div>
+        ))}
+      </section>
+
+      <section aria-labelledby="h-strip" className="card">
+        <h3 id="h-strip">Next 3 weeks</h3>
+        <div className="strip" aria-hidden="true">
+          {strip.cells.map((c) => (
+            <div
+              key={c.date}
+              className={`strip-day${c.today ? ' today' : ''}${c.light ? ' light' : ''}`}
+              style={c.color && !c.today ? { ['--day' as string]: c.color } : undefined}
+            />
+          ))}
+        </div>
+        {strip.events.length === 0 ? (
+          <p className="muted small">No deadlines or deliveries in the next 3 weeks.</p>
+        ) : (
+          <ul className="strip-list small">
+            {strip.events.slice(0, 5).map((e) => (
+              <li key={`${e.date}-${e.label}`}>
+                <span className="dot" style={{ background: e.color, opacity: e.strong ? 1 : 0.45 }} aria-hidden="true" />
+                <span className="mono">{formatDay(e.date).slice(0, 6)}</span> {e.label}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section aria-labelledby="h-pva">
+        <h3 id="h-pva">Planned vs actual</h3>
+        {!loading && open.length === 0 && <p className="muted">{t('homeEmpty')}</p>}
+        <ul className="master-list">
+          {open.map(({ jo, track, color }) => (
+            <li key={jo.id}>
+              <Link
+                to={`/orders/${jo.id}`}
+                className={`card link edge${jo.status === 'DRAFT' ? ' dashed' : ''}`}
+                style={{ ['--edge' as string]: jo.status === 'DRAFT' ? 'transparent' : color }}
+              >
+                <div className="row between">
+                  <span>
+                    <strong>{jo.joNumber}</strong> <span className="muted small">{jo.customerName}</span>
+                  </span>
+                  <span className="track-label">
+                    <span className="dot" style={{ background: color }} aria-hidden="true" />
+                    {track.kind === 'DRAFT' ? 'Draft' : trackLabel(track)}
+                  </span>
+                </div>
+                {jo.status === 'DRAFT' ? (
+                  <span className="muted small block">Tracking starts when the order is confirmed</span>
+                ) : (
+                  <>
+                    <TrackBar track={track} color={color} />
+                    <div className="row between small">
+                      <span>Is {track.actual === null ? '—' : `${track.actual}%`}</span>
+                      <span>Should be {track.planned}%</span>
+                      <span>{track.daysLeft >= 0 ? `${track.daysLeft} day${track.daysLeft === 1 ? '' : 's'} left` : 'past deadline'}</span>
+                    </div>
+                    {track.updatedDaysAgo !== null && track.updatedDaysAgo > 3 && <span className="muted small block">Progress updated {track.updatedDaysAgo} days ago</span>}
+                  </>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        {open.some((o) => o.jo.status === 'CONFIRMED') && (
+          <p className="muted small legend">
+            <span>
+              <span className="legend-mark" aria-hidden="true" /> Should be here today
+            </span>
+            <span>
+              <span className="legend-gap" aria-hidden="true" /> Gap to catch up
             </span>
           </p>
         )}
-      </div>
+      </section>
+
+      <section aria-label="Materials and purchasing" className="tiles">
+        <div className="card">
+          <span className="muted small">Covered by stock</span>
+          <span className="mono tile-num">{materials.total ? `${materials.covered}/${materials.total}` : '—'}</span>
+          <span className="muted small">items on confirmed orders</span>
+        </div>
+        <Link className="card link" to="/orders?tab=to-buy">
+          <span className="muted small">To buy</span>
+          <span className="mono tile-num">{materials.toBuy} →</span>
+          <span className="muted small">{materials.incomplete ? `${materials.incomplete} order(s) incomplete` : 'items, all confirmed orders'}</span>
+        </Link>
+      </section>
 
       <div className="card">
         <div className="row between">

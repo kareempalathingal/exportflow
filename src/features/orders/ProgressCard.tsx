@@ -1,0 +1,68 @@
+import { useState } from 'react';
+import { useApp } from '../../AppContext';
+import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder } from '../../lib/jobOrders';
+import { gapColor, trackLabel, trackOf } from '../../lib/progress';
+import { readRedAt } from '../../lib/theme';
+import { istDateKey } from '../../lib/time';
+import type { WithMeta } from '../masters/useCollection';
+import { saveRecord } from '../sync/records';
+import { jobOrderData } from './MaterialsTab';
+import { TrackBar } from './TrackBar';
+
+/** Manual "% complete" until stage tracking exists; compared with the linear plan. */
+export function ProgressCard({ jo }: { jo: WithMeta<JobOrder> }) {
+  const { workspaceId } = useApp();
+  const today = istDateKey(new Date());
+  const [pct, setPct] = useState(jo.progress?.pct ?? 0);
+  const [saved, setSaved] = useState(false);
+  const track = trackOf(jo, today);
+  const color = gapColor(track, readRedAt());
+  const editable = jo.status === 'CONFIRMED';
+
+  function save() {
+    if (!workspaceId) return;
+    saveRecord({
+      workspaceId,
+      collectionName: COLLECTION_JOB_ORDERS,
+      docId: jo.id,
+      entity: `Job Order: ${jo.joNumber}`,
+      before: jo,
+      data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), progress: { pct, on: today } })) as Record<string, unknown>,
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  }
+
+  if (jo.status === 'DRAFT' || jo.status === 'CANCELLED') return null;
+  return (
+    <div className="card">
+      <div className="row between">
+        <h3>Progress</h3>
+        <span className="track-label">
+          <span className="dot" style={{ background: color }} aria-hidden="true" />
+          {trackLabel(track)}
+        </span>
+      </div>
+      <TrackBar track={track} color={color} />
+      <p className="muted small">
+        Is {track.actual === null ? '—' : `${track.actual}%`} · should be {track.planned}% today
+        {jo.progress && ` · updated ${formatDay(jo.progress.on)}`}
+      </p>
+      {editable && (
+        <>
+          <label>
+            % complete now: <strong className="mono">{pct}%</strong>
+            <input type="range" min={0} max={100} step={5} value={pct} onChange={(e) => setPct(Number(e.target.value))} />
+          </label>
+          <div className="row between">
+            <span className="muted small">Your estimate; stage tracking will replace it later.</span>
+            <button type="button" className="primary small" disabled={pct === (jo.progress?.pct ?? -1)} onClick={save}>
+              Update
+            </button>
+          </div>
+          {saved && <p className="ok small">Saved</p>}
+        </>
+      )}
+    </div>
+  );
+}

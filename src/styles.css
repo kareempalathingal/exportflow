@@ -1,42 +1,63 @@
 :root {
-  --bg: #f6f5f1;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #eeece6;
-  --ink: #1b2430;
-  --muted: #5e6875;
-  --line: #dcd8cf;
+  --surface-2: #f3f1ec;
+  --ink: #17202b;
+  --muted: #5b6573;
+  --line: #e6e2d9;
   --brand: #1f3a5f;
   --brand-ink: #ffffff;
   --demo: #c2570c;
   --demo-bg: #fff1e6;
   --ok: #1d7a46;
-  --warn: #9a6400;
+  --warn: #8a5a00;
   --danger: #b42318;
-  --radius: 12px;
-  --nav-h: 60px;
+  --track: #efede7;
   color-scheme: light;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans Malayalam', sans-serif;
+  --radius: 14px;
+  --nav-h: 60px;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  font-family: 'IBM Plex Sans', 'Noto Sans Malayalam', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 16px;
   line-height: 1.45;
 }
 
+/* Dark: follows the phone unless Settings → Appearance says otherwise. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12161c;
-    --surface: #1b2129;
-    --surface-2: #232a34;
-    --ink: #e8ebef;
-    --muted: #9aa4b1;
-    --line: #2e3742;
-    --brand: #7fa7d9;
-    --brand-ink: #0d1520;
-    --demo: #f59e57;
-    --demo-bg: #2e1d10;
-    --ok: #5cc98a;
-    --warn: #e2b04a;
-    --danger: #f2827a;
-    color-scheme: dark;
+  :root:not([data-theme="light"]) {
+  --bg: #0f141a;
+  --surface: #151b23;
+  --surface-2: #1e2630;
+  --ink: #e8ebef;
+  --muted: #9aa4b1;
+  --line: #2a323d;
+  --brand: #8fb3e3;
+  --brand-ink: #0d1520;
+  --demo: #f59e57;
+  --demo-bg: #2e1d10;
+  --ok: #5cc98a;
+  --warn: #e2b04a;
+  --danger: #f2827a;
+  --track: #26303b;
+  color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141a;
+  --surface: #151b23;
+  --surface-2: #1e2630;
+  --ink: #e8ebef;
+  --muted: #9aa4b1;
+  --line: #2a323d;
+  --brand: #8fb3e3;
+  --brand-ink: #0d1520;
+  --demo: #f59e57;
+  --demo-bg: #2e1d10;
+  --ok: #5cc98a;
+  --warn: #e2b04a;
+  --danger: #f2827a;
+  --track: #26303b;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -219,3 +240,41 @@ button.linkish { background: none; border: 0; padding: 0; min-height: 32px; colo
 details summary { cursor: pointer; color: var(--brand); margin: 0.3rem 0; min-height: 32px; display: list-item; }
 .count-editor { margin-top: 0.5rem; }
 [hidden] { display: none !important; }
+
+/* Option B theme details */
+.mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.edge { box-shadow: inset 4px 0 0 var(--edge, transparent); }
+.card.link:hover { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
+.trackbar { position: relative; height: 14px; border-radius: 7px; background: var(--track); margin: 0.5rem 0 0.35rem; }
+.trackbar-fill { position: absolute; left: 0; top: 0; height: 14px; border-radius: 7px; }
+.trackbar-gap { position: absolute; top: 0; height: 14px; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--gap) 45%, transparent) 0 4px, color-mix(in srgb, var(--gap) 15%, transparent) 4px 8px); }
+.trackbar-mark { position: absolute; top: -5px; width: 2px; height: 24px; background: var(--ink); border-radius: 1px; }
+.track-label { display: inline-flex; align-items: center; gap: 0.35rem; font-family: var(--mono); font-size: 0.85rem; font-weight: 600; }
+.track-label .dot { width: 10px; height: 10px; border-radius: 3px; }
+input[type="range"] { padding: 0; min-height: 36px; accent-color: var(--brand); border: 0; background: transparent; }
+
+/* Home dashboard (Option B · Track) */
+.dash > section, .dash > .card { margin-bottom: 14px; }
+.dash-head { align-items: flex-end; margin-bottom: 12px; }
+.dash-head h2 { margin: 2px 0 0; font-size: 1.5rem; }
+.caps { text-transform: uppercase; letter-spacing: 0.04em; }
+.counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.counts > div { padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); }
+.counts > div:last-child { border-right: 0; }
+.counts .count { font-size: 1.5rem; font-weight: 600; }
+.strip { display: grid; grid-template-columns: repeat(21, minmax(0, 1fr)); gap: 2px; margin: 0.4rem 0 0.5rem; }
+.strip-day { height: 30px; border-radius: 4px; background: var(--day, var(--track)); }
+.strip-day.light { background: color-mix(in srgb, var(--day) 40%, var(--track)); }
+.strip-day.today { background: var(--brand); }
+.strip-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.strip-list li { display: flex; align-items: center; gap: 0.45rem; }
+.strip-list .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.card.dashed { border-style: dashed; }
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; }
+.legend > span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.legend-mark { display: inline-block; width: 2px; height: 14px; background: var(--ink); }
+.legend-gap { display: inline-block; width: 16px; height: 10px; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--danger) 45%, transparent) 0 3px, color-mix(in srgb, var(--danger) 12%, transparent) 3px 6px); }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tiles .card { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.tile-num { font-size: 1.5rem; font-weight: 600; }
+.qty-unit { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 0 0.6rem; }

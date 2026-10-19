@@ -134,7 +134,11 @@ describe('Phase 3 Job Order screens render', () => {
     expect(html).toContain('New Job Order');
     expect(html).toContain('Save as draft');
   });
-  it('home counts open orders', () => {
-    expect(render('/', '/', <HomePage />)).toContain('1 open Job Order');
+  it('home is the planned-vs-actual dashboard', () => {
+    const html = render('/', '/', <HomePage />);
+    expect(html).toContain('Where orders stand');
+    expect(html).toContain('Planned vs actual');
+    expect(html).toContain('JO-77');
+    expect(html).toContain('Not tracked');
   });
 });

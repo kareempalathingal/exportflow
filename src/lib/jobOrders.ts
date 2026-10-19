@@ -2,6 +2,7 @@
  * Job Order core (Phase 3a): shapes and pure, deterministic calculations.
  * Requirements v1.9 §31.4 (10% buffer) and CLAUDE.md phase-plan decisions.
  */
+import type { ProgressEntry } from './progress';
 import {
   bomStatus,
   lineComponent,
@@ -166,6 +167,8 @@ export interface JobOrder {
   confirmedOn: string | null;
   /** Stock set aside for this order, by item key ("RAW_MATERIAL:id" / "PRODUCT:id"). Phase 3b. */
   stock?: Record<string, StockEntry>;
+  /** Manual % complete until stage tracking exists (dashboard). */
+  progress?: ProgressEntry | null;
 }
 
 /** Stock earmarked for one Job Order (Requirements §31.3), confirmed manually. */

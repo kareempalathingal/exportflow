@@ -41,6 +41,7 @@ export function jobOrderData(jo: JobOrder): JobOrder {
     bomSnapshot: jo.bomSnapshot,
     confirmedOn: jo.confirmedOn,
     stock: jo.stock ?? {},
+    progress: jo.progress ?? null,
   };
 }
 
@@ -145,7 +146,7 @@ export function MaterialsTab(props: {
             </strong>
           </span>
         </div>
-        <div className="grid2">
+        <div className="qty-unit">
           <label>
             From stock for this order
             <input inputMode="decimal" placeholder="0" value={d.qtyText} disabled={!editable} onChange={(e) => setDraft(r.key, r.unit, { qtyText: e.target.value })} />
