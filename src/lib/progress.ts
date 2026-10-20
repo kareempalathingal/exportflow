@@ -8,6 +8,7 @@ import { daysBetween, type JobOrder } from './jobOrders';
 export interface ProgressEntry {
   pct: number; // 0–100, entered by the user
   on: string; // YYYY-MM-DD (IST) of the update
+  at?: string; // exact time of the update (ISO); absent on early entries
 }
 
 export type TrackKind = 'DRAFT' | 'NOT_TRACKED' | 'TRACKED' | 'LATE' | 'DONE';
@@ -95,8 +96,15 @@ export function trackGroup(t: Track): 'ON_TRACK' | 'BEHIND' | 'LATE' | 'NOT_TRAC
   return 'NOT_TRACKED';
 }
 
-/** Adds a progress update to the history: one entry per day (a later update the same day replaces it). */
-export function appendProgress(log: ProgressEntry[] | undefined, entry: ProgressEntry, max = 400): ProgressEntry[] {
-  const rest = (log ?? []).filter((e) => e.on !== entry.on);
-  return [...rest, entry].sort((a, b) => a.on.localeCompare(b.on)).slice(-max);
+/** Adds a progress update to the history. Every update is kept (with its time), oldest first. */
+export function appendProgress(log: ProgressEntry[] | undefined, entry: ProgressEntry, max = 1000): ProgressEntry[] {
+  const key = (e: ProgressEntry) => e.at ?? `${e.on}T00:00:00.000Z`;
+  return [...(log ?? []), entry].sort((a, b) => key(a).localeCompare(key(b))).slice(-max);
+}
+
+/** The last update of each day (for day-by-day reports). */
+export function lastPerDay(log: ProgressEntry[] | undefined): ProgressEntry[] {
+  const byDay = new Map<string, ProgressEntry>();
+  for (const e of log ?? []) byDay.set(e.on, e); // log is oldest first, so the last one wins
+  return [...byDay.values()];
 }

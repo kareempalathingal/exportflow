@@ -27,7 +27,7 @@ export function ProgressCard({ jo }: { jo: WithMeta<JobOrder> }) {
       docId: jo.id,
       entity: `Job Order: ${jo.joNumber}`,
       before: jo,
-      data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), progress: { pct, on: today }, progressLog: appendProgress(jo.progressLog, { pct, on: today }) })) as Record<string, unknown>,
+      data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), progress: { pct, on: today, at: new Date().toISOString() }, progressLog: appendProgress(jo.progressLog, { pct, on: today, at: new Date().toISOString() }) })) as Record<string, unknown>,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);

@@ -42,17 +42,18 @@ describe('planned vs actual', () => {
   });
 });
 
-import { appendProgress } from '../../src/lib/progress';
+import { appendProgress, lastPerDay } from '../../src/lib/progress';
 describe('progress history', () => {
-  it('keeps one entry per day, in date order', () => {
-    let log = appendProgress(undefined, { pct: 10, on: '2026-11-05' });
-    log = appendProgress(log, { pct: 30, on: '2026-11-12' });
-    log = appendProgress(log, { pct: 35, on: '2026-11-12' });
-    log = appendProgress(log, { pct: 20, on: '2026-11-08' });
-    expect(log).toEqual([
-      { pct: 10, on: '2026-11-05' },
-      { pct: 20, on: '2026-11-08' },
-      { pct: 35, on: '2026-11-12' },
+  it('keeps every update with its time, oldest first', () => {
+    let log = appendProgress(undefined, { pct: 10, on: '2026-11-05', at: '2026-11-05T04:00:00Z' });
+    log = appendProgress(log, { pct: 30, on: '2026-11-12', at: '2026-11-12T05:00:00Z' });
+    log = appendProgress(log, { pct: 35, on: '2026-11-12', at: '2026-11-12T11:30:00Z' });
+    log = appendProgress(log, { pct: 20, on: '2026-11-08', at: '2026-11-08T06:00:00Z' });
+    expect(log.map((e) => e.pct)).toEqual([10, 20, 30, 35]);
+    expect(lastPerDay(log).map((e) => [e.on, e.pct])).toEqual([
+      ['2026-11-05', 10],
+      ['2026-11-08', 20],
+      ['2026-11-12', 35],
     ]);
   });
 });

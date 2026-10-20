@@ -120,7 +120,8 @@ report the discrepancy and ask; do not silently choose.
     compare actual averages with benchmarks and SUGGEST a revision when
     the difference is significant — the user approves; benchmarks are
     versioned like the deadline rule and never changed silently or
-    invented. Data captured now: `completedOn` and `progressLog` per JO.
+    invented. Data captured now: `completedOn` and `progressLog` per JO
+    (every update with its time; Phase 4 stage records replace the slider).
 -   3b stock: per-JO earmarks for finished products, made sub-products
     (deducted before exploding their components) and raw materials;
     qty + unit required, location/remarks optional, who/when automatic;
