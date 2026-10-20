@@ -310,7 +310,7 @@ describe('versioned records with audit', () => {
     const status = (id: string) => after.jobOrders!.find((r) => r.id === id)!.data.status;
     expect(status('sample_jo_101')).toBe('CONFIRMED');
     expect(status('sample_jo_099')).toBe('COMPLETED');
-    expect(after.products!.find((r) => r.id === 'sample_p_mat')!.data.name).toBe('Coir mat 40×60');
+    expect(after.products!.find((r) => r.id === 'sample_p_mat')!.data.name).toBe('Coir mat 40×60 (sample)');
     expect(planRestore(backup, after, { workspaceId: ws, mode: 'DEMO' }).writes).toHaveLength(0);
   });
   it('unknown collections are denied', async () => {
