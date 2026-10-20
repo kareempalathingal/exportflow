@@ -37,7 +37,24 @@ const jobOrder: JobOrder & { id: string; rev: number; pending: boolean } = {
 
 const supplier = { id: 's1', rev: 1, pending: false, name: 'Kerala Fibre Traders', active: true, notes: '', place: 'Alappuzha', contactPerson: '', phone: '', email: '', gstin: '', items: ['RAW_MATERIAL:r1'] };
 
-const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder], suppliers: [supplier] };
+const processes = [
+  { id: 'pr1', rev: 1, pending: false, name: 'Weaving', active: true, notes: '' },
+  { id: 'pr2', rev: 1, pending: false, name: 'Bleaching', active: true, notes: '' },
+];
+product.route = [
+  { processId: 'pr1', plannedDays: { value: 4, status: 'USER_PROVIDED', source: '' } },
+  { processId: 'pr2', plannedDays: { value: null, status: 'PENDING_VERIFICATION', source: '' } },
+];
+const stepped: JobOrder & { id: string; rev: number; pending: boolean } = {
+  ...jobOrder, id: 'j2', joNumber: 'JO-88', receivedDate: '2026-10-01', confirmedOn: '2026-10-01',
+  deadline: { orderPeriodDays: 40, bufferDays: 4, internalDeadline: '2026-11-06', ruleVersion: 'buffer-10pct-ceil-min1/v1' },
+  lines: [{ ...jobOrder.lines[0]!, steps: [
+    { key: 'a', processId: 'pr1', label: 'Weaving', forProduct: 'Mat A', plannedDays: 4, doneAt: '2026-10-08T06:00:00Z' },
+    { key: 'b', processId: 'pr2', label: 'Bleaching', forProduct: 'Mat A', plannedDays: null, doneAt: null },
+  ] }],
+};
+
+const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder, stepped], suppliers: [supplier], processes };
 
 vi.mock('../../src/firebase', () => ({ db: {}, auth: { currentUser: { uid: 'u1' } }, offlineCacheEnabled: true }));
 vi.mock('../../src/features/settings/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, pendingWrite: false, fromCache: false, error: null }) }));
@@ -62,6 +79,7 @@ const { HomePage } = await import('../../src/features/home/HomePage');
 const { SupplierForm } = await import('../../src/features/masters/SupplierForm');
 const { OrdersPage } = await import('../../src/features/orders/OrdersPage');
 const { JobOrderPage } = await import('../../src/features/orders/JobOrderPage');
+const { ProcessForm } = await import('../../src/features/masters/ProcessForm');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -167,5 +185,37 @@ describe('Suppliers', () => {
     const html = render('/orders?tab=to-buy', '/orders', <OrdersPage />);
     expect(html).toContain('Suppliers: ');
     expect(html).toContain('Kerala Fibre Traders');
+  });
+});
+
+describe('Phase 4 process steps', () => {
+  it('processes tab lists processes; a process shows which products use it', () => {
+    expect(render('/masters?tab=processes', '/masters', <MastersPage />)).toContain('Bleaching');
+    const html = render('/masters/processes/pr2', '/masters/processes/:id', <ProcessForm />);
+    expect(html).toContain('Used by');
+    expect(html).toContain('Mat A');
+  });
+  it('product details have the process route editor', () => {
+    const html = render('/masters/products/p1?tab=details', '/masters/products/:id', <ProductForm />);
+    expect(html).toContain('Process route');
+    expect(html).toContain('<option value="pr1">Weaving</option>'); // saved steps fill in after mount
+    expect(html).toContain('Create &amp; add');
+    expect(html).toContain('Order of steps confirmed with the company');
+  });
+  it('a confirmed order opens on Products with each step and the next action', () => {
+    const html = render('/orders/j2', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Now: Bleaching');
+    expect(html).toContain('Bleaching done');
+    expect(html).toContain('time pending');
+    expect(html).toContain('Undo last');
+  });
+  it('an order without steps offers to set them up from product routes', () => {
+    const html = render('/orders/j1?tab=products', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Set up steps from product routes');
+  });
+  it('home shows what each product is doing now', () => {
+    const html = render('/', '/', <HomePage />);
+    expect(html).toContain('JO-88');
+    expect(html).toContain('Bleaching');
   });
 });

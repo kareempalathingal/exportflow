@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder } from '../../lib/jobOrders';
 import { appendProgress, gapColor, trackLabel, trackOf } from '../../lib/progress';
+import { orderStepProgress } from '../../lib/route';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
 import type { WithMeta } from '../masters/useCollection';
@@ -15,9 +16,10 @@ export function ProgressCard({ jo }: { jo: WithMeta<JobOrder> }) {
   const today = istDateKey(new Date());
   const [pct, setPct] = useState(jo.progress?.pct ?? 0);
   const [saved, setSaved] = useState(false);
-  const track = trackOf(jo, today);
+  const fromSteps = orderStepProgress(jo, today);
+  const track = trackOf(jo, today, fromSteps);
   const color = gapColor(track, readRedAt());
-  const editable = jo.status === 'CONFIRMED';
+  const editable = jo.status === 'CONFIRMED' && !fromSteps;
 
   function save() {
     if (!workspaceId) return;
@@ -37,7 +39,7 @@ export function ProgressCard({ jo }: { jo: WithMeta<JobOrder> }) {
   return (
     <div className="card">
       <div className="row between">
-        <h3>Progress</h3>
+        <h3>{fromSteps ? 'Whole order' : 'Progress'}</h3>
         <span className="track-label">
           <span className="dot" style={{ background: color }} aria-hidden="true" />
           {trackLabel(track)}
@@ -46,8 +48,9 @@ export function ProgressCard({ jo }: { jo: WithMeta<JobOrder> }) {
       <TrackBar track={track} color={color} />
       <p className="muted small">
         Is {track.actual === null ? '—' : `${track.actual}%`} · should be {track.planned}% today
-        {jo.progress && ` · updated ${formatDay(jo.progress.on)}`}
+        {!fromSteps && jo.progress && ` · updated ${formatDay(jo.progress.on)}`}
       </p>
+      {fromSteps && <p className="muted small">From the process steps of each product (Products tab).</p>}
       {editable && (
         <>
           <label>

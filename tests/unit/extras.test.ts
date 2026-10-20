@@ -5,7 +5,7 @@ import { buildSampleData } from '../../src/lib/sampleData';
 import { canTransition, type JobOrder, type JoStatus } from '../../src/lib/jobOrders';
 import type { Bom, MasterData, Product, RawMaterial } from '../../src/lib/masters';
 import { planMaterials } from '../../src/lib/materials';
-import { trackOf } from '../../src/lib/progress';
+import { orderTrack, overrunningSteps } from '../../src/lib/route';
 
 describe('backup', () => {
   it('turns Firestore timestamps into text and keeps every collection', () => {
@@ -69,11 +69,16 @@ describe('DEMO sample data', () => {
     };
     const final = new Map<string, JobOrder>();
     for (const w of writes) if (w.collection === 'jobOrders') final.set(w.data.joNumber as string, w.data as unknown as JobOrder);
-    expect(trackOf(final.get('DEMO-101')!, today).kind).toBe('LATE');
-    expect(trackOf(final.get('DEMO-102')!, today).gap!).toBeGreaterThanOrEqual(0);
-    expect(trackOf(final.get('DEMO-103')!, today).gap!).toBeLessThan(0);
-    expect(trackOf(final.get('DEMO-104')!, today).kind).toBe('DRAFT');
+    expect(orderTrack(final.get('DEMO-101')!, today).kind).toBe('LATE');
+    expect(orderTrack(final.get('DEMO-102')!, today).gap!).toBeGreaterThanOrEqual(0);
+    expect(orderTrack(final.get('DEMO-103')!, today).gap!).toBeLessThan(0);
+    expect(orderTrack(final.get('DEMO-104')!, today).kind).toBe('DRAFT');
     expect(final.get('DEMO-099')!.status).toBe('COMPLETED');
+    expect(final.get('DEMO-102')!.lines.map((l) => l.steps!.map((s) => s.label))).toEqual([
+      ['Spinning (sample)', 'Weaving (sample)', 'Bleaching (sample)', 'Dyeing (sample)', 'Latex backing (sample)', 'Packing (sample)'],
+      ['Ordered', 'Received', 'Labelling (sample)', 'Packing (sample)'],
+    ]);
+    expect(overrunningSteps(final.get('DEMO-101')!, today).length).toBeGreaterThan(0);
     expect(planMaterials(final.get('DEMO-104')!, md).errors[0]).toMatch(/BOM missing/);
     expect(planMaterials(final.get('DEMO-102')!, md).toBuy.map((r) => r.id)).toContain('sample_p_door');
   });

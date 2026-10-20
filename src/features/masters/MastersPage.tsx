@@ -1,18 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { bomStatus, COLLECTIONS, normalizeName, type Customer, type Supplier } from '../../lib/masters';
+import { bomStatus, COLLECTIONS, normalizeName, type Customer, type Process, type Supplier } from '../../lib/masters';
 import { useMasterData } from './useMasterData';
 import { BomBadge } from './ProductSummary';
 import { unitLabel } from '../../lib/units';
 import { useCollection, type WithMeta } from './useCollection';
 
-type Tab = 'customers' | 'products' | 'raw-materials' | 'suppliers';
+type Tab = 'customers' | 'products' | 'raw-materials' | 'suppliers' | 'processes';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'products', label: 'Products' },
   { id: 'raw-materials', label: 'Raw materials' },
   { id: 'customers', label: 'Customers' },
   { id: 'suppliers', label: 'Suppliers' },
+  { id: 'processes', label: 'Processes' },
 ];
 
 const SUPPLY_LABEL = { MANUFACTURED: 'Manufactured', TRADED: 'Traded', BOTH: 'Manufactured + Traded' } as const;
@@ -43,9 +44,11 @@ export function MastersPage() {
   const fc = useFiltered(customers.items, q, showInactive);
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const fs = useFiltered(suppliers.items, q, showInactive);
+  const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
+  const fpr = useFiltered(processes.items, q, showInactive);
 
-  const current = tab === 'products' ? products : tab === 'raw-materials' ? rms : tab === 'suppliers' ? suppliers : customers;
-  const list = tab === 'products' ? fp : tab === 'raw-materials' ? fr : tab === 'suppliers' ? fs : fc;
+  const current = tab === 'products' ? products : tab === 'raw-materials' ? rms : tab === 'suppliers' ? suppliers : tab === 'processes' ? processes : customers;
+  const list = tab === 'products' ? fp : tab === 'raw-materials' ? fr : tab === 'suppliers' ? fs : tab === 'processes' ? fpr : fc;
 
   return (
     <section>
@@ -140,6 +143,27 @@ export function MastersPage() {
               </Link>
             </li>
           ))}
+        {tab === 'processes' &&
+          fpr.map((x) => {
+            const n = products.items.filter((p) => (p.route ?? []).some((s) => s.processId === x.id)).length;
+            return (
+              <li key={x.id}>
+                <Link to={`/masters/processes/${x.id}`} className={`card link ${x.active === false ? 'inactive' : ''}`}>
+                  <div className="row between">
+                    <strong>{x.name}</strong>
+                    <span className="muted small">
+                      {n} product{n === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  {(x.active === false || x.pending) && (
+                    <p className="muted small">
+                      {x.active === false && 'Inactive'} {x.pending && 'Pending sync'}
+                    </p>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
       </ul>
     </section>
   );

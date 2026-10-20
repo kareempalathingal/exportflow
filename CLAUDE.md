@@ -141,6 +141,34 @@ report the discrepancy and ask; do not silently choose.
     linearly from confirmation to the internal deadline; no update =
     "Not tracked".
 
+## Phase 4 skeleton: process steps (confirmed 20 Oct 2026)
+
+-   Processes master (`processes`, label "Processes"): treatments and
+    other steps shared by many products (weaving, bleaching, packing…);
+    name + notes only. Departments and standard times come later.
+-   Each product has an ordered process route on its form (`route`:
+    process + planned days with data status; empty days = "time
+    pending") and "Order of steps confirmed with the company"
+    (`routeConfirmed`). Processes can be created from the route editor.
+    Bought (TRADED) products have routes too (labelling, packing…).
+-   At confirmation each JO line gets a copy of its steps
+    (`lines[].steps`, `src/lib/route.ts` `buildLineSteps`): BUY lines
+    start with built-in "Ordered → Received"; MAKE lines put made
+    sub-product steps first (depth-first), then the product's own route.
+    Steps can be changed per order (to-do steps only); product routes
+    stay unchanged. Orders confirmed earlier get "Set up steps from
+    product routes".
+-   "X done → Y" marks the current step done (time automatic); "Undo
+    last" reverses it. Each step shows actual vs planned days and
+    overruns. Line progress = done share, weighted by planned days when
+    every step is timed; "should be" follows planned days, otherwise the
+    linear deadline plan. Order progress = average of its lines and
+    replaces the manual slider once steps exist (still logged in
+    `progressLog`).
+-   JO page opens on a "Products" tab (mockup "JO detail · progress per
+    product"); Home shows "Now: product · step" and step overruns in
+    Needs attention.
+
 ## Data safety and onboarding aids (confirmed 20 Oct 2026)
 
 -   Settings → Backup: one JSON file per mode (`src/lib/backup.ts`,

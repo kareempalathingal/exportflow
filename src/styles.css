@@ -292,3 +292,25 @@ input[type="range"] { padding: 0; min-height: 36px; accent-color: var(--brand); 
 .tabs { scrollbar-width: none; }
 .readiness-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; }
 .readiness-edit { margin-top: 0.4rem; }
+
+/* Phase 4: process routes */
+.route-list { list-style: none; padding: 0; margin: 0.3rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.route-row { border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.6rem; }
+button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
+.create-btn { align-self: end; margin-bottom: 0.6rem; min-height: 46px; }
+.now-line { color: var(--muted); margin-top: 0.2rem; }
+
+/* Step list on Job Order products */
+.stepper { list-style: none; padding: 0; margin: 0.6rem 0 0.2rem; }
+.step { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 0 8px; position: relative; padding-bottom: 10px; }
+.step:not(:last-child)::before { content: ''; position: absolute; left: 10px; top: 18px; bottom: 0; width: 2px; background: var(--line); }
+.step.done:not(:last-child)::before { background: var(--ok); }
+.step-dot { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; box-sizing: border-box; border: 2px solid var(--line); background: var(--surface); z-index: 1; }
+.step.done .step-dot { background: var(--ok); border-color: var(--ok); color: #fff; }
+.step.now .step-dot { border: 5px solid var(--brand); }
+.step.now .step-body { background: color-mix(in srgb, var(--brand) 8%, transparent); border-radius: 6px; padding: 0 4px; margin-left: -4px; }
+.step-name { font-weight: 600; }
+.step.todo .step-name { color: var(--muted); font-weight: 500; }
+.step-time { text-align: right; }
+.step-actions { margin-top: 0.4rem; }
+.step-editor { margin-top: 0.6rem; }

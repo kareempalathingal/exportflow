@@ -33,12 +33,16 @@ export function plannedPct(jo: Pick<JobOrder, 'confirmedOn' | 'receivedDate' | '
   return clamp(Math.round((done / span) * 100), 0, 100);
 }
 
-export function trackOf(jo: Pick<JobOrder, 'status' | 'confirmedOn' | 'receivedDate' | 'deadline'> & { progress?: ProgressEntry | null }, today: string): Track {
-  const planned = plannedPct(jo, today);
+export function trackOf(
+  jo: Pick<JobOrder, 'status' | 'confirmedOn' | 'receivedDate' | 'deadline'> & { progress?: ProgressEntry | null },
+  today: string,
+  fromSteps?: { actual: number; planned: number | null } | null,
+): Track {
+  const planned = fromSteps?.planned ?? plannedPct(jo, today);
   const daysLeft = daysBetween(today, jo.deadline.internalDeadline) ?? 0;
-  const p = jo.progress ?? null;
+  const p = fromSteps ? { pct: fromSteps.actual, on: today } : (jo.progress ?? null);
   const actual = p && Number.isFinite(p.pct) ? clamp(p.pct, 0, 100) : null;
-  const updatedDaysAgo = p ? daysBetween(p.on, today) : null;
+  const updatedDaysAgo = fromSteps ? null : p ? daysBetween(p.on, today) : null;
   const base = { planned, actual, daysLeft, updatedDaysAgo };
   if (jo.status === 'DRAFT') return { ...base, kind: 'DRAFT', gap: null };
   if (actual === 100 || jo.status === 'COMPLETED') return { ...base, kind: 'DONE', gap: actual === null ? null : actual - planned };

@@ -143,6 +143,18 @@ export interface JoLine {
   unit: string;
   /** MAKE / BUY; null only while a BOTH product is undecided. */
   supply: SupplyMethod | null;
+  /** Process steps for this line, set when the order is confirmed (Phase 4). */
+  steps?: JoStep[];
+}
+
+/** One process step of an order line, copied from the product route at confirmation. */
+export interface JoStep {
+  key: string;
+  processId: string | null; // null for the built-in purchase steps
+  label: string;
+  forProduct: string; // product (or sub-product) name this step belongs to
+  plannedDays: number | null; // firm benchmark days, else null ("time pending")
+  doneAt: string | null; // ISO time the step was marked done
 }
 
 export interface BomSnapshotEntry {

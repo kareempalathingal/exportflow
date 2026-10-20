@@ -29,6 +29,7 @@ import { ConversionCheck } from './ConversionCheck';
 import { BomEditor } from './BomEditor';
 import { ProductSummary } from './ProductSummary';
 import { ItemSuppliers } from './ItemSuppliers';
+import { draftsFromRoute, RouteEditor, routeFromDrafts, type RouteDraft } from './RouteEditor';
 
 export function ProductForm() {
   const { id = 'new' } = useParams();
@@ -54,6 +55,8 @@ export function ProductForm() {
   const [thick, setThick] = useState<TrackedNumberDraft>(draftFromTracked(undefined));
   const [weight, setWeight] = useState<TrackedNumberDraft>(draftFromTracked(undefined));
   const [units, setUnits] = useState<CustomUnitDraft[]>([]);
+  const [route, setRoute] = useState<RouteDraft[]>([]);
+  const [routeConfirmed, setRouteConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loaded = useRef<string | null>(null);
   const [params, setParams] = useSearchParams();
@@ -81,6 +84,8 @@ export function ProductForm() {
     setThick(draftFromTracked(item.thicknessMm));
     setWeight(draftFromTracked(item.weightPerPieceKg));
     setUnits(draftsFromCustomUnits(item.customUnits));
+    setRoute(draftsFromRoute(item.route));
+    setRouteConfirmed(item.routeConfirmed === true);
   }, [item]);
 
   if (!isNew && loading) return <p className="muted">{t('loading')}</p>;
@@ -101,10 +106,11 @@ export function ProductForm() {
   const thickP = trackedFromDraft(thick, 'Thickness');
   const weightP = trackedFromDraft(weight, 'Weight per piece');
   const unitsP = customUnitsFromDrafts(units);
-  const parseError = sizeError ?? [gsmP, thickP, weightP, unitsP].find((x): x is string => typeof x === 'string') ?? null;
+  const routeP = routeFromDrafts(route);
+  const parseError = sizeError ?? [gsmP, thickP, weightP, unitsP, routeP].find((x): x is string => typeof x === 'string') ?? null;
 
   const draftProduct: Product | null =
-    parseError === null && typeof gsmP !== 'string' && typeof thickP !== 'string' && typeof weightP !== 'string' && typeof unitsP !== 'string'
+    parseError === null && typeof gsmP !== 'string' && typeof thickP !== 'string' && typeof weightP !== 'string' && typeof unitsP !== 'string' && typeof routeP !== 'string'
       ? {
           name: name.trim(),
           code: code.trim(),
@@ -119,6 +125,8 @@ export function ProductForm() {
           thicknessMm: thickP,
           weightPerPieceKg: weightP,
           customUnits: unitsP,
+          route: routeP,
+          routeConfirmed,
         }
       : null;
 
@@ -213,6 +221,7 @@ export function ProductForm() {
           </p>
         )}
         <CustomUnitsEditor baseUnit={baseUnit} rows={units} onChange={setUnits} />
+        <RouteEditor rows={route} onChange={setRoute} confirmed={routeConfirmed} onConfirmedChange={setRouteConfirmed} />
         <TextField label="Notes" multiline value={notes} onChange={setNotes} />
       </FormShell>
   );

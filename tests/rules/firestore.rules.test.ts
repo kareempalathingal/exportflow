@@ -178,6 +178,10 @@ describe('versioned records with audit', () => {
     await assertSucceeds(write('suppliers', 's1', 2, 'a11', { name: 'Fibre Co', active: false, items: [] }));
     await assertFails(write('suppliers', 's2', 1, 'a12', { name: 'No items field', active: true }));
     await assertFails(deleteDocLater(db, `workspaces/${ws}/suppliers/s1`));
+    await assertSucceeds(write('processes', 'pr1', 1, 'a13', { name: 'Bleaching', active: true, notes: '' }));
+    await assertFails(write('processes', 'pr2', 1, 'a14', { name: '', active: true, notes: '' }));
+    await assertFails(deleteDocLater(db, `workspaces/${ws}/processes/pr1`));
+    await assertSucceeds(write('products', 'p1', 3, 'a15', { ...product, route: [{ processId: 'pr1', plannedDays: { value: 2, status: 'USER_PROVIDED', source: '' } }], routeConfirmed: false }));
     const { deleteDoc } = await import('firebase/firestore');
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/products/p1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/products/p1`)));

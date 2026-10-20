@@ -10,7 +10,8 @@ import { useCollection } from '../masters/useCollection';
 import { permissionHint } from '../orders/OrderBits';
 import { TrackBar } from '../orders/TrackBar';
 import { COLLECTION_STOCK_COUNTS, overAllocated, parseItemKey, planMaterials, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
-import { gapColor, trackGroup, trackLabel, trackOf, type Track } from '../../lib/progress';
+import { gapColor, trackGroup, trackLabel, type Track } from '../../lib/progress';
+import { lineProgress, orderStart, orderTrack, overrunningSteps } from '../../lib/route';
 import { readRedAt } from '../../lib/theme';
 import { formatQty, unitLabel } from '../../lib/units';
 
@@ -63,7 +64,7 @@ export function HomePage() {
     return jos.items
       .filter((j) => isEditable(j.status))
       .map((j) => {
-        const track = trackOf(j, today);
+        const track = orderTrack(j, today);
         return { jo: j, track, color: gapColor(track, redAt) };
       })
       .sort((a, b) => urgency(a.track) - urgency(b.track));
@@ -120,7 +121,11 @@ export function HomePage() {
     [jos.items, counts.items],
   );
   const loading = master.loading || jos.loading;
-  const total = attention.length + joAttention.length + over.length;
+  const overruns = useMemo(
+    () => jos.items.filter((j) => j.status === 'CONFIRMED').flatMap((j) => overrunningSteps(j, today).map((o) => ({ jo: j, ...o }))),
+    [jos.items, today],
+  );
+  const total = attention.length + joAttention.length + over.length + overruns.length;
 
   return (
     <section className="dash">
@@ -202,6 +207,13 @@ export function HomePage() {
                       <span>{track.daysLeft >= 0 ? `${track.daysLeft} day${track.daysLeft === 1 ? '' : 's'} left` : 'past deadline'}</span>
                     </div>
                     {track.updatedDaysAgo !== null && track.updatedDaysAgo > 3 && <span className="muted small block">Progress updated {track.updatedDaysAgo} days ago</span>}
+                    {(() => {
+                      const now = jo.lines
+                        .map((l) => ({ l, lp: lineProgress(l.steps, orderStart(jo), today) }))
+                        .filter((x) => x.lp)
+                        .map((x) => `${x.l.productName}: ${x.lp!.current ? x.lp!.current.step.label : 'done'}`);
+                      return now.length ? <span className="small block now-line">Now · {now.join(' · ')}</span> : null;
+                    })()}
                   </>
                 )}
               </Link>
@@ -246,6 +258,16 @@ export function HomePage() {
         )}
         {!loading && products.items.length > 0 && total === 0 && <p className="ok small">Nothing needs attention right now.</p>}
         <ul className="attention">
+          {overruns.map((o) => (
+            <li key={`${o.jo.id}-${o.line.id}-${o.view.step.key}`}>
+              <Link to={`/orders/${o.jo.id}?tab=products`}>
+                <span className="pill bad">Step overrun</span> <strong>{o.jo.joNumber}</strong>
+                <span className="muted small block">
+                  {o.line.productName}: {o.view.step.label} on day {o.view.actualDays} of {o.view.step.plannedDays} planned
+                </span>
+              </Link>
+            </li>
+          ))}
           {over.map((o) => {
             const it = parseItemKey(o.key);
             const name = (it && (master.md.products.get(it.id)?.name ?? master.md.rawMaterials.get(it.id)?.name)) ?? o.key;

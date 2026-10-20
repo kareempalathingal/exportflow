@@ -46,6 +46,19 @@ export interface Product extends MasterBase {
   customUnits: CustomUnit[];
   /** For BOTH only: what usually happens; pre-fills Make/Buy on Job Order lines. */
   usualSupply?: 'MAKE' | 'BUY' | null;
+  /** Processes / treatments this product goes through, in order (Phase 4). */
+  route?: RouteStep[];
+  /** False until the order of the steps is confirmed with the company. */
+  routeConfirmed?: boolean;
+}
+
+/** A process or treatment (weaving, bleaching, packing…), shared by many products. */
+export type Process = MasterBase;
+
+export interface RouteStep {
+  processId: string;
+  /** Planned days for this step on this product (a benchmark; never invented). */
+  plannedDays: Tracked<number>;
 }
 
 /** A supplier we can buy raw materials or traded products from. */
@@ -105,6 +118,7 @@ export const COLLECTIONS = {
   rawMaterials: 'rawMaterials',
   boms: 'boms',
   suppliers: 'suppliers',
+  processes: 'processes',
 } as const;
 
 function fact(t: Tracked<number> | undefined): Fact | undefined {

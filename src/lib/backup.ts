@@ -11,6 +11,7 @@ export const BACKUP_COLLECTIONS = [
   'rawMaterials',
   'boms',
   'suppliers',
+  'processes',
   'jobOrders',
   'stockCounts',
   'auditEvents',

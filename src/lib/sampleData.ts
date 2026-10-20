@@ -5,9 +5,9 @@
  */
 import type { Tracked } from './dataStatus';
 import { addDays, computeDeadline, snapshotBoms, type JobOrder, type JoLine, type JoStatus, type StockEntry } from './jobOrders';
-import type { Bom, BomLine, Customer, MasterData, Product, RawMaterial, Supplier } from './masters';
+import type { Bom, BomLine, Customer, MasterData, Process, Product, RawMaterial, RouteStep, Supplier } from './masters';
+import { buildLineSteps, completeCurrent } from './route';
 import type { StockCount } from './materials';
-import { appendProgress, type ProgressEntry } from './progress';
 
 export interface SampleWrite {
   collection: string;
@@ -43,16 +43,34 @@ export function buildSampleData(today: string): SampleWrite[] {
     writes.push({ collection, docId, entity, before: null, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown> });
 
   // Masters
+  const processes: Record<string, Process> = {
+    sample_pr_spin: { name: 'Spinning (sample)', active: true, notes: SRC },
+    sample_pr_weave: { name: 'Weaving (sample)', active: true, notes: SRC },
+    sample_pr_bleach: { name: 'Bleaching (sample)', active: true, notes: SRC },
+    sample_pr_dye: { name: 'Dyeing (sample)', active: true, notes: SRC },
+    sample_pr_latex: { name: 'Latex backing (sample)', active: true, notes: SRC },
+    sample_pr_label: { name: 'Labelling (sample)', active: true, notes: SRC },
+    sample_pr_pack: { name: 'Packing (sample)', active: true, notes: SRC },
+  };
+  for (const [id, p] of Object.entries(processes)) create('processes', id, `Process: ${p.name}`, p);
+  const st = (processId: string, days: number | null): RouteStep => ({
+    processId,
+    plannedDays: days === null ? { value: null, status: 'PENDING_VERIFICATION', source: '' } : { value: days, status: 'USER_PROVIDED', source: SRC },
+  });
   const rawMaterials: Record<string, RawMaterial> = {
     sample_rm_fibre: rm('Coir fibre'),
     sample_rm_latex: rm('Latex compound'),
     sample_rm_dye: rm('Natural dye'),
   };
   const products: Record<string, Product> = {
-    sample_p_yarn: product('Coir yarn', 'MANUFACTURED', 'kg'),
-    sample_p_mat: product('Coir mat 40×60', 'MANUFACTURED', 'pcs', { size: { length: 40, width: 60, unit: 'cm', status: 'USER_PROVIDED' }, gsm: up(1500) }),
-    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' } }),
-    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' } }),
+    sample_p_yarn: product('Coir yarn', 'MANUFACTURED', 'kg', { route: [st('sample_pr_spin', 3)] }),
+    sample_p_mat: product('Coir mat 40×60', 'MANUFACTURED', 'pcs', {
+      size: { length: 40, width: 60, unit: 'cm', status: 'USER_PROVIDED' },
+      gsm: up(1500),
+      route: [st('sample_pr_weave', 4), st('sample_pr_bleach', 2), st('sample_pr_dye', 2), st('sample_pr_latex', null), st('sample_pr_pack', 1)],
+    }),
+    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', 1), st('sample_pr_pack', 1)] }),
+    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 3), st('sample_pr_pack', 1)] }),
   };
   const boms: Record<string, Bom> = {
     sample_p_yarn: { productId: 'sample_p_yarn', notes: SRC, lines: [line('RAW_MATERIAL', 'sample_rm_fibre', 1.1, 'kg')] },
@@ -84,21 +102,22 @@ export function buildSampleData(today: string): SampleWrite[] {
 
   // Job Orders: created as Draft, then moved through their statuses like real ones.
   const md: MasterData = { products: new Map(Object.entries(products)), rawMaterials: new Map(Object.entries(rawMaterials)), boms: new Map(Object.entries(boms)) };
+  const processMap = new Map(Object.entries(processes));
   const stock = (baseQty: number, unit: string, daysAgo: number): StockEntry => ({ qty: baseQty, unit, baseQty, location: 'Godown (sample)', remarks: '', changedAt: at(-daysAgo), prevBaseQty: null });
   const jl = (id: string, productId: string, qty: number, supply: JoLine['supply']): JoLine => ({ id, productId, productName: products[productId]!.name, qty, unit: 'pcs', supply });
 
   const orders: {
     id: string; no: string; cust: string; rec: number; del: number; type: JobOrder['deliveryDateType'];
-    lines: JoLine[]; final: JoStatus; confirmed?: number; completed?: number; progress?: [number, number][]; stock?: Record<string, StockEntry>;
+    lines: JoLine[]; final: JoStatus; confirmed?: number; completed?: number; done?: [number, number][] /* [line index, day] step completions */; stock?: Record<string, StockEntry>;
   }[] = [
-    { id: 'sample_jo_099', no: 'DEMO-099', cust: 'sample_c_nordic', rec: -70, del: -20, type: 'PORT', lines: [jl('a', 'sample_p_mat', 800, 'MAKE')], final: 'COMPLETED', confirmed: -68, completed: -25, progress: [[-50, 30], [-35, 70], [-25, 100]] },
-    { id: 'sample_jo_101', no: 'DEMO-101', cust: 'sample_c_hansa', rec: -40, del: 3, type: 'PORT', lines: [jl('a', 'sample_p_mat', 1500, 'MAKE')], final: 'CONFIRMED', confirmed: -38, progress: [[-20, 50], [-1, 85]], stock: { 'PRODUCT:sample_p_mat': stock(300, 'pcs', 30) } },
+    { id: 'sample_jo_099', no: 'DEMO-099', cust: 'sample_c_nordic', rec: -70, del: -20, type: 'PORT', lines: [jl('a', 'sample_p_mat', 800, 'MAKE')], final: 'COMPLETED', confirmed: -68, completed: -25, done: [[0, -60], [0, -50], [0, -45], [0, -40], [0, -33], [0, -26]] },
+    { id: 'sample_jo_101', no: 'DEMO-101', cust: 'sample_c_hansa', rec: -40, del: 3, type: 'PORT', lines: [jl('a', 'sample_p_mat', 1500, 'MAKE')], final: 'CONFIRMED', confirmed: -38, done: [[0, -34], [0, -27], [0, -22], [0, -17], [0, -5]], stock: { 'PRODUCT:sample_p_mat': stock(300, 'pcs', 30) } },
     {
       id: 'sample_jo_102', no: 'DEMO-102', cust: 'sample_c_nordic', rec: -25, del: 12, type: 'FACTORY_DISPATCH',
-      lines: [jl('a', 'sample_p_mat', 1200, 'MAKE'), jl('b', 'sample_p_door', 300, 'BUY')], final: 'CONFIRMED', confirmed: -24, progress: [[-10, 40], [0, 80]],
+      lines: [jl('a', 'sample_p_mat', 1200, 'MAKE'), jl('b', 'sample_p_door', 300, 'BUY')], final: 'CONFIRMED', confirmed: -24, done: [[0, -21], [1, -20], [0, -17], [1, -12], [0, -15], [0, -13], [1, -1], [0, -1]],
       stock: { 'PRODUCT:sample_p_yarn': stock(300, 'kg', 20), 'RAW_MATERIAL:sample_rm_fibre': stock(400, 'kg', 20) },
     },
-    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 35, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -9, progress: [[-1, 10]], stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
+    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 35, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -9, done: [[0, -6]], stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
     { id: 'sample_jo_104', no: 'DEMO-104', cust: 'sample_c_nordic', rec: -2, del: 60, type: 'UNCONFIRMED', lines: [jl('a', 'sample_p_rubber', 500, 'MAKE')], final: 'DRAFT' },
   ];
 
@@ -120,11 +139,12 @@ export function buildSampleData(today: string): SampleWrite[] {
       current = next;
     };
     if (o.final === 'DRAFT') continue;
-    step({ ...current, status: 'CONFIRMED', confirmedOn: d(o.confirmed!), bomSnapshot: snapshotBoms(o.lines, md, () => 1), stock: o.stock ?? {} });
-    if (o.progress) {
-      let log: ProgressEntry[] = [];
-      for (const [day, pct] of o.progress) log = appendProgress(log, { pct, on: d(day), at: at(day) });
-      step({ ...current, progress: log[log.length - 1]!, progressLog: log });
+    const confirmedLines = o.lines.map((l) => ({ ...l, steps: buildLineSteps(l, md, processMap) }));
+    step({ ...current, status: 'CONFIRMED', confirmedOn: d(o.confirmed!), bomSnapshot: snapshotBoms(o.lines, md, () => 1), stock: o.stock ?? {}, lines: confirmedLines });
+    if (o.done) {
+      const lines = confirmedLines.map((l) => ({ ...l, steps: [...l.steps] }));
+      for (const [li, day] of o.done) lines[li]!.steps = completeCurrent(lines[li]!.steps, at(day)) ?? lines[li]!.steps;
+      step({ ...current, lines });
     }
     if (o.final === 'COMPLETED') step({ ...current, status: 'COMPLETED', completedOn: d(o.completed!) });
   }

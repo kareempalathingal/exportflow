@@ -36,6 +36,9 @@ import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { MaterialsTab } from './MaterialsTab';
 import { ProgressCard } from './ProgressCard';
+import { ProductsTab } from './ProductsTab';
+import { buildLineSteps } from '../../lib/route';
+import type { Process } from '../../lib/masters';
 import { DocButtons } from '../docs/DocButtons';
 import { joSummaryDoc } from '../../lib/docs/model';
 import { useProfile } from '../settings/useProfile';
@@ -89,7 +92,9 @@ export function JobOrderPage() {
   const { profile } = useProfile(workspaceId);
   const company = profile?.companyName?.value ?? '';
   const [params, setParams] = useSearchParams();
-  const tab = !isNew && params.get('tab') === 'materials' ? 'materials' : 'order';
+  const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
+  const processMap = useMemo(() => new Map(processes.items.map((p) => [p.id, p])), [processes.items]);
+  const requestedTab = params.get('tab');
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
   const master = useMasterData(workspaceId);
   const { md, bomRev } = master;
@@ -126,6 +131,13 @@ export function JobOrderPage() {
   if (!isNew && !item) return <p className="error">Job Order not found.</p>;
 
   const status: JoStatus = item?.status ?? 'DRAFT';
+  const tab: 'products' | 'order' | 'materials' = isNew
+    ? 'order'
+    : requestedTab === 'materials' || requestedTab === 'order' || requestedTab === 'products'
+      ? requestedTab
+      : status === 'DRAFT'
+        ? 'order'
+        : 'products';
   const editable = isNew || isEditable(status);
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const setLine = (i: number, patch: Partial<LineDraft>) => set({ lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
@@ -162,6 +174,15 @@ export function JobOrderPage() {
     if (typeof lines === 'string') return setError(lines), false;
     if (reasonRequired(isNew ? null : status, next) && !why.trim()) return setError('A reason is required for this change'), false;
 
+    // Process steps: kept per line while the product and Make/Buy stay the same; built on confirmation.
+    const linesWithSteps: JoLine[] = lines.map((l) => {
+      const prev = item?.lines.find((x) => x.id === l.id);
+      if (next === 'DRAFT') return l;
+      if (prev?.steps && prev.productId === l.productId && prev.supply === l.supply) return { ...l, steps: prev.steps };
+      if (next === 'CONFIRMED') return { ...l, steps: buildLineSteps(l, md, processMap) };
+      return l;
+    });
+
     let bomSnapshot: Record<string, BomSnapshotEntry> | null = item?.bomSnapshot ?? null;
     let confirmedOn = item?.confirmedOn ?? null;
     if (next === 'CONFIRMED' && status === 'DRAFT') {
@@ -184,7 +205,7 @@ export function JobOrderPage() {
       deliveryDateType: d.deliveryDateType,
       deadline: { orderPeriodDays: deadline.orderPeriodDays, bufferDays: deadline.bufferDays, internalDeadline: deadline.internalDeadline, ruleVersion: deadline.ruleVersion },
       status: next,
-      lines,
+      lines: linesWithSteps,
       notes: d.notes.trim(),
       bomSnapshot,
       confirmedOn,
@@ -350,9 +371,9 @@ export function JobOrderPage() {
       {!isNew && item && <ProgressCard key={`${item.id}:${item.rev}`} jo={item} />}
       {!isNew && (
         <div className="tabs" role="tablist">
-          {(['order', 'materials'] as const).map((x) => (
-            <button key={x} type="button" role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setParams(x === 'order' ? {} : { tab: x }, { replace: true })}>
-              {x === 'order' ? 'Order' : 'Materials & stock'}
+          {(['products', 'order', 'materials'] as const).map((x) => (
+            <button key={x} type="button" role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setParams({ tab: x }, { replace: true })}>
+              {x === 'products' ? 'Products' : x === 'order' ? 'Order' : 'Materials & stock'}
             </button>
           ))}
         </div>
@@ -362,6 +383,7 @@ export function JobOrderPage() {
           <DocButtons label="Job Order summary" build={() => joSummaryDoc(item, md, { company, today, generatedAt: `${formatDateTime(new Date())} IST` })} />
         </div>
       )}
+      {!isNew && item && tab === 'products' && <ProductsTab jo={item} md={md} processes={processMap} />}
       {!isNew && item && (
         <div hidden={tab !== 'materials'}>
           <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} company={company} />
