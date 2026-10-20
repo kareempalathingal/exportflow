@@ -6,6 +6,7 @@ import {
   checkForConfirm,
   COLLECTION_JOB_ORDERS,
   computeDeadline,
+  completedOnAfter,
   fixedSupply,
   initialSupply,
   DELIVERY_DATE_TYPES,
@@ -189,6 +190,8 @@ export function JobOrderPage() {
       confirmedOn,
       stock: item?.stock ?? {},
       progress: item?.progress ?? null,
+      progressLog: item?.progressLog ?? [],
+      completedOn: completedOnAfter(isNew ? null : status, next, item?.completedOn, today),
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;
@@ -276,6 +279,7 @@ export function JobOrderPage() {
             {item!.customerName}
             {item!.poNumber && ` · PO ${item!.poNumber}`}
             {item!.confirmedOn && ` · confirmed ${formatDay(item!.confirmedOn)}`}
+            {item!.completedOn && ` · completed ${formatDay(item!.completedOn)}`}
           </p>
           <div className="summary-grid">
             <div>

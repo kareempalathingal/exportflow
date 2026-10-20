@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder } from '../../lib/jobOrders';
-import { gapColor, trackLabel, trackOf } from '../../lib/progress';
+import { appendProgress, gapColor, trackLabel, trackOf } from '../../lib/progress';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
 import type { WithMeta } from '../masters/useCollection';
@@ -27,7 +27,7 @@ export function ProgressCard({ jo }: { jo: WithMeta<JobOrder> }) {
       docId: jo.id,
       entity: `Job Order: ${jo.joNumber}`,
       before: jo,
-      data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), progress: { pct, on: today } })) as Record<string, unknown>,
+      data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), progress: { pct, on: today }, progressLog: appendProgress(jo.progressLog, { pct, on: today }) })) as Record<string, unknown>,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);

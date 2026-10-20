@@ -45,6 +45,8 @@ export function jobOrderData(jo: JobOrder): JobOrder {
     confirmedOn: jo.confirmedOn,
     stock: jo.stock ?? {},
     progress: jo.progress ?? null,
+    progressLog: jo.progressLog ?? [],
+    completedOn: jo.completedOn ?? null,
   };
 }
 

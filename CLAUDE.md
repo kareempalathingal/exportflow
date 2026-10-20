@@ -111,6 +111,16 @@ report the discrepancy and ask; do not silently choose.
     per-department daily to-do/targets, all-department review summary
     (evening/next morning), supplier RFQ letters and purchase orders —
     always drafts the user sends; no invented prices or supplier data.
+-   Performance reports (confirmed 20 Oct 2026), PDF, any date range:
+    JO-wise (on time vs internal deadline / delivery, buffer used,
+    schedule gap over time, changes after confirmation) and, once stages
+    and departments exist, department-wise (output vs target, on-time
+    stage %, delays, QC rework if recorded). Plan against company or
+    user benchmarks first; when enough real orders are completed,
+    compare actual averages with benchmarks and SUGGEST a revision when
+    the difference is significant — the user approves; benchmarks are
+    versioned like the deadline rule and never changed silently or
+    invented. Data captured now: `completedOn` and `progressLog` per JO.
 -   3b stock: per-JO earmarks for finished products, made sub-products
     (deducted before exploding their components) and raw materials;
     qty + unit required, location/remarks optional, who/when automatic;

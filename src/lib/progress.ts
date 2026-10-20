@@ -94,3 +94,9 @@ export function trackGroup(t: Track): 'ON_TRACK' | 'BEHIND' | 'LATE' | 'NOT_TRAC
   if (t.kind === 'TRACKED') return (t.gap ?? 0) >= 0 ? 'ON_TRACK' : 'BEHIND';
   return 'NOT_TRACKED';
 }
+
+/** Adds a progress update to the history: one entry per day (a later update the same day replaces it). */
+export function appendProgress(log: ProgressEntry[] | undefined, entry: ProgressEntry, max = 400): ProgressEntry[] {
+  const rest = (log ?? []).filter((e) => e.on !== entry.on);
+  return [...rest, entry].sort((a, b) => a.on.localeCompare(b.on)).slice(-max);
+}

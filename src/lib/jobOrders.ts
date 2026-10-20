@@ -169,6 +169,17 @@ export interface JobOrder {
   stock?: Record<string, StockEntry>;
   /** Manual % complete until stage tracking exists (dashboard). */
   progress?: ProgressEntry | null;
+  /** Every progress update, oldest first (one entry per day; for performance reports). */
+  progressLog?: ProgressEntry[];
+  /** Date the order was marked completed (cleared if reopened). */
+  completedOn?: string | null;
+}
+
+/** Completion date after a status change: set on completion, cleared on reopen, else kept. */
+export function completedOnAfter(from: JoStatus | null, to: JoStatus, previous: string | null | undefined, today: string): string | null {
+  if (to === 'COMPLETED') return from === 'COMPLETED' ? (previous ?? today) : today;
+  if (from === 'COMPLETED') return null;
+  return previous ?? null;
 }
 
 /** Stock earmarked for one Job Order (Requirements §31.3), confirmed manually. */

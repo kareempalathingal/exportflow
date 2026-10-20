@@ -75,6 +75,7 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
       ['Customer delivery', `${formatDay(jo.deliveryDate)} (${DELIVERY_DATE_TYPES.find((x) => x.id === jo.deliveryDateType)?.label ?? '—'})`],
       ['Internal deadline', `${formatDay(jo.deadline.internalDeadline)} · buffer ${jo.deadline.bufferDays} of ${jo.deadline.orderPeriodDays} days (10%, rounded up)`],
       ['Progress', progress],
+      ...(jo.completedOn ? ([['Completed on', formatDay(jo.completedOn)]] as [string, string][]) : []),
     ],
     tables: [
       {

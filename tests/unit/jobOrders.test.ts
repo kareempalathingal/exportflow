@@ -178,3 +178,14 @@ describe('usual Make/Buy for BOTH products', () => {
     expect(fixedSupply(product('m', 'MANUFACTURED'))).toBe('MAKE');
   });
 });
+
+import { completedOnAfter } from '../../src/lib/jobOrders';
+describe('completion date', () => {
+  it('is set on completion, kept while completed, cleared on reopen', () => {
+    expect(completedOnAfter('CONFIRMED', 'COMPLETED', null, '2026-11-20')).toBe('2026-11-20');
+    expect(completedOnAfter('CONFIRMED', 'CONFIRMED', null, '2026-11-20')).toBeNull();
+    expect(completedOnAfter('COMPLETED', 'CONFIRMED', '2026-11-20', '2026-11-25')).toBeNull();
+    expect(completedOnAfter('CONFIRMED', 'CANCELLED', null, '2026-11-25')).toBeNull();
+    expect(completedOnAfter(null, 'DRAFT', undefined, '2026-11-25')).toBeNull();
+  });
+});

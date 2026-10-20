@@ -41,3 +41,18 @@ describe('planned vs actual', () => {
     expect(gapColor({ kind: 'NOT_TRACKED', gap: null }, 20)).toBe('var(--muted)');
   });
 });
+
+import { appendProgress } from '../../src/lib/progress';
+describe('progress history', () => {
+  it('keeps one entry per day, in date order', () => {
+    let log = appendProgress(undefined, { pct: 10, on: '2026-11-05' });
+    log = appendProgress(log, { pct: 30, on: '2026-11-12' });
+    log = appendProgress(log, { pct: 35, on: '2026-11-12' });
+    log = appendProgress(log, { pct: 20, on: '2026-11-08' });
+    expect(log).toEqual([
+      { pct: 10, on: '2026-11-05' },
+      { pct: 20, on: '2026-11-08' },
+      { pct: 35, on: '2026-11-12' },
+    ]);
+  });
+});
