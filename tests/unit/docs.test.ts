@@ -42,7 +42,10 @@ describe('document models', () => {
   });
   it('To buy shows needed, from stock and still to buy', () => {
     const m = planDoc('TO_BUY', jo, planMaterials(jo, md), opts);
-    expect(m.tables[0]!.rows[0]).toEqual(['Coir fibre', 'Raw material', '31.5 kg', '10 kg', '21.5 kg']);
+    expect(m.tables[0]!.rows[0]).toEqual(['Coir fibre', 'Raw material', '31.5 kg', '10 kg', '21.5 kg', '—']);
+    const withSup = planDoc('TO_BUY', jo, planMaterials(jo, md), { ...opts, supplierNames: (k) => (k === 'RAW_MATERIAL:r1' ? ['Fibre Co', 'Coir Hub'] : []) });
+    expect(withSup.tables[0]!.rows[0]![5]).toBe('Fibre Co, Coir Hub');
+    expect(withSup.tables[0]!.columns.map((c) => c.label)).toContain('Suppliers');
     expect(m.title).toBe('To Buy');
   });
   it('all-orders To buy flags incomplete orders', () => {

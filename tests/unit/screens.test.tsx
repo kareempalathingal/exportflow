@@ -153,7 +153,10 @@ describe('Suppliers', () => {
     expect(html).toContain('1 item');
   });
   it('supplier form shows linked items', () => {
-    expect(render('/masters/suppliers/s1', '/masters/suppliers/:id', <SupplierForm />)).toContain('Supplies');
+    const html = render('/masters/suppliers/s1', '/masters/suppliers/:id', <SupplierForm />);
+    expect(html).toContain('Supplies');
+    expect(html).toContain('+ New product');
+    expect(html).toContain('returnTo=%2Fmasters%2Fsuppliers%2Fs1');
   });
   it('raw material page shows its suppliers (the reverse link)', () => {
     const html = render('/masters/raw-materials/r1', '/masters/raw-materials/:id', <RawMaterialForm />);

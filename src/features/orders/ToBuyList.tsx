@@ -29,7 +29,7 @@ export function ToBuyList({ jos, md, counts, company, suppliers }: { jos: WithMe
       <div className="card doc-card">
         <DocButtons
           label={`To buy — all ${includeDrafts ? 'confirmed and draft' : 'confirmed'} orders`}
-          build={() => toBuyAllDoc(rows, ordersWithErrors, { company, includeDrafts, today: istDateKey(new Date()), generatedAt: `${formatDateTime(new Date())} IST` })}
+          build={() => toBuyAllDoc(rows, ordersWithErrors, { company, includeDrafts, today: istDateKey(new Date()), generatedAt: `${formatDateTime(new Date())} IST`, supplierNames: (k) => suppliersOf(k, suppliers).map((s) => s.name) })}
         />
       </div>
       {rows.length === 0 && <p className="muted">Nothing to buy.</p>}

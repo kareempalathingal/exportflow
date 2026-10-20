@@ -16,7 +16,8 @@ import {
   type CustomUnitDraft,
   type TrackedNumberDraft,
 } from './fields';
-import { safeReturnTo } from './returnTo';
+import { safeReturnTo, withAdded } from './returnTo';
+import { itemKey } from '../../lib/materials';
 import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
 import { ItemSuppliers } from './ItemSuppliers';
@@ -73,7 +74,7 @@ export function RawMaterialForm() {
     const docId = isNew ? newId(workspaceId, COLLECTIONS.rawMaterials) : id;
     const data: RawMaterial = { name: name.trim(), baseUnit, notes: notes.trim(), active: isNew ? true : active, gsm: gsmParsed, customUnits: unitsParsed };
     saveRecord({ workspaceId, collectionName: COLLECTIONS.rawMaterials, docId, entity: `Raw material: ${data.name}`, before: isNew ? null : item, data: { ...data }, reason });
-    if (isNew) navigate(returnTo ?? `/masters/raw-materials/${docId}`, { replace: true });
+    if (isNew) navigate(returnTo ? withAdded(returnTo, itemKey('RAW_MATERIAL', docId)) : `/masters/raw-materials/${docId}`, { replace: true });
     return true;
   }
 

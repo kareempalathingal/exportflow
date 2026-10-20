@@ -22,7 +22,8 @@ import {
   type CustomUnitDraft,
   type TrackedNumberDraft,
 } from './fields';
-import { safeReturnTo } from './returnTo';
+import { safeReturnTo, withAdded } from './returnTo';
+import { itemKey } from '../../lib/materials';
 import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
 import { BomEditor } from './BomEditor';
@@ -134,7 +135,7 @@ export function ProductForm() {
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTIONS.products) : id;
     saveRecord({ workspaceId, collectionName: COLLECTIONS.products, docId, entity: `Product: ${draftProduct.name}`, before: isNew ? null : item, data: { ...draftProduct }, reason });
-    if (isNew) navigate(returnTo ?? `/masters/products/${docId}?tab=${needsBom(draftProduct) ? 'bom' : 'details'}`, { replace: true });
+    if (isNew) navigate(returnTo ? withAdded(returnTo, itemKey('PRODUCT', docId)) : `/masters/products/${docId}?tab=${needsBom(draftProduct) ? 'bom' : 'details'}`, { replace: true });
     return true;
   }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, isEditable, type JobOrder, type StockEntry } from '../../lib/jobOrders';
-import { componentContext, type ComponentType, type MasterData } from '../../lib/masters';
+import { COLLECTIONS, componentContext, suppliersOf, type ComponentType, type MasterData, type Supplier } from '../../lib/masters';
 import {
   allocationFor,
   COLLECTION_STOCK_COUNTS,
@@ -16,6 +16,7 @@ import { availableUnits, formatQty, unitLabel } from '../../lib/units';
 import { parseNum, UnitSelect } from '../masters/fields';
 import type { WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
+import { useCollection } from '../masters/useCollection';
 import { DocButtons } from '../docs/DocButtons';
 import { planDoc } from '../../lib/docs/model';
 
@@ -62,6 +63,7 @@ export function MaterialsTab(props: {
 }) {
   const { jo, md, allJos, counts, company } = props;
   const { workspaceId, t } = useApp();
+  const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const editable = isEditable(jo.status);
   const [drafts, setDrafts] = useState<Record<string, EntryDraft>>(() => draftsFrom(jo.stock));
   const [reason, setReason] = useState('');
@@ -220,7 +222,7 @@ export function MaterialsTab(props: {
       <div className="card doc-card">
         {dirty && <p className="warn small">PDFs show saved stock only — save your changes first.</p>}
         <DocButtons label="To produce" build={() => planDoc('TO_PRODUCE', jo, planMaterials(jo, md), { company, generatedAt: `${formatDateTime(new Date())} IST` })} />
-        <DocButtons label="To buy (this order)" build={() => planDoc('TO_BUY', jo, planMaterials(jo, md), { company, generatedAt: `${formatDateTime(new Date())} IST` })} />
+        <DocButtons label="To buy (this order)" build={() => planDoc('TO_BUY', jo, planMaterials(jo, md), { company, generatedAt: `${formatDateTime(new Date())} IST`, supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name) })} />
       </div>
 
       <h3 className="section-title">To produce</h3>

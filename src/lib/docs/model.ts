@@ -91,13 +91,18 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
   };
 }
 
-function planRows(rows: PlanRow[], withType: boolean): string[][] {
+/** Supplier names for an item key (from the Suppliers master). */
+export type SupplierNames = (key: string) => string[];
+const supplierCell = (names: SupplierNames | undefined, key: string) => names?.(key).join(', ') || '—';
+
+function planRows(rows: PlanRow[], withType: boolean, names?: SupplierNames): string[][] {
   return rows.map((r) => [
     `${r.name}${r.provisional ? ' *' : ''}`,
     ...(withType ? [r.type === 'PRODUCT' ? 'Product' : 'Raw material'] : []),
     qty(r.gross, r.unit),
     r.fromStock > 0 ? qty(Math.min(r.fromStock, r.gross), r.unit) : '—',
     qty(r.net, r.unit),
+    ...(withType ? [supplierCell(names, r.key)] : []),
   ]);
 }
 
@@ -108,7 +113,12 @@ function planNotes(plan: MaterialPlan, rows: PlanRow[]): string[] {
   return out.concat(plan.notes);
 }
 
-export function planDoc(kind: 'TO_PRODUCE' | 'TO_BUY', jo: JobOrder, plan: MaterialPlan, opts: { company: string; generatedAt: string }): DocModel {
+export function planDoc(
+  kind: 'TO_PRODUCE' | 'TO_BUY',
+  jo: JobOrder,
+  plan: MaterialPlan,
+  opts: { company: string; generatedAt: string; supplierNames?: SupplierNames },
+): DocModel {
   const b = base(jo, opts.company, opts.generatedAt);
   const produce = kind === 'TO_PRODUCE';
   const rows = produce ? plan.toProduce : plan.toBuy;
@@ -130,8 +140,9 @@ export function planDoc(kind: 'TO_PRODUCE' | 'TO_BUY', jo: JobOrder, plan: Mater
           { label: 'Needed', align: 'right' as const },
           { label: 'From stock', align: 'right' as const },
           { label: produce ? 'To produce' : 'To buy', align: 'right' as const },
+          ...(produce ? [] : [{ label: 'Suppliers' }]),
         ],
-        rows: planRows(rows, !produce),
+        rows: planRows(rows, !produce, opts.supplierNames),
         empty: produce ? 'Nothing to make for this order.' : 'Nothing to buy for this order.',
       },
     ],
@@ -145,7 +156,7 @@ export function planDoc(kind: 'TO_PRODUCE' | 'TO_BUY', jo: JobOrder, plan: Mater
 export function toBuyAllDoc(
   rows: BuyTotal[],
   ordersWithErrors: string[],
-  opts: { company: string; generatedAt: string; includeDrafts: boolean; today: string },
+  opts: { company: string; generatedAt: string; includeDrafts: boolean; today: string; supplierNames?: SupplierNames },
 ): DocModel {
   return {
     title: 'To Buy — All Orders',
@@ -155,11 +166,12 @@ export function toBuyAllDoc(
     tables: [
       {
         title: 'Still to buy after stock set aside on each order',
-        columns: [{ label: 'Item' }, { label: 'Type' }, { label: 'To buy', align: 'right' }, { label: 'Orders' }],
+        columns: [{ label: 'Item' }, { label: 'Type' }, { label: 'To buy', align: 'right' }, { label: 'Suppliers' }, { label: 'Orders' }],
         rows: rows.map((r) => [
           `${r.name}${r.provisional ? ' *' : ''}`,
           r.type === 'PRODUCT' ? 'Product' : 'Raw material',
           qty(r.net, r.unit),
+          supplierCell(opts.supplierNames, r.key),
           r.orders.map((o) => `${o.joNumber}: ${formatQty(o.net)}`).join(', '),
         ]),
         empty: 'Nothing to buy.',

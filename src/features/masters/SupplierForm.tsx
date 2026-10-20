@@ -1,28 +1,42 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTIONS, findDuplicate, validGstin, type Supplier } from '../../lib/masters';
 import { itemKey, parseItemKey } from '../../lib/materials';
 import { saveRecord } from '../sync/records';
 import { FormShell } from './FormShell';
 import { TextField } from './fields';
-import { safeReturnTo } from './returnTo';
+import { safeReturnTo, withReturnTo } from './returnTo';
+import { readJson, writeJson, writePref } from '../../lib/storage';
 import { newId, useCollection, useDocument } from './useCollection';
 import { useMasterData } from './useMasterData';
 
 const EMPTY: Supplier = { name: '', active: true, notes: '', place: '', contactPerson: '', phone: '', email: '', gstin: '', items: [] };
+
+// Unsaved supplier edits survive a trip to create a new item (kept briefly on this phone).
+const DRAFT_TTL_MS = 30 * 60 * 1000;
+const draftKey = (id: string) => `supplierDraft:${id}`;
+function takeDraft(id: string): Supplier | null {
+  const v = readJson<{ at: number; d: Supplier } | null>(draftKey(id), null);
+  writePref(draftKey(id), null);
+  return v && Date.now() - v.at < DRAFT_TTL_MS ? { ...EMPTY, ...v.d } : null;
+}
 
 export function SupplierForm() {
   const { id = 'new' } = useParams();
   const isNew = id === 'new';
   const { workspaceId, t } = useApp();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const returnTo = safeReturnTo(searchParams);
   const { item, loading } = useDocument<Supplier>(workspaceId, COLLECTIONS.suppliers, isNew ? null : id);
   const all = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const master = useMasterData(workspaceId);
-  const [d, setD] = useState<Supplier>(EMPTY);
+  const restored = useRef<Supplier | null>(null);
+  const [d, setD] = useState<Supplier>(() => {
+    restored.current = takeDraft(id);
+    return restored.current ?? EMPTY;
+  });
   const [error, setError] = useState<string | null>(null);
   const loaded = useRef<string | null>(null);
 
@@ -31,8 +45,22 @@ export function SupplierForm() {
     const key = `${item.id}:${item.rev}`;
     if (loaded.current === key) return;
     loaded.current = key;
+    if (restored.current) {
+      restored.current = null; // keep the unsaved edits the user came back to
+      return;
+    }
     setD({ ...EMPTY, ...item, items: item.items ?? [] });
   }, [item]);
+
+  // Coming back from "+ New raw material / product": link the new item.
+  useEffect(() => {
+    const added = searchParams.get('added');
+    if (!added) return;
+    if (parseItemKey(added)) setD((x) => (x.items.includes(added) ? x : { ...x, items: [...x.items, added] }));
+    const next = new URLSearchParams(searchParams);
+    next.delete('added');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const rms = useMemo(() => master.rawMaterials.items.filter((r) => r.active !== false).sort((a, b) => a.name.localeCompare(b.name)), [master.rawMaterials.items]);
   const products = useMemo(() => master.products.items.filter((p) => p.active !== false).sort((a, b) => a.name.localeCompare(b.name)), [master.products.items]);
@@ -48,6 +76,10 @@ export function SupplierForm() {
     const x = p.type === 'PRODUCT' ? master.md.products.get(p.id) : master.md.rawMaterials.get(p.id);
     return { name: x?.name ?? '(missing item)', kind: p.type === 'PRODUCT' ? 'Product' : 'Raw material' };
   };
+
+  function keepDraft() {
+    writeJson(draftKey(id), { at: Date.now(), d });
+  }
 
   function save(reason: string): boolean {
     if (!workspaceId) return false;
@@ -140,7 +172,17 @@ export function SupplierForm() {
             </optgroup>
           </select>
         </label>
-        <p className="muted small">Saved with the supplier. The links also show on each product and raw material.</p>
+        <p className="small create-links">
+          Not in the list?{' '}
+          <Link to={withReturnTo('/masters/raw-materials/new', `/masters/suppliers/${id}`)} onClick={keepDraft}>
+            + New raw material
+          </Link>{' '}
+          ·{' '}
+          <Link to={withReturnTo('/masters/products/new', `/masters/suppliers/${id}`)} onClick={keepDraft}>
+            + New product
+          </Link>
+        </p>
+        <p className="muted small">New items are added here when you come back. Press Save to keep the links; they also show on each product and raw material.</p>
       </fieldset>
       <TextField label="Notes" multiline value={d.notes} onChange={(notes) => set({ notes })} />
     </FormShell>

@@ -112,7 +112,7 @@ describe('sync state', () => {
   });
 });
 
-import { safeReturnTo, withReturnTo } from '../../src/features/masters/returnTo';
+import { safeReturnTo, withAdded, withReturnTo } from '../../src/features/masters/returnTo';
 describe('returnTo links', () => {
   it('round-trips an in-app BOM path', () => {
     const url = withReturnTo('/masters/raw-materials/new', '/masters/products/abc?tab=bom');
@@ -141,5 +141,12 @@ describe('suppliers', () => {
   it('checks the GSTIN shape', () => {
     expect(validGstin('32abcde1234f1z5')).toBe(true);
     expect(validGstin('32ABCDE')).toBe(false);
+  });
+});
+
+describe('create from another page and come back', () => {
+  it('tells the returning page which item was added', () => {
+    expect(withAdded('/masters/suppliers/new', 'PRODUCT:abc')).toBe('/masters/suppliers/new?added=PRODUCT%3Aabc');
+    expect(withAdded('/masters/products/p1?tab=bom', 'RAW_MATERIAL:r')).toBe('/masters/products/p1?tab=bom&added=RAW_MATERIAL%3Ar');
   });
 });
