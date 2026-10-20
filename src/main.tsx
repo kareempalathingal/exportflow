@@ -9,7 +9,9 @@ import '@fontsource/ibm-plex-mono/latin-500.css';
 import '@fontsource/ibm-plex-mono/latin-600.css';
 import './styles.css';
 import { applyTheme, readTheme } from './lib/theme';
+import { installGlobalErrorHandlers } from './lib/errorLog';
 
+installGlobalErrorHandlers();
 applyTheme(readTheme());
 
 const root = document.getElementById('root');

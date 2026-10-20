@@ -16,6 +16,7 @@ import {
   type PendingOp,
 } from '../../lib/syncState';
 import { syncStore } from './syncStore';
+import { logError } from '../../lib/errorLog';
 
 export interface VersionedRecord {
   rev: number;
@@ -86,6 +87,7 @@ export function saveRecord(args: SaveArgs): PendingOp {
   batch.commit().then(
     () => syncStore.update(op.id, markSynced),
     async (err: FirestoreError) => {
+      logError(err, `Sync: ${args.entity}`);
       const serverRev = await readServerRev(path);
       syncStore.update(op.id, (o) => classifyRejection(o, err.code, serverRev));
     },

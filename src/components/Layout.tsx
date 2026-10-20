@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { ErrorBoundary } from './ErrorBoundary';
 import { useApp } from '../AppContext';
 import { useSyncOps } from '../features/sync/syncStore';
 import { summarize } from '../lib/syncState';
@@ -8,6 +9,7 @@ export function Layout() {
   const { t, mode, online } = useApp();
   const counts = summarize(useSyncOps());
   const attention = counts.CONFLICT + counts.FAILED;
+  const { pathname } = useLocation();
 
   return (
     <div className={`shell ${mode === 'DEMO' ? 'is-demo' : ''}`}>
@@ -29,7 +31,9 @@ export function Layout() {
       {!online && <div className="offline-note">{t('offlineNote')}</div>}
       <UpdatePrompt />
       <main className="content">
-        <Outlet />
+        <ErrorBoundary resetKey={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <nav className="bottomnav" aria-label="Main">
         <NavLink to="/" end>

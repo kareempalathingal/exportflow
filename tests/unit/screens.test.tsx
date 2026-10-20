@@ -80,6 +80,8 @@ const { SupplierForm } = await import('../../src/features/masters/SupplierForm')
 const { OrdersPage } = await import('../../src/features/orders/OrdersPage');
 const { JobOrderPage } = await import('../../src/features/orders/JobOrderPage');
 const { ProcessForm } = await import('../../src/features/masters/ProcessForm');
+const { RestoreCard } = await import('../../src/features/settings/RestoreCard');
+const { HealthCard } = await import('../../src/features/settings/HealthCard');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -227,5 +229,37 @@ describe('Phase 4 process steps', () => {
     expect(html).toContain('Deadline can be recalculated');
     expect(html).toContain('Recalculate deadline');
     expect(html).toContain('6 of 59 calendar days');
+  });
+});
+
+describe('Data safety', () => {
+  it('settings offer restore with a preview and a system health summary', () => {
+    const restore = render('/settings', '/settings', <RestoreCard />);
+    expect(restore).toContain('Restore from a backup');
+    expect(restore).toContain('Choose backup file');
+    expect(restore).toContain('Nothing is deleted');
+    const health = render('/settings', '/settings', <HealthCard />);
+    expect(health).toContain('System health');
+    expect(health).toContain('ACTUAL backup: never taken on this phone');
+    expect(health).toContain('Sync: 0 waiting');
+    expect(health).toContain('Check rules');
+  });
+  it('home reminds to back up ACTUAL data once real data exists', () => {
+    expect(render('/', '/', <HomePage />)).toContain('Backup due');
+  });
+});
+
+describe('Crash screen', () => {
+  it('shows a recovery screen instead of a blank page', async () => {
+    const { ErrorBoundary } = await import('../../src/components/ErrorBoundary');
+    const b = new ErrorBoundary({ children: <p>ok</p> });
+    expect(ErrorBoundary.getDerivedStateFromError(new Error('x'))).toEqual({ error: new Error('x') });
+    b.state = { error: new Error('Cannot read properties of undefined'), copied: false };
+    const html = renderToString(b.render() as React.ReactElement);
+    expect(html).toContain('Something went wrong on this screen');
+    expect(html).toContain('Your saved data is safe');
+    expect(html).toContain('Copy error details');
+    b.state = { error: null, copied: false };
+    expect(renderToString(b.render() as React.ReactElement)).toBe('<p>ok</p>');
   });
 });

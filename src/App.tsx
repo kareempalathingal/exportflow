@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './AppContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { LoginPage } from './features/auth/LoginPage';
 import { HomePage } from './features/home/HomePage';
@@ -62,10 +63,12 @@ function Gate() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <HashRouter>
-        <Gate />
-      </HashRouter>
-    </AppProvider>
+    <ErrorBoundary where="App">
+      <AppProvider>
+        <HashRouter>
+          <Gate />
+        </HashRouter>
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

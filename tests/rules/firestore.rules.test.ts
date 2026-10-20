@@ -4,7 +4,7 @@
  * (runs in GitHub Actions; the emulator download is not reachable everywhere).
  */
 import { readFileSync } from 'node:fs';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   assertFails,
   assertSucceeds,
@@ -264,6 +264,54 @@ describe('versioned records with audit', () => {
       });
       await assertSucceeds(b.commit());
     }
+  });
+  it('restoring a backup passes every rule (status paths, reasons, new revisions)', async () => {
+    const { buildSampleData } = await import('../../src/lib/sampleData');
+    const { buildBackup } = await import('../../src/lib/backup');
+    const { planRestore, RESTORE_COLLECTIONS } = await import('../../src/lib/restore');
+    const { getDocs, collection } = await import('firebase/firestore');
+    const db = dbFor(ALICE);
+    const ws = await createWorkspace(db, ALICE, 'DEMO');
+    let n = 0;
+    const apply = async (w: { collection: string; docId: string; entity: string; before: { rev: number } | null; data: Record<string, unknown>; reason?: string }) => {
+      const rev = (w.before?.rev ?? 0) + 1;
+      const ev = `r${n++}`;
+      const b = writeBatch(db);
+      b.set(doc(db, `workspaces/${ws}/${w.collection}/${w.docId}`), { ...w.data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
+      b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
+        entity: w.entity, entityPath: `workspaces/${ws}/${w.collection}/${w.docId}`, entityId: w.docId, action: rev === 1 ? 'CREATE' : 'UPDATE',
+        rev, changes: [], reason: w.reason ?? null, actorUid: ALICE, at: serverTimestamp(),
+      });
+      await assertSucceeds(b.commit());
+    };
+    const read = async () => {
+      const out: Record<string, { id: string; data: Record<string, unknown> }[]> = {};
+      for (const c of RESTORE_COLLECTIONS) out[c] = (await getDocs(collection(db, `workspaces/${ws}/${c}`))).docs.map((d) => ({ id: d.id, data: d.data() }));
+      return out;
+    };
+    for (const w of buildSampleData('2026-10-20')) await apply(w);
+    const backup = buildBackup({ workspaceId: ws, mode: 'DEMO', appVersion: 't', now: new Date('2026-10-20T06:00:00Z'), collections: await read() });
+
+    // After the backup: cancel one order, reopen a completed one, rename a product.
+    const now = await read();
+    const get = (c: string, id: string) => now[c]!.find((r) => r.id === id)!.data as Record<string, unknown> & { rev: number };
+    const j101 = get('jobOrders', 'sample_jo_101');
+    await apply({ collection: 'jobOrders', docId: 'sample_jo_101', entity: 'JO', before: j101, data: { ...j101, status: 'CANCELLED' }, reason: 'test' });
+    const j099 = get('jobOrders', 'sample_jo_099');
+    await apply({ collection: 'jobOrders', docId: 'sample_jo_099', entity: 'JO', before: j099, data: { ...j099, status: 'CONFIRMED' }, reason: 'test' });
+    const mat = get('products', 'sample_p_mat');
+    await apply({ collection: 'products', docId: 'sample_p_mat', entity: 'P', before: mat, data: { ...mat, name: 'Renamed' } });
+
+    const plan = planRestore(backup, await read(), { workspaceId: ws, mode: 'DEMO' });
+    expect(plan.blocked).toBeNull();
+    expect(plan.total.update).toBe(3);
+    for (const w of plan.writes) await apply(w);
+    const after = await read();
+    const status = (id: string) => after.jobOrders!.find((r) => r.id === id)!.data.status;
+    expect(status('sample_jo_101')).toBe('CONFIRMED');
+    expect(status('sample_jo_099')).toBe('COMPLETED');
+    expect(after.products!.find((r) => r.id === 'sample_p_mat')!.data.name).toBe('Coir mat 40×60');
+    expect(planRestore(backup, after, { workspaceId: ws, mode: 'DEMO' }).writes).toHaveLength(0);
   });
   it('unknown collections are denied', async () => {
     const db = dbFor(ALICE);

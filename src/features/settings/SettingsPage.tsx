@@ -7,6 +7,8 @@ import { saveRecord } from '../sync/records';
 import { SyncPanel } from '../sync/SyncPanel';
 import { offlineCacheEnabled } from '../../firebase';
 import { BackupCard } from './BackupCard';
+import { RestoreCard } from './RestoreCard';
+import { HealthCard } from './HealthCard';
 import { SampleDataCard } from './SampleDataCard';
 import { Link } from 'react-router-dom';
 import { READINESS_DOC, readinessSummary, readinessWorkspace, type ReadinessDoc } from '../../lib/readiness';
@@ -221,6 +223,10 @@ export function SettingsPage() {
       <ReadinessLinkCard />
 
       <BackupCard />
+
+      <RestoreCard />
+
+      <HealthCard />
 
       <AppearanceCard />
 

@@ -209,7 +209,30 @@ report the discrepancy and ask; do not silently choose.
 
 -   Settings → Backup: one JSON file per mode (`src/lib/backup.ts`,
     format `exportflow-backup/v1`), share or download; last backup date
-    kept on the phone. Restore is not built yet.
+    kept on the phone. Home shows "Backup due" in ACTUAL when real data
+    exists and the last backup is over 7 days old (or never).
+-   Settings → Restore (`src/lib/restore.ts`, confirmed 20 Oct 2026):
+    whole-file restore only. Preview per collection (new / changed /
+    same / kept) before writing; needs internet. Each record is written
+    as a NEW revision with the history reason "Restored from backup of
+    …"; records not in the backup are kept; audit events are never
+    restored. Job Orders go through allowed status paths (e.g. Completed
+    → Confirmed → Completed). Products/raw materials whose base unit
+    differs are skipped and listed. A DEMO backup can never go into
+    ACTUAL; an ACTUAL backup may go into DEMO (practice). Restoring into
+    ACTUAL requires a fresh backup of the current data first (30 min).
+-   Crash handling: `ErrorBoundary` around every screen (and the app)
+    shows Reload / Go to Home / Copy error details instead of a blank
+    page. `src/lib/errorLog.ts` keeps the last 50 errors on the phone
+    only (screen crashes, background errors, failed syncs, backup and
+    restore errors); never sent anywhere.
+-   Settings → System health: ACTUAL backup age, sync counts, errors
+    (copy / clear), free-plan quota hits, "Check rules" (probes a newly
+    added collection to detect unpublished rules) and "Check data"
+    (`src/lib/integrity.ts`: missing links, BOM loops, broken orders —
+    report only, never auto-fix).
+-   Not available on the free Spark plan: managed backups / point-in-time
+    recovery (Blaze). Revisit when real data is in use.
 -   Settings → Sample data: DEMO only, records named "(sample)", fixed
     ids `sample_*`; never written to ACTUAL (checked in code).
 -   "Waiting for company data" checklist (`src/lib/readiness.ts`, doc

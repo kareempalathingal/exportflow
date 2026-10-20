@@ -15,6 +15,7 @@ import { lineProgresses, orderTrack, overrunningSteps } from '../../lib/route';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { WorkCalendarCard } from '../calendar/WorkCalendarCard';
 import { readRedAt } from '../../lib/theme';
+import { BACKUP_REMIND_DAYS, daysSinceBackup, readLastBackup } from '../../lib/backup';
 import { formatQty, unitLabel } from '../../lib/units';
 
 const KIND: Record<AttentionItem['kind'], { title: string; hint: string; cls: string; tab: string }> = {
@@ -52,7 +53,7 @@ function urgency(t: Track): number {
 }
 
 export function HomePage() {
-  const { t, workspaceId } = useApp();
+  const { t, workspaceId, mode } = useApp();
   const { profile } = useProfile(workspaceId);
   const master = useMasterData(workspaceId);
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
@@ -137,7 +138,13 @@ export function HomePage() {
     }),
     [jos.items, cal],
   );
-  const total = attention.length + joAttention.length + over.length + overruns.length + deadlineChanges.length;
+  // ACTUAL only, once real data exists: remind to back up every 7 days.
+  const backupDue = useMemo(() => {
+    if (mode !== 'ACTUAL' || !workspaceId || (products.items.length === 0 && jos.items.length === 0)) return null;
+    const days = daysSinceBackup(readLastBackup(workspaceId), new Date());
+    return days === null || days > BACKUP_REMIND_DAYS ? { days } : null;
+  }, [mode, workspaceId, products.items.length, jos.items.length]);
+  const total = attention.length + joAttention.length + over.length + overruns.length + deadlineChanges.length + (backupDue ? 1 : 0);
 
   return (
     <section className="dash">
@@ -264,6 +271,16 @@ export function HomePage() {
         )}
         {!loading && products.items.length > 0 && total === 0 && <p className="ok small">Nothing needs attention right now.</p>}
         <ul className="attention">
+          {backupDue && (
+            <li>
+              <Link to="/settings">
+                <span className="pill warn">Backup due</span> <strong>ACTUAL data</strong>
+                <span className="muted small block">
+                  {backupDue.days === null ? 'No backup taken on this phone yet.' : `Last backup ${backupDue.days} days ago.`} Settings → Backup → Share backup (e.g. to Google Drive).
+                </span>
+              </Link>
+            </li>
+          )}
           {overruns.map((o) => (
             <li key={`${o.jo.id}-${o.line.id}-${o.view.step.key}`}>
               <Link to={`/orders/${o.jo.id}?tab=products`}>

@@ -334,3 +334,19 @@ button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
 .cal-holidays li { padding: 0.3rem 0; border-bottom: 1px solid var(--line); }
 .cal-holidays .mono { margin-right: 0.5rem; }
 .row.wrap { flex-wrap: wrap; }
+
+/* Crash screen, restore preview, system health */
+.crash { margin-top: 1rem; border-color: var(--danger); }
+.crash h2 { margin-top: 0; }
+.file-pick { display: inline-block; cursor: pointer; }
+.file-pick .button { display: inline-flex; align-items: center; min-height: 36px; padding: 0.35rem 0.85rem; font-size: 0.9rem; border-radius: 10px; border: 1px solid var(--line); color: var(--ink); }
+.restore-preview { margin-top: 0.8rem; }
+.mini-table { width: 100%; border-collapse: collapse; margin: 0.4rem 0; }
+.mini-table th, .mini-table td { padding: 0.3rem 0.25rem; text-align: right; border-bottom: 1px solid var(--line); }
+.mini-table th[scope='row'], .mini-table thead th:first-child { text-align: left; font-weight: 500; }
+.health-list { list-style: none; padding: 0; margin: 0.4rem 0 0.8rem; }
+.health-list li { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.45rem 0; border-bottom: 1px solid var(--line); }
+.health-list .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin-top: 0.4rem; background: var(--line); }
+.health-list .dot.ok { background: var(--ok); }
+.health-list .dot.warn { background: var(--warn); }
+.health-list .dot.bad { background: var(--danger); }
