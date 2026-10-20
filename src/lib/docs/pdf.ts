@@ -132,7 +132,12 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
  * where supported, otherwise a normal download.
  */
 export async function shareOrDownload(blob: Blob, fileName: string, title: string, mode: 'share' | 'download'): Promise<'shared' | 'downloaded' | 'cancelled'> {
-  const file = new File([blob], fileName, { type: 'application/pdf' });
+  return saveFile(blob, fileName, 'application/pdf', title, mode);
+}
+
+/** Any file: the share sheet where supported, otherwise a normal download. */
+export async function saveFile(blob: Blob, fileName: string, mime: string, title: string, mode: 'share' | 'download'): Promise<'shared' | 'downloaded' | 'cancelled'> {
+  const file = new File([blob], fileName, { type: mime });
   if (mode === 'share' && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title });

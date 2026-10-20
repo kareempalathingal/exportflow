@@ -6,6 +6,28 @@ import { useProfile, PROFILE_COLLECTION, PROFILE_DOC } from './useProfile';
 import { saveRecord } from '../sync/records';
 import { SyncPanel } from '../sync/SyncPanel';
 import { offlineCacheEnabled } from '../../firebase';
+import { BackupCard } from './BackupCard';
+import { SampleDataCard } from './SampleDataCard';
+import { Link } from 'react-router-dom';
+import { READINESS_DOC, readinessSummary, readinessWorkspace, type ReadinessDoc } from '../../lib/readiness';
+import { useDocument } from '../masters/useCollection';
+
+function ReadinessLinkCard() {
+  const app = useApp();
+  const { item } = useDocument<ReadinessDoc>(readinessWorkspace(app.user?.uid, app.workspaceId), 'settings', READINESS_DOC);
+  const s = readinessSummary(item);
+  return (
+    <Link to="/readiness" className="card link">
+      <div className="row between">
+        <h3>Waiting for company data</h3>
+        <span className="mono small">
+          {s.received}/{s.total - s.notNeeded}
+        </span>
+      </div>
+      <p className="muted small">What to collect after joining, and what each piece unlocks.</p>
+    </Link>
+  );
+}
 import { DEFAULT_RED_AT, readRedAt, readTheme, saveRedAt, saveTheme, type ThemePref } from '../../lib/theme';
 
 function AppearanceCard() {
@@ -193,6 +215,12 @@ export function SettingsPage() {
           </button>
         </div>
       </div>
+
+      <SampleDataCard />
+
+      <ReadinessLinkCard />
+
+      <BackupCard />
 
       <AppearanceCard />
 

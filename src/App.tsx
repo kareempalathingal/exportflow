@@ -10,6 +10,7 @@ import { CustomerForm } from './features/masters/CustomerForm';
 import { ProductForm } from './features/masters/ProductForm';
 import { RawMaterialForm } from './features/masters/RawMaterialForm';
 import { SupplierForm } from './features/masters/SupplierForm';
+import { ReadinessPage } from './features/readiness/ReadinessPage';
 import { OrdersPage } from './features/orders/OrdersPage';
 import { JobOrderPage } from './features/orders/JobOrderPage';
 
@@ -50,6 +51,7 @@ function Gate() {
         <Route path="masters/suppliers/:id" element={<SupplierForm />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="readiness" element={<ReadinessPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

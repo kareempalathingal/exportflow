@@ -240,6 +240,23 @@ describe('versioned records with audit', () => {
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/stockCounts/RAW_MATERIAL_r1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/stockCounts/RAW_MATERIAL_r1`)));
   });
+  it('DEMO sample data passes every rule', async () => {
+    const { buildSampleData } = await import('../../src/lib/sampleData');
+    const db = dbFor(ALICE);
+    const ws = await createWorkspace(db, ALICE, 'DEMO');
+    let n = 0;
+    for (const w of buildSampleData('2026-10-20')) {
+      const rev = (w.before?.rev ?? 0) + 1;
+      const ev = `sample${n++}`;
+      const b = writeBatch(db);
+      b.set(doc(db, `workspaces/${ws}/${w.collection}/${w.docId}`), { ...w.data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
+      b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
+        entity: w.entity, entityPath: `workspaces/${ws}/${w.collection}/${w.docId}`, entityId: w.docId, action: rev === 1 ? 'CREATE' : 'UPDATE',
+        rev, changes: [], reason: w.reason ?? null, actorUid: ALICE, at: serverTimestamp(),
+      });
+      await assertSucceeds(b.commit());
+    }
+  });
   it('unknown collections are denied', async () => {
     const db = dbFor(ALICE);
     const ws = await createWorkspace(db, ALICE, 'ACTUAL');

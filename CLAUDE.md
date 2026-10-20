@@ -141,6 +141,19 @@ report the discrepancy and ask; do not silently choose.
     linearly from confirmation to the internal deadline; no update =
     "Not tracked".
 
+## Data safety and onboarding aids (confirmed 20 Oct 2026)
+
+-   Settings → Backup: one JSON file per mode (`src/lib/backup.ts`,
+    format `exportflow-backup/v1`), share or download; last backup date
+    kept on the phone. Restore is not built yet.
+-   Settings → Sample data: DEMO only, records named "(sample)", fixed
+    ids `sample_*`; never written to ACTUAL (checked in code).
+-   "Waiting for company data" checklist (`src/lib/readiness.ts`, doc
+    `settings/readiness`, always in the ACTUAL workspace): what to
+    collect after joining and what each item unlocks.
+-   Before entering real company data in ACTUAL, the user checks the
+    company's policy on personal tools (checklist item 1).
+
 ## Project setup (confirmed)
 
 -   Repo: `kareempalathingal/exportflow`. App URL:

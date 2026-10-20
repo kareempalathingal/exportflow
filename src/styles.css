@@ -290,3 +290,5 @@ input[type="range"] { padding: 0; min-height: 36px; accent-color: var(--brand); 
 .chip.inactive { opacity: 0.6; }
 .chip-x { min-height: 32px; min-width: 32px; padding: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 1.1rem; line-height: 1; }
 .tabs { scrollbar-width: none; }
+.readiness-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 12px; }
+.readiness-edit { margin-top: 0.4rem; }
