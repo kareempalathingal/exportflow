@@ -3,6 +3,8 @@ import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder } from '../../lib/jobOrders';
 import { appendProgress, gapColor, trackLabel, trackOf } from '../../lib/progress';
 import { orderStepProgress } from '../../lib/route';
+import type { MasterData } from '../../lib/masters';
+import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
 import type { WithMeta } from '../masters/useCollection';
@@ -11,13 +13,14 @@ import { jobOrderData } from './MaterialsTab';
 import { TrackBar } from './TrackBar';
 
 /** Manual "% complete" until stage tracking exists; compared with the linear plan. */
-export function ProgressCard({ jo }: { jo: WithMeta<JobOrder> }) {
+export function ProgressCard({ jo, md }: { jo: WithMeta<JobOrder>; md: MasterData }) {
   const { workspaceId } = useApp();
   const today = istDateKey(new Date());
   const [pct, setPct] = useState(jo.progress?.pct ?? 0);
   const [saved, setSaved] = useState(false);
-  const fromSteps = orderStepProgress(jo, today);
-  const track = trackOf(jo, today, fromSteps);
+  const { cal } = useWorkCalendar();
+  const fromSteps = orderStepProgress(jo, today, { md, cal });
+  const track = trackOf(jo, today, fromSteps, cal);
   const color = gapColor(track, readRedAt());
   const editable = jo.status === 'CONFIRMED' && !fromSteps;
 

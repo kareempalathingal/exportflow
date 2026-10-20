@@ -53,9 +53,14 @@ export function buildSampleData(today: string): SampleWrite[] {
     sample_pr_pack: { name: 'Packing (sample)', active: true, notes: SRC },
   };
   for (const [id, p] of Object.entries(processes)) create('processes', id, `Process: ${p.name}`, p);
-  const st = (processId: string, days: number | null): RouteStep => ({
+  // Sample benchmarks only (output per working day / fixed days); real ones come from the company.
+  const st = (processId: string, perDay: number | null, perDayUnit: string, fixedDays: number | null = null): RouteStep => ({
     processId,
-    plannedDays: days === null ? { value: null, status: 'PENDING_VERIFICATION', source: '' } : { value: days, status: 'USER_PROVIDED', source: SRC },
+    perDay,
+    perDayUnit,
+    fixedDays,
+    status: perDay === null && fixedDays === null ? 'PENDING_VERIFICATION' : 'USER_PROVIDED',
+    source: perDay === null && fixedDays === null ? '' : SRC,
   });
   const rawMaterials: Record<string, RawMaterial> = {
     sample_rm_fibre: rm('Coir fibre'),
@@ -63,14 +68,14 @@ export function buildSampleData(today: string): SampleWrite[] {
     sample_rm_dye: rm('Natural dye'),
   };
   const products: Record<string, Product> = {
-    sample_p_yarn: product('Coir yarn', 'MANUFACTURED', 'kg', { route: [st('sample_pr_spin', 3)] }),
+    sample_p_yarn: product('Coir yarn', 'MANUFACTURED', 'kg', { route: [st('sample_pr_spin', 250, 'kg')] }),
     sample_p_mat: product('Coir mat 40×60', 'MANUFACTURED', 'pcs', {
       size: { length: 40, width: 60, unit: 'cm', status: 'USER_PROVIDED' },
       gsm: up(1500),
-      route: [st('sample_pr_weave', 4), st('sample_pr_bleach', 2), st('sample_pr_dye', 2), st('sample_pr_latex', null), st('sample_pr_pack', 1)],
+      route: [st('sample_pr_weave', 200, 'pcs'), st('sample_pr_bleach', 600, 'pcs', 1), st('sample_pr_dye', 500, 'pcs'), st('sample_pr_latex', null, 'pcs', 2), st('sample_pr_pack', 800, 'pcs')],
     }),
-    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', 1), st('sample_pr_pack', 1)] }),
-    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 3), st('sample_pr_pack', 1)] }),
+    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', null, 'pcs'), st('sample_pr_pack', 800, 'pcs')] }),
+    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 150, 'pcs'), st('sample_pr_pack', 800, 'pcs')] }),
   };
   const boms: Record<string, Bom> = {
     sample_p_yarn: { productId: 'sample_p_yarn', notes: SRC, lines: [line('RAW_MATERIAL', 'sample_rm_fibre', 1.1, 'kg')] },

@@ -1,25 +1,44 @@
 /**
  * Phase 4 (skeleton): process routes and step tracking per Job Order line.
  *
- * A product's route lists its processes in order. When an order is confirmed,
- * each line gets its own copy of the steps: made sub-products first (their own
- * routes, deepest first), then the product's route. Bought lines start with
- * "Ordered" and "Received", then the product's own steps (e.g. packing).
- * Progress is the share of steps done, weighted by planned days when every
- * step has a firm benchmark, otherwise each step counts the same.
+ * A product's route lists its processes in order, each with a benchmark:
+ * output per working day and/or fixed days. When an order is confirmed, each
+ * line gets its own copy of the steps (with the benchmark): made sub-products
+ * first (their own routes, deepest first), then the product's route. Bought
+ * lines start with "Ordered" and "Received", then the product's own steps.
+ *
+ * Planned days are worked out from the order every time they are shown, so
+ * quantity, stock and holiday changes are reflected at once:
+ *   planned days = quantity to make ÷ output per day + fixed days,
+ * rounded up to half a day. Quantities come from the material plan (stock set
+ * aside is deducted; a sub-product shared by several lines is split by need).
+ * All day counts are working days (Sundays and company holidays left out).
  */
-import { daysBetween, effectiveSupply, type JobOrder, type JoLine, type JoStep } from './jobOrders';
-import { lineComponent, needsBom, type MasterData, type Process, type Product } from './masters';
+import { addWorkingDays, DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from './calendar';
+import { effectiveSupply, resolveLine, type JobOrder, type JoLine, type JoStep } from './jobOrders';
+import { lineComponent, needsBom, productContext, type MasterData, type Process, type Product, type RouteStep } from './masters';
+import { planMaterials } from './materials';
 import { istDateKey } from './time';
 import { trackOf, type Track } from './progress';
+import { convert, formatQty, unitLabel } from './units';
 
 const FIRM = ['VERIFIED', 'USER_PROVIDED'];
 
 export const PURCHASE_STEPS = ['Ordered', 'Received'] as const;
 
-export function firmDays(step: { plannedDays: { value: number | null; status: string } }): number | null {
-  const v = step.plannedDays?.value;
-  return typeof v === 'number' && v > 0 && FIRM.includes(step.plannedDays.status) ? v : null;
+export interface PlanContext {
+  md: MasterData;
+  cal: WorkCalendar;
+}
+
+const pos = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null);
+
+/** The benchmark of a route step when it is firm (verified or user-provided), else nulls. */
+export function firmTime(s: Pick<RouteStep, 'perDay' | 'perDayUnit' | 'fixedDays' | 'status'>): { perDay: number | null; perDayUnit: string | null; fixedDays: number | null } {
+  if (!FIRM.includes(s.status)) return { perDay: null, perDayUnit: null, fixedDays: null };
+  const perDay = pos(s.perDay);
+  const fixedDays = pos(s.fixedDays);
+  return { perDay, perDayUnit: perDay !== null ? s.perDayUnit : null, fixedDays };
 }
 
 /** Steps for one order line from the current masters (taken at confirmation). */
@@ -30,14 +49,14 @@ export function buildLineSteps(line: Pick<JoLine, 'id' | 'productId' | 'supply'>
   const steps: JoStep[] = [];
   let n = 0;
   const key = () => `${line.id}-${n++}`;
-  const own = (p: Product) => {
+  const own = (pid: string, p: Product) => {
     for (const s of p.route ?? []) {
-      steps.push({ key: key(), processId: s.processId, label: processes.get(s.processId)?.name ?? 'Unknown process', forProduct: p.name, plannedDays: firmDays(s), doneAt: null });
+      steps.push({ key: key(), processId: s.processId, label: processes.get(s.processId)?.name ?? 'Unknown process', forProduct: p.name, productId: pid, ...firmTime(s), doneAt: null });
     }
   };
   if (supply === 'BUY') {
-    for (const label of PURCHASE_STEPS) steps.push({ key: key(), processId: null, label, forProduct: product.name, plannedDays: null, doneAt: null });
-    own(product);
+    for (const label of PURCHASE_STEPS) steps.push({ key: key(), processId: null, label, forProduct: product.name, productId: line.productId, perDay: null, perDayUnit: null, fixedDays: null, doneAt: null });
+    own(line.productId, product);
     return steps;
   }
   const seen = new Set<string>();
@@ -51,38 +70,148 @@ export function buildLineSteps(line: Pick<JoLine, 'id' | 'productId' | 'supply'>
       const sub = c.type === 'PRODUCT' ? md.products.get(c.id) : undefined;
       if (sub && needsBom(sub)) visit(c.id, [...path, pid]);
     }
-    own(p);
+    own(pid, p);
   };
   visit(line.productId, []);
   return steps;
 }
 
+// ---------------------------------------------------------------------------
+// Quantities and planned days
+// ---------------------------------------------------------------------------
+
+/** How much of a product one line has to process (base unit). */
+export interface StepQty {
+  qty: number; // to make (or, for bought lines, to handle)
+  fromStock: number; // set aside from stock (not made)
+  unit: string; // base unit
+}
+
+/**
+ * Quantity per product for each line: made products from the material plan
+ * (stock deducted; a product needed by several lines is split by each line's
+ * share of the need); bought lines handle their full quantity.
+ */
+export function lineQuantities(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapshot' | 'stock'>, md: MasterData): Map<string, StepQty>[] {
+  const order = planMaterials(jo, md);
+  const orderRow = new Map(order.toProduce.map((r) => [r.id, r]));
+  // Each line's own need without stock, and the total of those needs: the share of a product per line.
+  const own = jo.lines.map((line) => new Map(planMaterials({ ...jo, lines: [line], stock: {} }, md).toProduce.map((r) => [r.id, r.gross])));
+  const totalNeed = new Map<string, number>();
+  for (const m of own) for (const [id, g] of m) totalNeed.set(id, (totalNeed.get(id) ?? 0) + g);
+  return jo.lines.map((line, i) => {
+    const out = new Map<string, StepQty>();
+    const product = md.products.get(line.productId);
+    if (effectiveSupply(line, product) === 'BUY') {
+      const r = resolveLine(line, md);
+      if (r.baseQty !== null && r.baseUnit) out.set(line.productId, { qty: r.baseQty, fromStock: 0, unit: r.baseUnit });
+      return out;
+    }
+    for (const [id, gross] of own[i]!) {
+      const whole = orderRow.get(id);
+      const total = totalNeed.get(id) ?? 0;
+      if (!whole || !(total > 0)) continue;
+      const share = gross / total;
+      out.set(id, { qty: whole.net * share, fromStock: Math.min(whole.fromStock, whole.gross) * share, unit: whole.unit });
+    }
+    return out;
+  });
+}
+
+export interface PlannedStep extends JoStep {
+  /** Working days planned for this step on this order; null = time pending. */
+  plannedDays: number | null;
+  /** Quantity this step handles, in the benchmark's unit (when there is one). */
+  qty: number | null;
+  qtyUnit: string | null;
+  /** How the time was worked out, e.g. "1,200 pcs ÷ 400/day + 1 fixed". */
+  basis: string | null;
+  /** Why the time is what it is (0 days, conversion needed…). */
+  note: string | null;
+}
+
+/** Half-day steps, always rounded up. */
+export function roundUpHalf(days: number): number {
+  return Math.ceil(days * 2 - 1e-9) / 2;
+}
+
+/** Planned days for one step from its benchmark and the quantity it handles. */
+export function planStep(step: JoStep, q: StepQty | undefined, product: Product | undefined): PlannedStep {
+  const base: PlannedStep = { ...step, plannedDays: null, qty: null, qtyUnit: null, basis: null, note: null };
+  const perDay = pos(step.perDay);
+  const fixed = pos(step.fixedDays);
+  if (perDay === null && fixed === null) return base; // time pending
+  if (!q) {
+    if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), basis: `${formatQty(fixed!)} fixed days` };
+    return { ...base, note: 'Quantity cannot be worked out (check the BOM and conversions)' };
+  }
+  const unit = unitLabel(q.unit);
+  if (q.qty <= 1e-9) {
+    return { ...base, plannedDays: 0, qty: 0, qtyUnit: q.unit, note: q.fromStock > 0 ? `All ${formatQty(q.fromStock)} ${unit} from stock (set aside) — nothing to make` : 'Nothing to make' };
+  }
+  const stockNote = q.fromStock > 1e-9 ? `${formatQty(q.fromStock)} ${unit} from stock` : null;
+  if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), qty: q.qty, qtyUnit: q.unit, basis: `${formatQty(fixed!)} fixed days`, note: stockNote };
+  const to = step.perDayUnit ?? q.unit;
+  const c = product ? convert(q.qty, q.unit, to, productContext(product)) : null;
+  if (!c || !c.ok) return { ...base, note: `Conversion needed (${unit} → ${unitLabel(to)})` };
+  const days = c.value / perDay + (fixed ?? 0);
+  return {
+    ...base,
+    plannedDays: roundUpHalf(days),
+    qty: c.value,
+    qtyUnit: to,
+    basis: `${formatQty(c.value)} ${unitLabel(to)} ÷ ${formatQty(perDay)}/day${fixed !== null ? ` + ${formatQty(fixed)} fixed` : ''}${c.provisional ? ' (estimated conversion)' : ''}`,
+    note: stockNote,
+  };
+}
+
+export type PlannedLine = Omit<JoLine, 'steps'> & { steps?: PlannedStep[] };
+
+/** Every line with its steps' planned days worked out from the order as it is now. */
+export function planLines(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapshot' | 'stock'>, md: MasterData): PlannedLine[] {
+  const qs = jo.lines.some((l) => l.steps?.length) ? lineQuantities(jo, md) : [];
+  return jo.lines.map((l, i) => {
+    if (!l.steps) return { ...l, steps: undefined };
+    return { ...l, steps: l.steps.map((s) => planStep(s, qs[i]?.get(s.productId ?? l.productId), md.products.get(s.productId ?? l.productId))) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Progress
+// ---------------------------------------------------------------------------
+
 export interface StepView {
-  step: JoStep;
+  step: PlannedStep;
   state: 'DONE' | 'NOW' | 'TODO';
   startOn: string | null; // YYYY-MM-DD
   doneOn: string | null;
-  actualDays: number | null; // done: start→done; now: days so far
-  overrunDays: number | null; // actual − planned (done or now), when planned is known
+  /** Working days used: done = start → done; now = full days so far (today not counted). */
+  actualDays: number | null;
+  /** actual − planned (done, or running past its plan), when planned is known. */
+  overrunDays: number | null;
 }
 
 export interface LineProgress {
   steps: StepView[];
   current: StepView | null;
   actualPct: number; // 0–100
-  /** Planned % today from the benchmarks; null when some step has no firm time. */
+  /** Planned % today from the benchmarks; null when some step has no time yet. */
   plannedPct: number | null;
   plannedTotalDays: number | null;
+  /** Expected finish (working days, from the step running now); null when some time is unknown. */
+  expectedFinish: string | null;
   done: boolean;
 }
 
 const dayOf = (iso: string) => istDateKey(new Date(iso));
 
-/** Step-by-step view of a line: what is done, what is running, how long each took. */
-export function lineProgress(steps: JoStep[] | undefined, startOn: string, today: string): LineProgress | null {
+/** Step-by-step view of a line: what is done, what is running, how long each took (working days). */
+export function lineProgress(steps: PlannedStep[] | undefined, startOn: string, today: string, cal: WorkCalendar = DEFAULT_CALENDAR): LineProgress | null {
   if (!steps || steps.length === 0) return null;
   const allTimed = steps.every((s) => s.plannedDays !== null);
-  const weight = (s: JoStep) => (allTimed ? s.plannedDays! : 1);
+  const timedTotal = allTimed ? steps.reduce((a, s) => a + s.plannedDays!, 0) : 0;
+  const byTime = allTimed && timedTotal > 0;
+  const weight = (s: PlannedStep) => (byTime ? s.plannedDays! : 1);
   const total = steps.reduce((a, s) => a + weight(s), 0);
   let prevDone = startOn;
   let doneWeight = 0;
@@ -90,7 +219,7 @@ export function lineProgress(steps: JoStep[] | undefined, startOn: string, today
   const views: StepView[] = steps.map((s) => {
     if (s.doneAt) {
       const doneOn = dayOf(s.doneAt);
-      const actualDays = Math.max(0, daysBetween(prevDone, doneOn) ?? 0);
+      const actualDays = Math.max(0, workingDaysBetween(prevDone, doneOn, cal) ?? 0);
       const v: StepView = { step: s, state: 'DONE', startOn: prevDone, doneOn, actualDays, overrunDays: s.plannedDays !== null ? actualDays - s.plannedDays : null };
       prevDone = doneOn;
       doneWeight += weight(s);
@@ -98,19 +227,29 @@ export function lineProgress(steps: JoStep[] | undefined, startOn: string, today
     }
     if (!foundNow) {
       foundNow = true;
-      const actualDays = Math.max(0, (daysBetween(prevDone, today) ?? 0) + 1); // day N, counting today
+      const actualDays = Math.max(0, workingDaysBetween(prevDone, today, cal) ?? 0);
       return { step: s, state: 'NOW', startOn: prevDone, doneOn: null, actualDays, overrunDays: s.plannedDays !== null ? actualDays - s.plannedDays : null };
     }
     return { step: s, state: 'TODO', startOn: null, doneOn: null, actualDays: null, overrunDays: null };
   });
-  const elapsed = Math.max(0, daysBetween(startOn, today) ?? 0);
+  const current = views.find((v) => v.state === 'NOW') ?? null;
+  const elapsed = Math.max(0, workingDaysBetween(startOn, today, cal) ?? 0);
+  let expectedFinish: string | null = null;
+  if (!current) expectedFinish = views[views.length - 1]!.doneOn;
+  else if (allTimed) {
+    let nowEnd = addWorkingDays(current.startOn!, current.step.plannedDays!, cal)!;
+    if (nowEnd < today) nowEnd = today; // running late: assume it finishes today
+    const rest = views.filter((v) => v.state === 'TODO').reduce((a, v) => a + v.step.plannedDays!, 0);
+    expectedFinish = addWorkingDays(nowEnd, rest, cal);
+  }
   return {
     steps: views,
-    current: views.find((v) => v.state === 'NOW') ?? null,
+    current,
     actualPct: total > 0 ? Math.round((doneWeight / total) * 100) : 0,
-    plannedPct: allTimed && total > 0 ? Math.min(100, Math.round((elapsed / total) * 100)) : null,
-    plannedTotalDays: allTimed ? total : null,
-    done: views.every((v) => v.state === 'DONE'),
+    plannedPct: allTimed ? (timedTotal > 0 ? Math.min(100, Math.round((elapsed / timedTotal) * 100)) : 100) : null,
+    plannedTotalDays: allTimed ? timedTotal : null,
+    expectedFinish,
+    done: !current,
   };
 }
 
@@ -136,13 +275,22 @@ export function orderStart(jo: Pick<JobOrder, 'confirmedOn' | 'receivedDate'>): 
   return jo.confirmedOn ?? jo.receivedDate;
 }
 
+type StepOrder = Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate' | 'status' | 'bomSnapshot' | 'stock'>;
+
+/** Progress of every line that has steps (lines without steps are skipped). */
+export function lineProgresses(jo: StepOrder, today: string, ctx: PlanContext): { line: PlannedLine; lp: LineProgress }[] {
+  const start = orderStart(jo);
+  return planLines(jo, ctx.md)
+    .map((line) => ({ line, lp: lineProgress(line.steps, start, today, ctx.cal) }))
+    .filter((x): x is { line: PlannedLine; lp: LineProgress } => x.lp !== null);
+}
+
 /**
  * Order progress from its lines' steps: the average of the lines that have
  * steps. Null when no line has steps (then the manual slider is used).
  */
-export function orderStepProgress(jo: Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate'>, today: string): { actual: number; planned: number | null; on: string } | null {
-  const start = orderStart(jo);
-  const lps = jo.lines.map((l) => lineProgress(l.steps, start, today)).filter((x): x is LineProgress => x !== null);
+export function orderStepProgress(jo: StepOrder, today: string, ctx: PlanContext): { actual: number; planned: number | null; on: string } | null {
+  const lps = lineProgresses(jo, today, ctx).map((x) => x.lp);
   if (lps.length === 0) return null;
   const actual = Math.round(lps.reduce((a, p) => a + p.actualPct, 0) / lps.length);
   const planned = lps.every((p) => p.plannedPct !== null) ? Math.round(lps.reduce((a, p) => a + p.plannedPct!, 0) / lps.length) : null;
@@ -150,24 +298,20 @@ export function orderStepProgress(jo: Pick<JobOrder, 'lines' | 'confirmedOn' | '
 }
 
 /** Steps running longer than planned, for the attention list. */
-export function overrunningSteps(jo: Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate'>, today: string): { line: JoLine; view: StepView }[] {
-  const start = orderStart(jo);
-  const out: { line: JoLine; view: StepView }[] = [];
-  for (const l of jo.lines) {
-    const lp = lineProgress(l.steps, start, today);
-    if (lp?.current && lp.current.overrunDays !== null && lp.current.overrunDays > 0) out.push({ line: l, view: lp.current });
-  }
-  return out;
+export function overrunningSteps(jo: StepOrder, today: string, ctx: PlanContext): { line: PlannedLine; view: StepView }[] {
+  return lineProgresses(jo, today, ctx)
+    .filter(({ lp }) => lp.current && lp.current.overrunDays !== null && lp.current.overrunDays > 0)
+    .map(({ line, lp }) => ({ line, view: lp.current! }));
 }
 
-/** Route days vs the time available: a route that cannot fit the deadline is a risk. */
-export function routeFits(plannedTotalDays: number | null, start: string, internalDeadline: string): boolean | null {
+/** Route time vs the working days available: a route that cannot fit the deadline is a risk. */
+export function routeFits(plannedTotalDays: number | null, start: string, internalDeadline: string, cal: WorkCalendar = DEFAULT_CALENDAR): boolean | null {
   if (plannedTotalDays === null) return null;
-  const available = daysBetween(start, internalDeadline);
+  const available = workingDaysBetween(start, internalDeadline, cal);
   return available === null ? null : plannedTotalDays <= available;
 }
 
 /** The order's track: from process steps when any line has them, else the manual slider. */
-export function orderTrack(jo: JobOrder, today: string): Track {
-  return trackOf(jo, today, jo.status === 'DRAFT' ? null : orderStepProgress(jo, today));
+export function orderTrack(jo: JobOrder, today: string, ctx: PlanContext): Track {
+  return trackOf(jo, today, jo.status === 'DRAFT' ? null : orderStepProgress(jo, today, ctx), ctx.cal);
 }

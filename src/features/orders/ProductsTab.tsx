@@ -3,7 +3,9 @@ import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder, type JoLine, type JoStep } from '../../lib/jobOrders';
 import type { MasterData, Process } from '../../lib/masters';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { buildLineSteps, completeCurrent, lineProgress, orderStart, orderStepProgress, routeFits, undoLast, type StepView } from '../../lib/route';
+import { buildLineSteps, completeCurrent, lineProgress, orderStart, orderStepProgress, planLines, routeFits, undoLast, type PlannedLine, type StepView } from '../../lib/route';
+import type { WorkCalendar } from '../../lib/calendar';
+import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
 import { formatQty, unitLabel } from '../../lib/units';
@@ -17,12 +19,14 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const { workspaceId } = useApp();
   const today = istDateKey(new Date());
   const editable = jo.status === 'CONFIRMED';
+  const { cal } = useWorkCalendar();
   const missing = jo.lines.filter((l) => !l.steps || l.steps.length === 0);
+  const planned = planLines(jo, md);
 
   function saveLines(lines: JoLine[], what: string) {
     if (!workspaceId) return;
     const next = { ...jobOrderData(jo), lines };
-    const p = orderStepProgress(next, today);
+    const p = orderStepProgress(next, today, { md, cal });
     const data = p ? { ...next, progress: { pct: p.actual, on: today, at: new Date().toISOString() }, progressLog: appendProgress(jo.progressLog, { pct: p.actual, on: today, at: new Date().toISOString() }) } : next;
     saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Job Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>, reason: what });
   }
@@ -52,7 +56,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id}>
-            <LineCard jo={jo} line={l} today={today} editable={editable} processes={processes} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} cal={cal} today={today} editable={editable} processes={processes} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
           </li>
         ))}
       </ul>
@@ -61,16 +65,26 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
         <span>● now</span>
         <span>○ to do</span>
         <span className="warn">time pending = benchmark not known yet</span>
+        <span>days are working days (Sundays and company holidays left out)</span>
       </p>
     </section>
   );
 }
 
-function LineCard(props: { jo: JobOrder; line: JoLine; today: string; editable: boolean; processes: Map<string, Process>; onSteps: (steps: JoStep[], what: string) => void }) {
-  const { jo, line, today, editable } = props;
+function LineCard(props: {
+  jo: JobOrder;
+  raw: JoLine;
+  line: PlannedLine;
+  cal: WorkCalendar;
+  today: string;
+  editable: boolean;
+  processes: Map<string, Process>;
+  onSteps: (steps: JoStep[], what: string) => void;
+}) {
+  const { jo, line, raw, today, editable, cal } = props;
   const [editing, setEditing] = useState(false);
   const start = orderStart(jo);
-  const lp = lineProgress(line.steps, start, today);
+  const lp = lineProgress(line.steps, start, today, cal);
   const supply = line.supply === 'BUY' ? 'Buy' : 'Make';
   const head = (
     <div className="row between">
@@ -90,9 +104,9 @@ function LineCard(props: { jo: JobOrder; line: JoLine; today: string; editable: 
       </div>
     );
   }
-  const track = trackOf(jo, today, { actual: lp.actualPct, planned: lp.plannedPct ?? plannedPct(jo, today) });
+  const track = trackOf(jo, today, { actual: lp.actualPct, planned: lp.plannedPct ?? plannedPct(jo, today, cal) }, cal);
   const color = gapColor(track, readRedAt());
-  const fits = routeFits(lp.plannedTotalDays, start, jo.deadline.internalDeadline);
+  const fits = routeFits(lp.plannedTotalDays, start, jo.deadline.internalDeadline, cal);
   const current = lp.current;
   const nextStep = current ? lp.steps[lp.steps.indexOf(current) + 1] : undefined;
 
@@ -117,9 +131,15 @@ function LineCard(props: { jo: JobOrder; line: JoLine; today: string; editable: 
         <span>{current ? `Now: ${current.step.label}` : 'All steps done'}</span>
       </div>
       {lp.plannedPct === null && <p className="muted small">Some steps have no planned time yet, so “should be” follows the deadline.</p>}
+      {lp.expectedFinish && !lp.done && (
+        <p className="small">
+          Expected to finish <strong>{formatDay(lp.expectedFinish)}</strong>
+          <span className="muted"> · internal deadline {formatDay(jo.deadline.internalDeadline)}</span>
+        </p>
+      )}
       {fits === false && (
         <p className="error small">
-          Planned steps take {lp.plannedTotalDays} days — more than the time to the internal deadline.
+          Planned steps take {lp.plannedTotalDays} working days — more than the working days to the internal deadline.
         </p>
       )}
 
@@ -132,7 +152,7 @@ function LineCard(props: { jo: JobOrder; line: JoLine; today: string; editable: 
       {editable && (
         <div className="row gap step-actions">
           {current && (
-            <button type="button" className="primary small" onClick={() => props.onSteps(completeCurrent(line.steps!, new Date().toISOString())!, `${current.step.label} done (${line.productName})`)}>
+            <button type="button" className="primary small" onClick={() => props.onSteps(completeCurrent(raw.steps!, new Date().toISOString())!, `${current.step.label} done (${line.productName})`)}>
               {current.step.label} done{nextStep ? ` → ${nextStep.step.label}` : ''}
             </button>
           )}
@@ -140,7 +160,7 @@ function LineCard(props: { jo: JobOrder; line: JoLine; today: string; editable: 
             <button
               type="button"
               className="secondary small"
-              onClick={() => window.confirm('Undo the last completed step?') && props.onSteps(undoLast(line.steps!)!, `Undo last step (${line.productName})`)}
+              onClick={() => window.confirm('Undo the last completed step?') && props.onSteps(undoLast(raw.steps!)!, `Undo last step (${line.productName})`)}
             >
               Undo last
             </button>
@@ -150,27 +170,32 @@ function LineCard(props: { jo: JobOrder; line: JoLine; today: string; editable: 
           </button>
         </div>
       )}
-      {editing && <StepEditor steps={line.steps!} processes={props.processes} productName={line.productName} onSave={(s) => props.onSteps(s, `Steps changed for this order (${line.productName})`)} />}
+      {editing && <StepEditor steps={raw.steps!} processes={props.processes} productName={line.productName} onSave={(s) => props.onSteps(s, `Steps changed for this order (${line.productName})`)} />}
     </div>
   );
 }
 
+const days = (n: number) => `${formatQty(n)}d`;
+
 function StepRow({ v, productName }: { v: StepView; productName: string }) {
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
+  const over = v.overrunDays !== null && v.overrunDays > 0;
   const right =
     v.state === 'DONE' ? (
       <>
-        {v.actualDays}d{s.plannedDays !== null && <span className="muted"> / {s.plannedDays}d</span>}
-        {v.overrunDays !== null && <span className={`block ${v.overrunDays > 0 ? 'error' : 'ok'}`}>{v.overrunDays > 0 ? `+${v.overrunDays} day${v.overrunDays === 1 ? '' : 's'}` : 'on time'}</span>}
+        {days(v.actualDays!)}
+        {s.plannedDays !== null && <span className="muted"> / {days(s.plannedDays)}</span>}
+        {v.overrunDays !== null && <span className={`block ${over ? 'error' : 'ok'}`}>{over ? `+${formatQty(v.overrunDays)} day${v.overrunDays === 1 ? '' : 's'}` : 'on time'}</span>}
       </>
     ) : v.state === 'NOW' ? (
       <>
-        {v.actualDays}d{s.plannedDays !== null && <span className="muted"> / {s.plannedDays}d</span>}
-        {v.overrunDays !== null && v.overrunDays > 0 && <span className="block error">overrun</span>}
+        {days(v.actualDays!)}
+        {s.plannedDays !== null && <span className="muted"> / {days(s.plannedDays)}</span>}
+        {over && <span className="block error">overrun</span>}
       </>
     ) : s.plannedDays !== null ? (
-      <span className="muted">plan {s.plannedDays}d</span>
+      <span className="muted">plan {days(s.plannedDays)}</span>
     ) : (
       <span className="warn">time pending</span>
     );
@@ -187,8 +212,10 @@ function StepRow({ v, productName }: { v: StepView; productName: string }) {
         </span>
         <span className="muted small block">
           {v.state === 'DONE' && v.doneOn && `Done ${formatDay(v.doneOn)}`}
-          {v.state === 'NOW' && v.startOn && `Since ${formatDay(v.startOn)} · day ${v.actualDays}${s.plannedDays !== null ? ` of ${s.plannedDays} planned` : ''}`}
+          {v.state === 'NOW' && v.startOn && `Since ${formatDay(v.startOn)} · ${formatQty(v.actualDays!)} working day${v.actualDays === 1 ? '' : 's'} so far`}
         </span>
+        {s.basis && <span className="muted small block">{s.basis}</span>}
+        {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
       </span>
       <span className="step-time mono small">{right}</span>
     </li>
@@ -240,7 +267,7 @@ function StepEditor({ steps, processes, productName, onSave }: { steps: JoStep[]
           value=""
           onChange={(e) => {
             const p = processes.get(e.target.value);
-            if (p) setDraft([...draft, { key: `x${Date.now().toString(36)}`, processId: e.target.value, label: p.name, forProduct: productName, plannedDays: null, doneAt: null }]);
+            if (p) setDraft([...draft, { key: `x${Date.now().toString(36)}`, processId: e.target.value, label: p.name, forProduct: productName, productId: null, perDay: null, perDayUnit: null, fixedDays: null, doneAt: null }]);
           }}
         >
           <option value="">— choose a process —</option>

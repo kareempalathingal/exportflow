@@ -20,75 +20,72 @@ export const COLLECTION_JOB_ORDERS = 'jobOrders';
 // Calendar dates (YYYY-MM-DD, no time zone; the user's IST calendar day)
 // ---------------------------------------------------------------------------
 
-const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** Day number of a YYYY-MM-DD date, or null if it is not a real date. */
-export function dayNumber(date: string): number | null {
-  const m = DATE_RE.exec(date);
-  if (!m) return null;
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const t = Date.UTC(y, mo - 1, d);
-  const back = new Date(t);
-  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
-  return Math.round(t / 86_400_000);
-}
-
-export function dateFromDayNumber(n: number): string {
-  return new Date(n * 86_400_000).toISOString().slice(0, 10);
-}
-
-/** Calendar days from a to b (b − a). Null if either date is invalid. */
-export function daysBetween(a: string, b: string): number | null {
-  const x = dayNumber(a);
-  const y = dayNumber(b);
-  return x === null || y === null ? null : y - x;
-}
-
-export function addDays(date: string, n: number): string | null {
-  const x = dayNumber(date);
-  return x === null ? null : dateFromDayNumber(x + n);
-}
-
-const dayFmt = new Intl.DateTimeFormat('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
-export function formatDay(date: string | null | undefined): string {
-  const n = date ? dayNumber(date) : null;
-  return n === null ? '—' : dayFmt.format(new Date(n * 86_400_000));
-}
+export { dayNumber, dateFromDayNumber, daysBetween, addDays, formatDay } from './dates';
+import { dayNumber, daysBetween, formatDay } from './dates';
+import { addWorkingDays, DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from './calendar';
 
 // ---------------------------------------------------------------------------
-// Internal deadline (10% buffer, rounded up, minimum 1 day)
+// Internal deadline (10% buffer, rounded up, minimum 1 working day)
 // ---------------------------------------------------------------------------
 
-/** Stored on every Job Order; a later rule change never rewrites old orders. */
-export const DEADLINE_RULE_VERSION = 'buffer-10pct-ceil-min1/v1';
+/** v1 (calendar days) — kept for orders saved before 20 Oct 2026. */
+export const DEADLINE_RULE_V1 = 'buffer-10pct-ceil-min1/v1';
+/** Stored on every Job Order; a later rule change never rewrites old orders silently. */
+export const DEADLINE_RULE_VERSION = 'buffer-10pct-ceil-min1-workdays/v2';
 
 export interface Deadline {
-  orderPeriodDays: number;
-  bufferDays: number;
+  orderPeriodDays: number; // v2: working days; v1: calendar days
+  bufferDays: number; // same unit as the period
   internalDeadline: string;
   ruleVersion: string;
 }
 
 export type DeadlineResult = ({ ok: true } & Deadline) | { ok: false; error: string };
 
+export function isWorkingDayRule(d: Pick<Deadline, 'ruleVersion'>): boolean {
+  return d.ruleVersion === DEADLINE_RULE_VERSION;
+}
+
 /**
- * Order Period = calendar days from received date to customer delivery date.
- * Buffer = ceiling(period × 10%), at least 1. Internal deadline = delivery − buffer.
- * Integer arithmetic only (no floating-point rounding surprises).
+ * Rule v2 (confirmed 20 Oct 2026). Order Period = working days after the
+ * received date up to the customer delivery date (Sundays and company
+ * holidays left out). Buffer = ceiling(period × 10%), at least 1. Internal
+ * deadline = the buffer-th working day before the delivery date (so it is
+ * always a working day). Integer arithmetic only.
  */
-export function computeDeadline(receivedDate: string, deliveryDate: string): DeadlineResult {
+export function computeDeadline(receivedDate: string, deliveryDate: string, cal: WorkCalendar = DEFAULT_CALENDAR): DeadlineResult {
   if (dayNumber(receivedDate) === null) return { ok: false, error: 'Enter the date the Job Order was received' };
   if (dayNumber(deliveryDate) === null) return { ok: false, error: 'Enter the customer delivery date' };
-  const period = daysBetween(receivedDate, deliveryDate)!;
-  if (period <= 0) return { ok: false, error: 'The delivery date must be after the received date' };
+  if (daysBetween(receivedDate, deliveryDate)! <= 0) return { ok: false, error: 'The delivery date must be after the received date' };
+  const period = workingDaysBetween(receivedDate, deliveryDate, cal)!;
+  if (period <= 0) return { ok: false, error: 'There are no working days between the received date and the delivery date' };
   const buffer = Math.max(1, Math.floor((period + 9) / 10));
   return {
     ok: true,
     orderPeriodDays: period,
     bufferDays: buffer,
-    internalDeadline: addDays(deliveryDate, -buffer)!,
+    internalDeadline: addWorkingDays(deliveryDate, -buffer, cal)!,
     ruleVersion: DEADLINE_RULE_VERSION,
   };
+}
+
+/** "buffer 6 of 51 working days" (v2) or "… of 59 calendar days" (older v1 orders). */
+export function bufferText(d: Pick<Deadline, 'bufferDays' | 'orderPeriodDays' | 'ruleVersion'>): string {
+  const unit = isWorkingDayRule(d) ? 'working days' : 'calendar days';
+  return `buffer ${d.bufferDays} of ${d.orderPeriodDays} ${unit}`;
+}
+
+/**
+ * For a saved order: the deadline the current rule and calendar would give,
+ * when it differs from the stored one (holidays changed, or an old v1 order).
+ * Null when nothing would change.
+ */
+export function deadlineUpdate(jo: Pick<JobOrder, 'receivedDate' | 'deliveryDate' | 'deadline'>, cal: WorkCalendar): Deadline | null {
+  const r = computeDeadline(jo.receivedDate, jo.deliveryDate, cal);
+  if (!r.ok) return null;
+  const d: Deadline = { orderPeriodDays: r.orderPeriodDays, bufferDays: r.bufferDays, internalDeadline: r.internalDeadline, ruleVersion: r.ruleVersion };
+  const same = d.internalDeadline === jo.deadline.internalDeadline && d.ruleVersion === jo.deadline.ruleVersion && d.bufferDays === jo.deadline.bufferDays && d.orderPeriodDays === jo.deadline.orderPeriodDays;
+  return same ? null : d;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,7 +150,11 @@ export interface JoStep {
   processId: string | null; // null for the built-in purchase steps
   label: string;
   forProduct: string; // product (or sub-product) name this step belongs to
-  plannedDays: number | null; // firm benchmark days, else null ("time pending")
+  productId: string | null; // that product's id
+  /** Benchmark copied from the product route at confirmation (firm values only; null = not known). */
+  perDay: number | null;
+  perDayUnit: string | null;
+  fixedDays: number | null;
   doneAt: string | null; // ISO time the step was marked done
 }
 

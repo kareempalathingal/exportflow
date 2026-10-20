@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_CALENDAR, NO_DAYS_OFF } from '../../src/lib/calendar';
 import { colorAt, gapColor, plannedPct, trackGroup, trackLabel, trackOf } from '../../src/lib/progress';
 import type { Deadline, JoStatus } from '../../src/lib/jobOrders';
 
@@ -9,24 +10,26 @@ const jo = (status: JoStatus, pct?: number, on = '2026-11-20') => ({
 
 describe('planned vs actual', () => {
   it('plans linearly from confirmation to the internal deadline', () => {
-    expect(plannedPct(jo('CONFIRMED'), '2026-11-04')).toBe(0);
-    expect(plannedPct(jo('CONFIRMED'), '2026-11-29')).toBe(50);
-    expect(plannedPct(jo('CONFIRMED'), '2026-12-30')).toBe(100);
-    expect(plannedPct(jo('CONFIRMED'), '2026-10-01')).toBe(0);
+    expect(plannedPct(jo('CONFIRMED'), '2026-11-04', NO_DAYS_OFF)).toBe(0);
+    expect(plannedPct(jo('CONFIRMED'), '2026-11-29', NO_DAYS_OFF)).toBe(50);
+    expect(plannedPct(jo('CONFIRMED'), '2026-12-30', NO_DAYS_OFF)).toBe(100);
+    expect(plannedPct(jo('CONFIRMED'), '2026-10-01', NO_DAYS_OFF)).toBe(0);
+    // Working days: Sundays do not count towards the plan.
+    expect(plannedPct(jo('CONFIRMED'), '2026-11-29', DEFAULT_CALENDAR)).toBe(plannedPct(jo('CONFIRMED'), '2026-11-28', DEFAULT_CALENDAR));
   });
   it('classifies orders by schedule gap, not by days left', () => {
-    const ahead = trackOf(jo('CONFIRMED', 90), '2026-12-19'); // 5 days left, planned 90
+    const ahead = trackOf(jo('CONFIRMED', 90), '2026-12-19', null, NO_DAYS_OFF); // 5 days left, planned 90
     expect(ahead).toMatchObject({ kind: 'TRACKED', gap: 0 });
     expect(trackGroup(ahead)).toBe('ON_TRACK');
-    const behind = trackOf(jo('CONFIRMED', 25), '2026-11-29'); // plenty of time, planned 50
+    const behind = trackOf(jo('CONFIRMED', 25), '2026-11-29', null, NO_DAYS_OFF); // plenty of time, planned 50
     expect(behind).toMatchObject({ kind: 'TRACKED', gap: -25 });
     expect(trackGroup(behind)).toBe('BEHIND');
     expect(trackLabel(behind)).toBe('25% behind');
-    expect(trackOf(jo('CONFIRMED'), '2026-11-29').kind).toBe('NOT_TRACKED');
-    expect(trackOf(jo('CONFIRMED', 85), '2026-12-26')).toMatchObject({ kind: 'LATE', daysLeft: -2 });
-    expect(trackOf(jo('CONFIRMED', 100), '2026-12-26').kind).toBe('DONE');
-    expect(trackOf(jo('DRAFT'), '2026-11-29').kind).toBe('DRAFT');
-    expect(trackOf(jo('CONFIRMED', 40, '2026-11-20'), '2026-11-29').updatedDaysAgo).toBe(9);
+    expect(trackOf(jo('CONFIRMED'), '2026-11-29', null, NO_DAYS_OFF).kind).toBe('NOT_TRACKED');
+    expect(trackOf(jo('CONFIRMED', 85), '2026-12-26', null, NO_DAYS_OFF)).toMatchObject({ kind: 'LATE', daysLeft: -2 });
+    expect(trackOf(jo('CONFIRMED', 100), '2026-12-26', null, NO_DAYS_OFF).kind).toBe('DONE');
+    expect(trackOf(jo('DRAFT'), '2026-11-29', null, NO_DAYS_OFF).kind).toBe('DRAFT');
+    expect(trackOf(jo('CONFIRMED', 40, '2026-11-20'), '2026-11-29', null, NO_DAYS_OFF).updatedDaysAgo).toBe(9);
   });
   it('colour moves smoothly from green to red and is full red at the limit', () => {
     expect(colorAt(0)).toBe('oklch(0.580 0.130 150.0)');

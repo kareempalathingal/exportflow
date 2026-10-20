@@ -179,6 +179,10 @@ describe('versioned records with audit', () => {
     await assertFails(write('suppliers', 's2', 1, 'a12', { name: 'No items field', active: true }));
     await assertFails(deleteDocLater(db, `workspaces/${ws}/suppliers/s1`));
     await assertSucceeds(write('processes', 'pr1', 1, 'a13', { name: 'Bleaching', active: true, notes: '' }));
+    await assertSucceeds(write('settings', 'calendar', 1, 'a16', { weeklyOff: [0], holidays: { '2026-11-08': 'Diwali' } }));
+    await assertSucceeds(write('settings', 'calendar', 2, 'a17', { weeklyOff: [0], holidays: {} }));
+    await assertFails(write('settings', 'calendar', 3, 'a18', { weeklyOff: [0, 1, 2, 3, 4, 5, 6], holidays: {} }));
+    await assertFails(write('settings', 'calendar', 3, 'a19', { weeklyOff: 'Sunday', holidays: {} }));
     await assertFails(write('processes', 'pr2', 1, 'a14', { name: '', active: true, notes: '' }));
     await assertFails(deleteDocLater(db, `workspaces/${ws}/processes/pr1`));
     await assertSucceeds(write('products', 'p1', 3, 'a15', { ...product, route: [{ processId: 'pr1', plannedDays: { value: 2, status: 'USER_PROVIDED', source: '' } }], routeConfirmed: false }));

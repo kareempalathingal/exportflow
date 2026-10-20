@@ -55,10 +55,20 @@ export interface Product extends MasterBase {
 /** A process or treatment (weaving, bleaching, packing…), shared by many products. */
 export type Process = MasterBase;
 
+/**
+ * One step of a product's route. Time is a benchmark, never invented:
+ * planned days = quantity ÷ output per working day + fixed days.
+ * Both empty = time not known yet ("time pending").
+ */
 export interface RouteStep {
   processId: string;
-  /** Planned days for this step on this product (a benchmark; never invented). */
-  plannedDays: Tracked<number>;
+  /** Output per working day, in `perDayUnit` (e.g. 400 pcs/day). */
+  perDay: number | null;
+  perDayUnit: string;
+  /** Days that do not depend on quantity (drying, curing, a batch). */
+  fixedDays: number | null;
+  status: DataStatus;
+  source: string;
 }
 
 /** A supplier we can buy raw materials or traded products from. */

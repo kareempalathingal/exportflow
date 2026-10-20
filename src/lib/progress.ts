@@ -4,6 +4,7 @@
  * planned % rises linearly from confirmation to the internal deadline.
  */
 import { daysBetween, type JobOrder } from './jobOrders';
+import { DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from './calendar';
 
 export interface ProgressEntry {
   pct: number; // 0–100, entered by the user
@@ -24,10 +25,11 @@ export interface Track {
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-export function plannedPct(jo: Pick<JobOrder, 'confirmedOn' | 'receivedDate' | 'deadline'>, today: string): number {
+/** Linear plan in working days, from confirmation to the internal deadline. */
+export function plannedPct(jo: Pick<JobOrder, 'confirmedOn' | 'receivedDate' | 'deadline'>, today: string, cal: WorkCalendar = DEFAULT_CALENDAR): number {
   const start = jo.confirmedOn ?? jo.receivedDate;
-  const span = daysBetween(start, jo.deadline.internalDeadline);
-  const done = daysBetween(start, today);
+  const span = workingDaysBetween(start, jo.deadline.internalDeadline, cal);
+  const done = workingDaysBetween(start, today, cal);
   if (span === null || done === null) return 0;
   if (span <= 0) return 100;
   return clamp(Math.round((done / span) * 100), 0, 100);
@@ -37,8 +39,9 @@ export function trackOf(
   jo: Pick<JobOrder, 'status' | 'confirmedOn' | 'receivedDate' | 'deadline'> & { progress?: ProgressEntry | null },
   today: string,
   fromSteps?: { actual: number; planned: number | null } | null,
+  cal: WorkCalendar = DEFAULT_CALENDAR,
 ): Track {
-  const planned = fromSteps?.planned ?? plannedPct(jo, today);
+  const planned = fromSteps?.planned ?? plannedPct(jo, today, cal);
   const daysLeft = daysBetween(today, jo.deadline.internalDeadline) ?? 0;
   const p = fromSteps ? { pct: fromSteps.actual, on: today } : (jo.progress ?? null);
   const actual = p && Number.isFinite(p.pct) ? clamp(p.pct, 0, 100) : null;

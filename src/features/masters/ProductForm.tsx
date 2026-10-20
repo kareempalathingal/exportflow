@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { bomStatus, COLLECTIONS, findDuplicate, needsBom, productContext, type Product, type SupplyType } from '../../lib/masters';
 import { useMasterData } from './useMasterData';
-import { completeFacts, LENGTH_UNITS, areaFromSize, formatQty } from '../../lib/units';
+import { availableUnits, completeFacts, LENGTH_UNITS, areaFromSize, formatQty } from '../../lib/units';
 import type { DataStatus } from '../../lib/dataStatus';
 import { saveRecord } from '../sync/records';
 import { FormShell } from './FormShell';
@@ -84,7 +84,7 @@ export function ProductForm() {
     setThick(draftFromTracked(item.thicknessMm));
     setWeight(draftFromTracked(item.weightPerPieceKg));
     setUnits(draftsFromCustomUnits(item.customUnits));
-    setRoute(draftsFromRoute(item.route));
+    setRoute(draftsFromRoute(item.route, item.baseUnit));
     setRouteConfirmed(item.routeConfirmed === true);
   }, [item]);
 
@@ -221,7 +221,7 @@ export function ProductForm() {
           </p>
         )}
         <CustomUnitsEditor baseUnit={baseUnit} rows={units} onChange={setUnits} />
-        <RouteEditor rows={route} onChange={setRoute} confirmed={routeConfirmed} onConfirmedChange={setRouteConfirmed} />
+        <RouteEditor rows={route} onChange={setRoute} confirmed={routeConfirmed} onConfirmedChange={setRouteConfirmed} units={facts ? availableUnits(facts) : [baseUnit]} baseUnit={baseUnit} />
         <TextField label="Notes" multiline value={notes} onChange={setNotes} />
       </FormShell>
   );

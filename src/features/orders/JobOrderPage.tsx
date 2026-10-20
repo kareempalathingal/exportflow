@@ -5,7 +5,9 @@ import {
   changedBoms,
   checkForConfirm,
   COLLECTION_JOB_ORDERS,
+  bufferText,
   computeDeadline,
+  deadlineUpdate,
   completedOnAfter,
   fixedSupply,
   initialSupply,
@@ -44,6 +46,8 @@ import { joSummaryDoc } from '../../lib/docs/model';
 import { useProfile } from '../settings/useProfile';
 import { formatDateTime } from '../../lib/time';
 import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
+import { dayOff } from '../../lib/calendar';
+import { useWorkCalendar } from '../calendar/useWorkCalendar';
 
 interface LineDraft {
   id: string;
@@ -98,6 +102,7 @@ export function JobOrderPage() {
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
   const master = useMasterData(workspaceId);
   const { md, bomRev } = master;
+  const { cal } = useWorkCalendar();
 
   const [d, setD] = useState<Draft>(() => draftFrom(isNew ? null : item, today));
   const [reason, setReason] = useState('');
@@ -143,11 +148,14 @@ export function JobOrderPage() {
   const setLine = (i: number, patch: Partial<LineDraft>) => set({ lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
   const dirty = JSON.stringify(d) !== savedDraft.current;
 
-  // Keep the stored deadline (and its rule version) unless the dates change.
-  const datesUnchanged = !!item && item.receivedDate === d.receivedDate && item.deliveryDate === d.deliveryDate;
-  const computed = computeDeadline(d.receivedDate, d.deliveryDate);
-  const deadline: Deadline | null = datesUnchanged ? item!.deadline : computed.ok ? computed : null;
-  const deadlineError = !datesUnchanged && !computed.ok ? computed.error : null;
+  // Drafts always follow the current rule and calendar. Other orders keep the stored
+  // deadline (and its rule version) unless the dates change or the user recalculates.
+  const keepStored = !!item && status !== 'DRAFT' && item.receivedDate === d.receivedDate && item.deliveryDate === d.deliveryDate;
+  const computed = computeDeadline(d.receivedDate, d.deliveryDate, cal);
+  const deadlineNow: Deadline | null = keepStored ? item!.deadline : computed.ok ? computed : null;
+  const deadlineError = !keepStored && !computed.ok ? computed.error : null;
+  const deadlineNext = item && status === 'CONFIRMED' ? deadlineUpdate(item, cal) : null;
+  const deliveryOff = d.deliveryDate ? dayOff(d.deliveryDate, cal) : null;
 
   const dup = d.joNumber.trim() ? findDuplicateJo(d.joNumber, all.items, isNew ? undefined : id) : undefined;
   const customer = customers.items.find((c) => c.id === d.customerId);
@@ -165,10 +173,11 @@ export function JobOrderPage() {
   }
 
   /** Validate and save the form with the given status. Returns true when saved. */
-  function save(next: JoStatus, why: string, opts: { freshSnapshot?: boolean } = {}): boolean {
+  function save(next: JoStatus, why: string, opts: { freshSnapshot?: boolean; deadline?: Deadline } = {}): boolean {
     if (!workspaceId) return false;
     if (!d.joNumber.trim()) return setError('JO number is required'), false;
     if (!d.customerId) return setError('Choose a customer'), false;
+    const deadline = opts.deadline ?? deadlineNow;
     if (!deadline) return setError(deadlineError ?? 'Check the dates'), false;
     const lines = buildLines();
     if (typeof lines === 'string') return setError(lines), false;
@@ -247,8 +256,8 @@ export function JobOrderPage() {
   function confirmOrder() {
     const lines = buildLines();
     if (typeof lines === 'string') return setError(lines);
-    if (!deadline) return setError(deadlineError ?? 'Check the dates');
-    const check = checkForConfirm({ lines, deliveryDateType: d.deliveryDateType, deadline }, md, today);
+    if (!deadlineNow) return setError(deadlineError ?? 'Check the dates');
+    const check = checkForConfirm({ lines, deliveryDateType: d.deliveryDateType, deadline: deadlineNow }, md, today);
     if (check.blocking.length) return setError(`Cannot confirm yet:\n• ${check.blocking.join('\n• ')}`);
     const msg = check.warnings.length
       ? `Confirm this Job Order?\n\nPlease note:\n• ${check.warnings.join('\n• ')}\n\nThe current BOMs will be saved with the order.`
@@ -317,7 +326,7 @@ export function JobOrderPage() {
             <div>
               <span className="kicker">Buffer</span>
               <span>
-                {item!.deadline.bufferDays} day{item!.deadline.bufferDays === 1 ? '' : 's'} of {item!.deadline.orderPeriodDays}
+                {bufferText(item!.deadline).replace('buffer ', '')}
               </span>
               <span className="muted small">10% rounded up · {item!.deadline.ruleVersion}</span>
             </div>
@@ -331,6 +340,26 @@ export function JobOrderPage() {
               <p className="small muted">This order keeps the BOM it was confirmed with until you choose otherwise.</p>
               <button type="button" className="secondary small" onClick={() => withReason('CONFIRMED', 'Reason for using the latest BOMs on this order', { freshSnapshot: true })}>
                 Use latest BOMs
+              </button>
+            </div>
+          )}
+          {deadlineNext && (
+            <div className="card subtle">
+              <p className="warn">
+                <strong>Deadline can be recalculated:</strong> with the working-day calendar (Sundays and company holidays) the internal deadline would be{' '}
+                <strong>{formatDay(deadlineNext.internalDeadline)}</strong> (now {formatDay(item!.deadline.internalDeadline)}).
+              </p>
+              <p className="small muted">This order keeps its deadline until you choose otherwise. New: {bufferText(deadlineNext)}.</p>
+              <button
+                type="button"
+                className="secondary small"
+                onClick={() =>
+                  cleanFirst() &&
+                  window.confirm(`Change the internal deadline to ${formatDay(deadlineNext.internalDeadline)}?`) &&
+                  save(status, 'Internal deadline recalculated with the working-day calendar', { deadline: deadlineNext })
+                }
+              >
+                Recalculate deadline
               </button>
             </div>
           )}
@@ -368,7 +397,7 @@ export function JobOrderPage() {
         </>
       )}
 
-      {!isNew && item && <ProgressCard key={`${item.id}:${item.rev}`} jo={item} />}
+      {!isNew && item && <ProgressCard key={`${item.id}:${item.rev}`} jo={item} md={md} />}
       {!isNew && (
         <div className="tabs" role="tablist">
           {(['products', 'order', 'materials'] as const).map((x) => (
@@ -380,7 +409,7 @@ export function JobOrderPage() {
       )}
       {!isNew && item && tab === 'order' && (
         <div className="card doc-card">
-          <DocButtons label="Job Order summary" build={() => joSummaryDoc(item, md, { company, today, generatedAt: `${formatDateTime(new Date())} IST` })} />
+          <DocButtons label="Job Order summary" build={() => joSummaryDoc(item, md, { company, today, cal, generatedAt: `${formatDateTime(new Date())} IST` })} />
         </div>
       )}
       {!isNew && item && tab === 'products' && <ProductsTab jo={item} md={md} processes={processMap} />}
@@ -438,10 +467,11 @@ export function JobOrderPage() {
             </select>
           </label>
           {deadlineError && d.deliveryDate && <p className="error small">{deadlineError}</p>}
-          {deadline && (
+          {deliveryOff?.off && <p className="warn small">The delivery date is a day off ({deliveryOff.reason}). It is kept as entered; the internal deadline is always a working day.</p>}
+          {deadlineNow && (
             <p className="muted small">
-              Order period {deadline.orderPeriodDays} days · buffer {deadline.bufferDays} day{deadline.bufferDays === 1 ? '' : 's'} → internal deadline{' '}
-              <strong>{formatDay(deadline.internalDeadline)}</strong>
+              10% {bufferText(deadlineNow)} → internal deadline{' '}
+              <strong>{formatDay(deadlineNow.internalDeadline)}</strong>
             </p>
           )}
 

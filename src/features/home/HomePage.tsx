@@ -4,14 +4,16 @@ import { useApp } from '../../AppContext';
 import { useProfile } from '../settings/useProfile';
 import { istDateKey } from '../../lib/time';
 import { masterAttention, type AttentionItem } from '../../lib/masters';
-import { addDays, COLLECTION_JOB_ORDERS, formatDay, isEditable, jobOrderAttention, type JoAttention, type JobOrder } from '../../lib/jobOrders';
+import { addDays, COLLECTION_JOB_ORDERS, deadlineUpdate, formatDay, isEditable, jobOrderAttention, type JoAttention, type JobOrder } from '../../lib/jobOrders';
 import { useMasterData } from '../masters/useMasterData';
 import { useCollection } from '../masters/useCollection';
 import { permissionHint } from '../orders/OrderBits';
 import { TrackBar } from '../orders/TrackBar';
 import { COLLECTION_STOCK_COUNTS, overAllocated, parseItemKey, planMaterials, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
 import { gapColor, trackGroup, trackLabel, type Track } from '../../lib/progress';
-import { lineProgress, orderStart, orderTrack, overrunningSteps } from '../../lib/route';
+import { lineProgresses, orderTrack, overrunningSteps } from '../../lib/route';
+import { useWorkCalendar } from '../calendar/useWorkCalendar';
+import { WorkCalendarCard } from '../calendar/WorkCalendarCard';
 import { readRedAt } from '../../lib/theme';
 import { formatQty, unitLabel } from '../../lib/units';
 
@@ -59,16 +61,19 @@ export function HomePage() {
   const company = profile?.companyName?.value;
   const today = istDateKey(new Date());
   const redAt = readRedAt();
+  const { cal } = useWorkCalendar();
+  const ctx = useMemo(() => ({ md: master.md, cal }), [master.md, cal]);
 
   const open = useMemo(() => {
     return jos.items
       .filter((j) => isEditable(j.status))
       .map((j) => {
-        const track = orderTrack(j, today);
-        return { jo: j, track, color: gapColor(track, redAt) };
+        const track = orderTrack(j, today, ctx);
+        const now = j.status === 'DRAFT' ? [] : lineProgresses(j, today, ctx).map(({ line, lp }) => `${line.productName}: ${lp.current ? lp.current.step.label : 'done'}`);
+        return { jo: j, track, now, color: gapColor(track, redAt) };
       })
       .sort((a, b) => urgency(a.track) - urgency(b.track));
-  }, [jos.items, today, redAt]);
+  }, [jos.items, today, redAt, ctx]);
 
   const groupCount = useMemo(() => {
     const c: Record<string, number> = { ON_TRACK: 0, BEHIND: 0, LATE: 0, NOT_TRACKED: 0 };
@@ -122,10 +127,17 @@ export function HomePage() {
   );
   const loading = master.loading || jos.loading;
   const overruns = useMemo(
-    () => jos.items.filter((j) => j.status === 'CONFIRMED').flatMap((j) => overrunningSteps(j, today).map((o) => ({ jo: j, ...o }))),
-    [jos.items, today],
+    () => jos.items.filter((j) => j.status === 'CONFIRMED').flatMap((j) => overrunningSteps(j, today, ctx).map((o) => ({ jo: j, ...o }))),
+    [jos.items, today, ctx],
   );
-  const total = attention.length + joAttention.length + over.length + overruns.length;
+  const deadlineChanges = useMemo(
+    () => jos.items.filter((j) => j.status === 'CONFIRMED').flatMap((j) => {
+      const u = deadlineUpdate(j, cal);
+      return u ? [{ jo: j, next: u }] : [];
+    }),
+    [jos.items, cal],
+  );
+  const total = attention.length + joAttention.length + over.length + overruns.length + deadlineChanges.length;
 
   return (
     <section className="dash">
@@ -180,7 +192,7 @@ export function HomePage() {
         <h3 id="h-pva">Planned vs actual</h3>
         {!loading && open.length === 0 && <p className="muted">{t('homeEmpty')}</p>}
         <ul className="master-list">
-          {open.map(({ jo, track, color }) => (
+          {open.map(({ jo, track, color, now }) => (
             <li key={jo.id}>
               <Link
                 to={`/orders/${jo.id}`}
@@ -207,13 +219,7 @@ export function HomePage() {
                       <span>{track.daysLeft >= 0 ? `${track.daysLeft} day${track.daysLeft === 1 ? '' : 's'} left` : 'past deadline'}</span>
                     </div>
                     {track.updatedDaysAgo !== null && track.updatedDaysAgo > 3 && <span className="muted small block">Progress updated {track.updatedDaysAgo} days ago</span>}
-                    {(() => {
-                      const now = jo.lines
-                        .map((l) => ({ l, lp: lineProgress(l.steps, orderStart(jo), today) }))
-                        .filter((x) => x.lp)
-                        .map((x) => `${x.l.productName}: ${x.lp!.current ? x.lp!.current.step.label : 'done'}`);
-                      return now.length ? <span className="small block now-line">Now · {now.join(' · ')}</span> : null;
-                    })()}
+                    {now.length > 0 && <span className="small block now-line">Now · {now.join(' · ')}</span>}
                   </>
                 )}
               </Link>
@@ -263,7 +269,17 @@ export function HomePage() {
               <Link to={`/orders/${o.jo.id}?tab=products`}>
                 <span className="pill bad">Step overrun</span> <strong>{o.jo.joNumber}</strong>
                 <span className="muted small block">
-                  {o.line.productName}: {o.view.step.label} on day {o.view.actualDays} of {o.view.step.plannedDays} planned
+                  {o.line.productName}: {o.view.step.label} — {formatQty(o.view.actualDays ?? 0)} working days so far, {formatQty(o.view.step.plannedDays ?? 0)} planned
+                </span>
+              </Link>
+            </li>
+          ))}
+          {deadlineChanges.map((c) => (
+            <li key={`${c.jo.id}-deadline`}>
+              <Link to={`/orders/${c.jo.id}?tab=order`}>
+                <span className="pill warn">Deadline can be recalculated</span> <strong>{c.jo.joNumber}</strong>
+                <span className="muted small block">
+                  With the working-day calendar the internal deadline would be {formatDay(c.next.internalDeadline)} (now {formatDay(c.jo.deadline.internalDeadline)})
                 </span>
               </Link>
             </li>
@@ -307,6 +323,8 @@ export function HomePage() {
           })}
         </ul>
       </div>
+
+      <WorkCalendarCard />
     </section>
   );
 }

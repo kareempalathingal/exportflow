@@ -161,11 +161,17 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // Work calendar (weekly off days + company holidays); other settings docs unchanged.
+      function validSettings(docId, d) {
+        return docId != 'calendar'
+          || (d.weeklyOff is list && d.weeklyOff.size() < 7 && d.holidays is map && d.holidays.size() <= 1000);
+      }
+
       // Versioned business records. New collections are added here per phase.
       match /settings/{docId} {
         allow read: if isMember(wsId);
-        allow create: if validCreate(wsId, docId);
-        allow update: if validUpdate(wsId, docId);
+        allow create: if validCreate(wsId, docId) && validSettings(docId, request.resource.data);
+        allow update: if validUpdate(wsId, docId) && validSettings(docId, request.resource.data);
         allow delete: if false;
       }
 

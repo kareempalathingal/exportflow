@@ -1,3 +1,4 @@
+import { DEFAULT_CALENDAR, NO_DAYS_OFF } from '../../src/lib/calendar';
 import { describe, expect, it } from 'vitest';
 import {
   addDays,
@@ -5,6 +6,7 @@ import {
   changedBoms,
   checkForConfirm,
   computeDeadline,
+  deadlineUpdate,
   daysBetween,
   deadlineState,
   DEADLINE_RULE_VERSION,
@@ -55,21 +57,48 @@ describe('calendar dates', () => {
 });
 
 describe('10% internal deadline (Requirements §31.4)', () => {
+  // The buffer arithmetic itself, with no days off (as in the documented examples).
+  const plain = (a: string, b: string) => computeDeadline(a, b, NO_DAYS_OFF);
   it('matches the documented examples', () => {
-    const d = computeDeadline('2026-11-01', '2026-12-30');
-    expect(d).toMatchObject({ ok: true, orderPeriodDays: 59, bufferDays: 6, internalDeadline: '2026-12-24', ruleVersion: DEADLINE_RULE_VERSION });
-    expect(computeDeadline('2026-01-01', '2026-02-21')).toMatchObject({ orderPeriodDays: 51, bufferDays: 6 });
+    expect(plain('2026-11-01', '2026-12-30')).toMatchObject({ ok: true, orderPeriodDays: 59, bufferDays: 6, internalDeadline: '2026-12-24', ruleVersion: DEADLINE_RULE_VERSION });
+    expect(plain('2026-01-01', '2026-02-21')).toMatchObject({ orderPeriodDays: 51, bufferDays: 6 });
   });
   it('rounds up without floating-point errors and keeps a 1-day minimum', () => {
-    expect(computeDeadline('2026-01-01', '2026-02-20')).toMatchObject({ orderPeriodDays: 50, bufferDays: 5 });
-    expect(computeDeadline('2026-01-01', '2026-01-02')).toMatchObject({ orderPeriodDays: 1, bufferDays: 1, internalDeadline: '2026-01-01' });
-    expect(computeDeadline('2026-01-01', '2026-01-11')).toMatchObject({ orderPeriodDays: 10, bufferDays: 1 });
-    expect(computeDeadline('2026-01-01', '2026-01-12')).toMatchObject({ orderPeriodDays: 11, bufferDays: 2 });
+    expect(plain('2026-01-01', '2026-02-20')).toMatchObject({ orderPeriodDays: 50, bufferDays: 5 });
+    expect(plain('2026-01-01', '2026-01-02')).toMatchObject({ orderPeriodDays: 1, bufferDays: 1, internalDeadline: '2026-01-01' });
+    expect(plain('2026-01-01', '2026-01-11')).toMatchObject({ orderPeriodDays: 10, bufferDays: 1 });
+    expect(plain('2026-01-01', '2026-01-12')).toMatchObject({ orderPeriodDays: 11, bufferDays: 2 });
   });
   it('rejects a delivery date on or before the received date', () => {
     expect(computeDeadline('2026-01-05', '2026-01-05').ok).toBe(false);
     expect(computeDeadline('2026-01-05', '2026-01-01').ok).toBe(false);
     expect(computeDeadline('', '2026-01-01').ok).toBe(false);
+  });
+});
+
+describe('internal deadline in working days (rule v2)', () => {
+  it('leaves out Sundays; the deadline is always a working day', () => {
+    // Mon 5 Jan → Sat 17 Jan 2026: 12 days, one Sunday → 11 working days, buffer 2.
+    expect(computeDeadline('2026-01-05', '2026-01-17')).toMatchObject({ orderPeriodDays: 11, bufferDays: 2, internalDeadline: '2026-01-15' });
+    // Delivery on a Sunday: same period; counting back skips it.
+    expect(computeDeadline('2026-01-05', '2026-01-18')).toMatchObject({ orderPeriodDays: 11, bufferDays: 2, internalDeadline: '2026-01-16' });
+    expect(computeDeadline('2026-11-01', '2026-12-30')).toMatchObject({ orderPeriodDays: 51, bufferDays: 6, internalDeadline: '2026-12-23' });
+  });
+  it('company holidays shorten the period and move the deadline', () => {
+    const cal = { weeklyOff: [0], holidays: { '2026-01-16': 'Holiday' } };
+    expect(computeDeadline('2026-01-05', '2026-01-18', cal)).toMatchObject({ orderPeriodDays: 10, bufferDays: 1, internalDeadline: '2026-01-17' });
+  });
+  it('a saved order shows the new deadline only when something changed', () => {
+    const d = computeDeadline('2026-01-05', '2026-01-18');
+    if (!d.ok) throw new Error('bad');
+    const jo = { receivedDate: '2026-01-05', deliveryDate: '2026-01-18', deadline: d };
+    expect(deadlineUpdate(jo, DEFAULT_CALENDAR)).toBeNull();
+    expect(deadlineUpdate(jo, { weeklyOff: [0], holidays: { '2026-01-16': '' } })).toMatchObject({ internalDeadline: '2026-01-17' });
+    const v1 = { ...jo, deadline: { orderPeriodDays: 13, bufferDays: 2, internalDeadline: '2026-01-16', ruleVersion: 'buffer-10pct-ceil-min1/v1' } };
+    expect(deadlineUpdate(v1, DEFAULT_CALENDAR)).toMatchObject({ ruleVersion: DEADLINE_RULE_VERSION });
+  });
+  it('rejects a period with no working day', () => {
+    expect(computeDeadline('2026-01-03', '2026-01-04').ok).toBe(false); // Sat → Sun
   });
 });
 
@@ -156,7 +185,7 @@ describe('deadline state and attention', () => {
     expect(deadlineState({ ...jo, status: 'COMPLETED' }, '2026-12-31')).toBe('CLOSED');
   });
   it('lists what needs attention on open orders only', () => {
-    const items = jobOrderAttention([jo, { ...jo, id: 'j2', status: 'CANCELLED' }], md(), () => 0, '2026-12-24');
+    const items = jobOrderAttention([jo, { ...jo, id: 'j2', status: 'CANCELLED' }], md(), () => 0, '2026-12-23');
     expect(items.map((i) => i.kind)).toEqual(['DUE_SOON', 'UNDECIDED']);
     expect(items[0]!.detail).toBe('Internal deadline is today');
   });

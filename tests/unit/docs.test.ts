@@ -30,7 +30,7 @@ describe('document models', () => {
   it('JO summary lists lines with base-unit conversion and the deadline rule', () => {
     const m = joSummaryDoc(jo, md, opts);
     expect(m.tables[0]!.rows[0]).toEqual(['Coir Mat 40×60', '24 sq m', '100 pcs', 'Make']);
-    expect(m.meta.find(([k]) => k === 'Internal deadline')![1]).toContain('buffer 6 of 59 days');
+    expect(m.meta.find(([k]) => k === 'Internal deadline')![1]).toContain('buffer 6 of 51 working days');
     expect(m.provisional).toBe(false);
     expect(m.fileName).toBe('JO-1042-A_summary.pdf');
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { backupFileName, buildBackup, BACKUP_COLLECTIONS, daysSinceBackup, toPlain } from '../../src/lib/backup';
 import { READINESS_ITEMS, readinessSummary, readinessWorkspace } from '../../src/lib/readiness';
+import { DEFAULT_CALENDAR } from '../../src/lib/calendar';
 import { buildSampleData } from '../../src/lib/sampleData';
 import { canTransition, type JobOrder, type JoStatus } from '../../src/lib/jobOrders';
 import type { Bom, MasterData, Product, RawMaterial } from '../../src/lib/masters';
@@ -67,18 +68,19 @@ describe('DEMO sample data', () => {
       rawMaterials: new Map(writes.filter((w) => w.collection === 'rawMaterials').map((w) => [w.docId, w.data as unknown as RawMaterial])),
       boms: new Map(writes.filter((w) => w.collection === 'boms').map((w) => [w.docId, w.data as unknown as Bom])),
     };
+    const ctx = { md, cal: DEFAULT_CALENDAR };
     const final = new Map<string, JobOrder>();
     for (const w of writes) if (w.collection === 'jobOrders') final.set(w.data.joNumber as string, w.data as unknown as JobOrder);
-    expect(orderTrack(final.get('DEMO-101')!, today).kind).toBe('LATE');
-    expect(orderTrack(final.get('DEMO-102')!, today).gap!).toBeGreaterThanOrEqual(0);
-    expect(orderTrack(final.get('DEMO-103')!, today).gap!).toBeLessThan(0);
-    expect(orderTrack(final.get('DEMO-104')!, today).kind).toBe('DRAFT');
+    expect(orderTrack(final.get('DEMO-101')!, today, ctx).kind).toBe('LATE');
+    expect(orderTrack(final.get('DEMO-102')!, today, ctx).gap!).toBeGreaterThanOrEqual(0);
+    expect(orderTrack(final.get('DEMO-103')!, today, ctx).gap!).toBeLessThan(0);
+    expect(orderTrack(final.get('DEMO-104')!, today, ctx).kind).toBe('DRAFT');
     expect(final.get('DEMO-099')!.status).toBe('COMPLETED');
     expect(final.get('DEMO-102')!.lines.map((l) => l.steps!.map((s) => s.label))).toEqual([
       ['Spinning (sample)', 'Weaving (sample)', 'Bleaching (sample)', 'Dyeing (sample)', 'Latex backing (sample)', 'Packing (sample)'],
       ['Ordered', 'Received', 'Labelling (sample)', 'Packing (sample)'],
     ]);
-    expect(overrunningSteps(final.get('DEMO-101')!, today).length).toBeGreaterThan(0);
+    expect(overrunningSteps(final.get('DEMO-101')!, today, ctx).length).toBeGreaterThan(0);
     expect(planMaterials(final.get('DEMO-104')!, md).errors[0]).toMatch(/BOM missing/);
     expect(planMaterials(final.get('DEMO-102')!, md).toBuy.map((r) => r.id)).toContain('sample_p_door');
   });

@@ -2,10 +2,11 @@
  * Printable documents (Phase 3c). A document is built as plain data here
  * (testable, deterministic) and drawn to PDF elsewhere. English only for now.
  */
-import { DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
+import { bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
+import { DEFAULT_CALENDAR, type WorkCalendar } from '../calendar';
+import { orderStepProgress, orderTrack } from '../route';
 import type { MasterData } from '../masters';
 import type { BuyTotal, MaterialPlan, PlanRow } from '../materials';
-import { trackOf } from '../progress';
 import { formatQty, unitLabel } from '../units';
 
 export interface DocTable {
@@ -46,7 +47,7 @@ function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'>, comp
   };
 }
 
-export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: string; today: string; generatedAt: string }): DocModel {
+export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: string; today: string; generatedAt: string; cal?: WorkCalendar }): DocModel {
   const b = base(jo, opts.company, opts.generatedAt);
   const reasons: string[] = [];
   const rows = jo.lines.map((l) => {
@@ -62,9 +63,15 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
       supply === 'MAKE' ? 'Make' : supply === 'BUY' ? 'Buy' : 'Not decided',
     ];
   });
-  const t = trackOf(jo, opts.today);
+  const ctx = { md, cal: opts.cal ?? DEFAULT_CALENDAR };
+  const t = orderTrack(jo, opts.today, ctx);
+  const fromSteps = jo.status !== 'DRAFT' && orderStepProgress(jo, opts.today, ctx) !== null;
   const progress =
-    jo.status === 'DRAFT' ? 'Not tracked (draft)' : t.actual === null ? `Not entered · should be ${t.planned}% today` : `${t.actual}% (updated ${formatDay(jo.progress?.on)}) · should be ${t.planned}% today`;
+    jo.status === 'DRAFT'
+      ? 'Not tracked (draft)'
+      : t.actual === null
+        ? `Not entered · should be ${t.planned}% today`
+        : `${t.actual}% (${fromSteps ? 'from process steps' : `updated ${formatDay(jo.progress?.on)}`}) · should be ${t.planned}% today`;
   return {
     ...b,
     title: 'Job Order Summary',
@@ -73,7 +80,7 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
       ['Status', JO_STATUS_LABEL[jo.status]],
       ['JO received', formatDay(jo.receivedDate)],
       ['Customer delivery', `${formatDay(jo.deliveryDate)} (${DELIVERY_DATE_TYPES.find((x) => x.id === jo.deliveryDateType)?.label ?? '—'})`],
-      ['Internal deadline', `${formatDay(jo.deadline.internalDeadline)} · buffer ${jo.deadline.bufferDays} of ${jo.deadline.orderPeriodDays} days (10%, rounded up)`],
+      ['Internal deadline', `${formatDay(jo.deadline.internalDeadline)} · ${bufferText(jo.deadline)} (10%, rounded up)`],
       ['Progress', progress],
       ...(jo.completedOn ? ([['Completed on', formatDay(jo.completedOn)]] as [string, string][]) : []),
     ],

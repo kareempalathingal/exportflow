@@ -42,15 +42,15 @@ const processes = [
   { id: 'pr2', rev: 1, pending: false, name: 'Bleaching', active: true, notes: '' },
 ];
 product.route = [
-  { processId: 'pr1', plannedDays: { value: 4, status: 'USER_PROVIDED', source: '' } },
-  { processId: 'pr2', plannedDays: { value: null, status: 'PENDING_VERIFICATION', source: '' } },
+  { processId: 'pr1', perDay: 50, perDayUnit: 'pcs', fixedDays: null, status: 'USER_PROVIDED', source: '' },
+  { processId: 'pr2', perDay: null, perDayUnit: 'pcs', fixedDays: null, status: 'PENDING_VERIFICATION', source: '' },
 ];
 const stepped: JobOrder & { id: string; rev: number; pending: boolean } = {
   ...jobOrder, id: 'j2', joNumber: 'JO-88', receivedDate: '2026-10-01', confirmedOn: '2026-10-01',
   deadline: { orderPeriodDays: 40, bufferDays: 4, internalDeadline: '2026-11-06', ruleVersion: 'buffer-10pct-ceil-min1/v1' },
   lines: [{ ...jobOrder.lines[0]!, steps: [
-    { key: 'a', processId: 'pr1', label: 'Weaving', forProduct: 'Mat A', plannedDays: 4, doneAt: '2026-10-08T06:00:00Z' },
-    { key: 'b', processId: 'pr2', label: 'Bleaching', forProduct: 'Mat A', plannedDays: null, doneAt: null },
+    { key: 'a', processId: 'pr1', label: 'Weaving', forProduct: 'Mat A', productId: 'p1', perDay: 50, perDayUnit: 'pcs', fixedDays: null, doneAt: '2026-10-08T06:00:00Z' },
+    { key: 'b', processId: 'pr2', label: 'Bleaching', forProduct: 'Mat A', productId: 'p1', perDay: null, perDayUnit: null, fixedDays: null, doneAt: null },
   ] }],
 };
 
@@ -145,7 +145,7 @@ describe('Phase 3 Job Order screens render', () => {
   it('a confirmed order shows deadline, buffer, BOM-changed notice and line conversion', () => {
     const html = render('/orders/j1', '/orders/:id', <JobOrderPage />);
     expect(html).toContain('Internal deadline');
-    expect(html).toContain('6 days of 59');
+    expect(html).toContain('6 of 59 calendar days');
     expect(html).toContain('BOM changed after confirmation'); // snapshot rev 1, current BOM rev 2
     expect(html).toContain('Mark completed');
     expect(html).toContain('= 100 pcs');
@@ -208,14 +208,24 @@ describe('Phase 4 process steps', () => {
     expect(html).toContain('Bleaching done');
     expect(html).toContain('time pending');
     expect(html).toContain('Undo last');
+    expect(html).toContain('100 pcs ÷ 50/day'); // 24 sq m of 40×60 cm mats = 100 pcs → 2 working days
+    expect(html).toContain('working days');
   });
   it('an order without steps offers to set them up from product routes', () => {
     const html = render('/orders/j1?tab=products', '/orders/:id', <JobOrderPage />);
     expect(html).toContain('Set up steps from product routes');
   });
-  it('home shows what each product is doing now', () => {
+  it('home shows what each product is doing now, and the company calendar', () => {
     const html = render('/', '/', <HomePage />);
     expect(html).toContain('JO-88');
     expect(html).toContain('Bleaching');
+    expect(html).toContain('Calendar');
+    expect(html).toContain('Weekly off: Sunday');
+  });
+  it('an old order (calendar-day deadline) offers to recalculate with working days', () => {
+    const html = render('/orders/j1?tab=order', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Deadline can be recalculated');
+    expect(html).toContain('Recalculate deadline');
+    expect(html).toContain('6 of 59 calendar days');
   });
 });

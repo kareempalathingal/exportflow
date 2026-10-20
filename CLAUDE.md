@@ -39,6 +39,8 @@ report the discrepancy and ask; do not silently choose.
     safety-stock calculation. Warn on over-allocation across orders.
 -   Internal deadline: buffer days = ceiling(order period in calendar
     days × 10%). Store the computed deadline and rule version per order.
+    (Superseded 20 Oct 2026 by rule v2 in WORKING days — see "Working
+    days and step times" below.)
 -   Skeleton-first: every module works with available data; missing
     data shows Pending Verification / Unavailable / Insufficient Data
     and creates verification tasks. DEMO and ACTUAL data stay separate.
@@ -147,9 +149,9 @@ report the discrepancy and ask; do not silently choose.
     other steps shared by many products (weaving, bleaching, packing…);
     name + notes only. Departments and standard times come later.
 -   Each product has an ordered process route on its form (`route`:
-    process + planned days with data status; empty days = "time
-    pending") and "Order of steps confirmed with the company"
-    (`routeConfirmed`). Processes can be created from the route editor.
+    process + output per working day (with unit) and/or fixed days, one
+    data status; both empty = "time pending") and "Order of steps
+    confirmed with the company" (`routeConfirmed`). Processes can be created from the route editor.
     Bought (TRADED) products have routes too (labelling, packing…).
 -   At confirmation each JO line gets a copy of its steps
     (`lines[].steps`, `src/lib/route.ts` `buildLineSteps`): BUY lines
@@ -159,8 +161,8 @@ report the discrepancy and ask; do not silently choose.
     stay unchanged. Orders confirmed earlier get "Set up steps from
     product routes".
 -   "X done → Y" marks the current step done (time automatic); "Undo
-    last" reverses it. Each step shows actual vs planned days and
-    overruns. Line progress = done share, weighted by planned days when
+    last" reverses it. Each step shows actual vs planned working days
+    and overruns. Line progress = done share, weighted by planned days when
     every step is timed; "should be" follows planned days, otherwise the
     linear deadline plan. Order progress = average of its lines and
     replaces the manual slider once steps exist (still logged in
@@ -168,6 +170,40 @@ report the discrepancy and ask; do not silently choose.
 -   JO page opens on a "Products" tab (mockup "JO detail · progress per
     product"); Home shows "Now: product · step" and step overruns in
     Needs attention.
+
+## Working days and step times (confirmed 20 Oct 2026)
+
+-   Step time depends on quantity: planned days = quantity ÷ output per
+    working day + fixed days (quantity-independent: drying, curing,
+    batches), rounded UP to half a day. Hour-level planning later.
+    Benchmarks are copied to JO steps at confirmation (firm values only);
+    planned days are worked out on display from the order as it is now
+    (`planLines()` in `src/lib/route.ts`), so quantity, stock and holiday
+    changes show at once.
+-   Quantity per step: the line's product and made sub-products use the
+    material plan (stock set aside deducted; a product needed by several
+    lines is split by each line's share). Bought lines handle their full
+    quantity. 0 days shows the reason (e.g. "All 120 kg from stock").
+    The quantity is converted to the benchmark's unit; a missing
+    conversion shows "Conversion needed", never a guess.
+-   Shared department capacity across orders is NOT modelled yet (each
+    order is planned as if alone); it comes with department capacities.
+-   Working days: Sunday is the weekly off (editable); company holidays
+    are added on the dashboard calendar (large type; tap a day to add or
+    remove). Doc `settings/calendar` {weeklyOff, holidays} lives in the
+    ACTUAL workspace; Demo uses the same calendar. No public holidays
+    are added automatically.
+-   Internal deadline rule v2 `buffer-10pct-ceil-min1-workdays/v2`:
+    period = working days after the received date up to the delivery
+    date; buffer = ceil(period × 10%), min 1; internal deadline = the
+    buffer-th working day before delivery (always a working day). A
+    delivery date on a day off is accepted with a warning. Drafts follow
+    the current calendar; Confirmed orders (and older v1 orders) keep
+    their stored deadline and show "Recalculate deadline" (saved with a
+    history entry) and a Home attention item.
+-   Planned % (linear plan, step plans, "fits the deadline" check,
+    expected finish) counts working days. "Days left" pills stay
+    calendar days.
 
 ## Data safety and onboarding aids (confirmed 20 Oct 2026)
 
