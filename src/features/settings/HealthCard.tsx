@@ -15,7 +15,7 @@ import { useCollection } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { useSyncOps } from '../sync/syncStore';
 
-function useErrors(): ErrorEntry[] {
+export function useErrors(): ErrorEntry[] {
   const [list, setList] = useState(readErrors);
   useEffect(() => subscribeErrors(() => setList(readErrors())), []);
   return list;

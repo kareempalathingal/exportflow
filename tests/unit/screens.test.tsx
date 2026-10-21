@@ -85,6 +85,7 @@ const { HealthCard } = await import('../../src/features/settings/HealthCard');
 const { ReportsPage } = await import('../../src/features/reports/ReportsPage');
 const { PerformancePage } = await import('../../src/features/reports/PerformancePage');
 const { Layout } = await import('../../src/components/Layout');
+const { SettingsPage } = await import('../../src/features/settings/SettingsPage');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -310,5 +311,18 @@ describe('Plan document', () => {
     const html = render('/orders/j2', '/orders/:id', <JobOrderPage />);
     expect(html).toContain('Planning');
     expect(html).toContain('Received → confirmed · benchmark 1 working day');
+  });
+});
+
+describe('Settings sections', () => {
+  it('shows each section as one closed row with a short status', () => {
+    const html = render('/settings', '/settings', <SettingsPage />);
+    expect(html).toContain('<details class="card setting">');
+    expect(html).not.toContain('<details class="card setting" open');
+    expect(html).toMatch(/setting-title">sync<\/span><span class="setting-sum">All saved/);
+    expect(html).toMatch(/setting-title">Backup<\/span><span class="setting-sum">Never on this phone/);
+    expect(html).toContain('aria-label="Backup due"'); // ACTUAL with no backup: amber flag
+    expect(html).toMatch(/setting-title">System health<\/span><span class="setting-sum">No errors/);
+    expect(html).not.toContain('Sample data (DEMO)'); // ACTUAL mode
   });
 });

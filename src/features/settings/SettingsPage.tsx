@@ -8,7 +8,12 @@ import { SyncPanel } from '../sync/SyncPanel';
 import { offlineCacheEnabled } from '../../firebase';
 import { BackupCard } from './BackupCard';
 import { RestoreCard } from './RestoreCard';
-import { HealthCard } from './HealthCard';
+import { HealthCard, useErrors } from './HealthCard';
+import { SettingSection } from './SettingSection';
+import { useSyncOps } from '../sync/syncStore';
+import { summarize } from '../../lib/syncState';
+import { quotaErrors } from '../../lib/errorLog';
+import { BACKUP_REMIND_DAYS, daysSinceBackup, readLastBackup } from '../../lib/backup';
 import { SampleDataCard } from './SampleDataCard';
 import { Link } from 'react-router-dom';
 import { READINESS_DOC, readinessSummary, readinessWorkspace, type ReadinessDoc } from '../../lib/readiness';
@@ -19,14 +24,14 @@ function ReadinessLinkCard() {
   const { item } = useDocument<ReadinessDoc>(readinessWorkspace(app.user?.uid, app.workspaceId), 'settings', READINESS_DOC);
   const s = readinessSummary(item);
   return (
-    <Link to="/readiness" className="card link">
-      <div className="row between">
-        <h3>Waiting for company data</h3>
-        <span className="mono small">
-          {s.received}/{s.total - s.notNeeded}
-        </span>
-      </div>
-      <p className="muted small">What to collect after joining, and what each piece unlocks.</p>
+    <Link to="/readiness" className="card setting-link">
+      <span className="setting-title">Waiting for company data</span>
+      <span className="setting-sum">
+        {s.received}/{s.total - s.notNeeded} received
+      </span>
+      <span className="setting-chev" aria-hidden="true">
+        ›
+      </span>
     </Link>
   );
 }
@@ -205,7 +210,12 @@ function ProfileForm() {
 }
 
 export function SettingsPage() {
-  const { t, user, mode, setMode, lang, setLang, logout } = useApp();
+  const { t, user, mode, setMode, lang, setLang, logout, workspaceId } = useApp();
+  const { profile } = useProfile(workspaceId);
+  const company = profile?.companyName?.value ?? '';
+  const sync = summarize(useSyncOps().filter((o) => o.workspaceId === workspaceId));
+  const errors = useErrors();
+  const backupDays = workspaceId ? daysSinceBackup(readLastBackup(workspaceId), new Date()) : null;
 
   return (
     <section>
@@ -229,45 +239,80 @@ export function SettingsPage() {
         <p className="muted small">{mode === 'ACTUAL' ? t('modeActualHelp') : t('modeDemoHelp')}</p>
       </div>
 
-      <ProfileForm />
+      <SettingSection title={t('profile')} summary={[company, profile?.preparedByName].filter(Boolean).join(' · ') || 'Company name, your name'}>
+        <ProfileForm />
+      </SettingSection>
 
-      <SyncPanel />
+      <SettingSection
+        title={t('sync')}
+        summary={sync.FAILED + sync.CONFLICT + sync.PENDING === 0 ? 'All saved' : [sync.PENDING && `${sync.PENDING} waiting`, sync.FAILED && `${sync.FAILED} failed`, sync.CONFLICT && `${sync.CONFLICT} conflict${sync.CONFLICT === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}
+        flag={sync.FAILED + sync.CONFLICT > 0 ? 'bad' : null}
+        flagLabel="Failed or conflicting changes"
+      >
+        <SyncPanel />
+      </SettingSection>
 
-      <div className="card">
-        <h3>{t('language')}</h3>
-        <div className="segmented" role="radiogroup" aria-label={t('language')}>
-          <button role="radio" aria-checked={lang === 'en'} className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>
-            English
-          </button>
-          <button role="radio" aria-checked={lang === 'ml'} className={lang === 'ml' ? 'on' : ''} onClick={() => setLang('ml')}>
-            മലയാളം
-          </button>
+      <SettingSection title={t('language')} summary={lang === 'en' ? 'English' : 'മലയാളം'}>
+        <div className="card">
+          <h3>{t('language')}</h3>
+          <div className="segmented" role="radiogroup" aria-label={t('language')}>
+            <button role="radio" aria-checked={lang === 'en'} className={lang === 'en' ? 'on' : ''} onClick={() => setLang('en')}>
+              English
+            </button>
+            <button role="radio" aria-checked={lang === 'ml'} className={lang === 'ml' ? 'on' : ''} onClick={() => setLang('ml')}>
+              മലയാളം
+            </button>
+          </div>
         </div>
-      </div>
+      </SettingSection>
 
-      <SampleDataCard />
+      {mode === 'DEMO' && (
+        <SettingSection title="Sample data (DEMO)">
+          <SampleDataCard />
+        </SettingSection>
+      )}
 
       <ReadinessLinkCard />
 
-      <BackupCard />
+      <SettingSection
+        title="Backup"
+        summary={backupDays === null ? 'Never on this phone' : backupDays === 0 ? 'Last: today' : `Last: ${backupDays} day${backupDays === 1 ? '' : 's'} ago`}
+        flag={mode === 'ACTUAL' && (backupDays === null || backupDays > BACKUP_REMIND_DAYS) ? 'warn' : null}
+        flagLabel="Backup due"
+      >
+        <BackupCard />
+      </SettingSection>
 
-      <RestoreCard />
+      <SettingSection title="Restore from a backup">
+        <RestoreCard />
+      </SettingSection>
 
-      <HealthCard />
+      <SettingSection
+        title="System health"
+        summary={errors.length ? `${errors.length} error${errors.length === 1 ? '' : 's'}` : 'No errors'}
+        flag={quotaErrors(errors).length || sync.FAILED + sync.CONFLICT ? 'bad' : errors.length ? 'warn' : null}
+        flagLabel="Errors to look at"
+      >
+        <HealthCard />
+      </SettingSection>
 
-      <AppearanceCard />
+      <SettingSection title="Appearance" summary={{ auto: 'Auto', light: 'Light', dark: 'Dark' }[readTheme()]}>
+        <AppearanceCard />
+      </SettingSection>
 
-      <div className="card">
-        <h3>{t('account')}</h3>
-        <p>{emailToUsername(user?.email)}</p>
-        <p className="muted small">
-          {t('version')} {__APP_VERSION__}
-          {!offlineCacheEnabled && ' · offline cache unavailable in this browser'}
-        </p>
-        <button className="secondary" onClick={() => void logout()}>
-          {t('signOut')}
-        </button>
-      </div>
+      <SettingSection title={t('account')} summary={emailToUsername(user?.email)}>
+        <div className="card">
+          <h3>{t('account')}</h3>
+          <p>{emailToUsername(user?.email)}</p>
+          <p className="muted small">
+            {t('version')} {__APP_VERSION__}
+            {!offlineCacheEnabled && ' · offline cache unavailable in this browser'}
+          </p>
+          <button className="secondary" onClick={() => void logout()}>
+            {t('signOut')}
+          </button>
+        </div>
+      </SettingSection>
     </section>
   );
 }

@@ -299,6 +299,11 @@ report the discrepancy and ask; do not silently choose.
     added collection to detect unpublished rules) and "Check data"
     (`src/lib/integrity.ts`: missing links, BOM loops, broken orders —
     report only, never auto-fix).
+-   Settings layout (confirmed 21 Oct 2026): Mode stays open; every other
+    section is one collapsed row (`SettingSection`, native details) with
+    a short status (e.g. "All saved", "Last: 3 days ago", "No errors")
+    and a red/amber flag when something needs attention (failed or
+    conflicting syncs, errors, backup due). Nothing opens by itself.
 -   Not available on the free Spark plan: managed backups / point-in-time
     recovery (Blaze). Revisit when real data is in use.
 -   Settings → Sample data: DEMO only, records named "(sample)", fixed
