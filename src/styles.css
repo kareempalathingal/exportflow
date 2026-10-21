@@ -443,3 +443,9 @@ button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
 .conv-table td { padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 .conv-table td.num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 .conv-table .pill { margin-left: 6px; }
+
+/* Home header actions: calculator icon + New JO, always on one line */
+a.button.secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+.dash-head { gap: 0.5rem; }
+.dash-actions { gap: 0.5rem; flex-wrap: nowrap; flex-shrink: 0; }
+a.button.icon-btn { justify-content: center; min-width: 40px; padding: 0.35rem 0.5rem; font-size: 1.15rem; line-height: 1; }

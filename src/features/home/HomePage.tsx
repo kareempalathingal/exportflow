@@ -159,9 +159,9 @@ export function HomePage() {
           <h2>Where orders stand</h2>
           {company && <span className="muted small">{company}</span>}
         </div>
-        <div className="row gap">
-          <Link className="button secondary small" to="/tools" aria-label="Calculator and unit converter">
-            🧮 Calculator
+        <div className="row dash-actions">
+          <Link className="button secondary small icon-btn" to="/tools" aria-label="Calculator and unit converter" title="Calculator and unit converter">
+            🧮
           </Link>
           <Link className="button primary small" to="/orders/new">
             + New JO
