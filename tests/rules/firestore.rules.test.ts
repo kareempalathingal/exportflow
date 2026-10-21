@@ -184,6 +184,11 @@ describe('versioned records with audit', () => {
     await assertFails(write('settings', 'calendar', 3, 'a18', { weeklyOff: [0, 1, 2, 3, 4, 5, 6], holidays: {} }));
     await assertFails(write('settings', 'calendar', 3, 'a19', { weeklyOff: 'Sunday', holidays: {} }));
     await assertFails(write('processes', 'pr2', 1, 'a14', { name: '', active: true, notes: '' }));
+    const person = { name: 'Rajan', designation: 'Supervisor', phone: '9876543210', whatsapp: '', email: 'rajan@example.com', primary: true };
+    await assertSucceeds(write('departments', 'd1', 1, 'a20', { name: 'Weaving', active: true, notes: '', people: [person], processIds: ['pr1'] }));
+    await assertFails(write('departments', 'd2', 1, 'a21', { name: 'No lists', active: true, notes: '' }));
+    await assertFails(write('departments', 'd3', 1, 'a22', { name: 'Too many', active: true, notes: '', people: Array.from({ length: 21 }, () => person), processIds: [] }));
+    await assertFails(deleteDocLater(db, `workspaces/${ws}/departments/d1`));
     await assertFails(deleteDocLater(db, `workspaces/${ws}/processes/pr1`));
     await assertSucceeds(write('products', 'p1', 3, 'a15', { ...product, route: [{ processId: 'pr1', plannedDays: { value: 2, status: 'USER_PROVIDED', source: '' } }], routeConfirmed: false }));
     const { deleteDoc } = await import('firebase/firestore');

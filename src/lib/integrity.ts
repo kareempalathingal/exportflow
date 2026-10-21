@@ -3,7 +3,7 @@
  * they only report; nothing is changed automatically.
  */
 import type { JobOrder } from './jobOrders';
-import { lineComponent, type Customer, type MasterData, type Process, type Supplier } from './masters';
+import { lineComponent, type Customer, type Department, type MasterData, type Process, type Supplier } from './masters';
 import { parseItemKey } from './materials';
 import { normalizeJoNumber } from './jobOrders';
 
@@ -19,6 +19,7 @@ export function checkIntegrity(args: {
   customers: (Customer & { id: string })[];
   processes: (Process & { id: string })[];
   suppliers: (Supplier & { id: string })[];
+  departments?: (Department & { id: string })[];
 }): IntegrityIssue[] {
   const { md } = args;
   const out: IntegrityIssue[] = [];
@@ -63,6 +64,20 @@ export function checkIntegrity(args: {
   for (const [pid, p] of md.products) {
     for (const s of p.route ?? []) {
       if (!processIds.has(s.processId)) out.push({ severity: 'warn', text: `${p.name}: a process step points to a missing process`, link: `/masters/products/${pid}?tab=details` });
+    }
+  }
+
+  // Departments: missing processes; a process in two departments.
+  const owner = new Map<string, string>();
+  for (const d of args.departments ?? []) {
+    if (d.active === false) continue;
+    const missing = (d.processIds ?? []).filter((p) => !processIds.has(p)).length;
+    if (missing) out.push({ severity: 'warn', text: `${d.name}: ${missing} linked process${missing === 1 ? ' is' : 'es are'} missing`, link: `/masters/departments/${d.id}` });
+    for (const p of d.processIds ?? []) {
+      const prev = owner.get(p);
+      const pname = args.processes.find((x) => x.id === p)?.name ?? p;
+      if (prev && prev !== d.name) out.push({ severity: 'warn', text: `${pname} is in two departments (${prev}, ${d.name})`, link: `/masters/departments/${d.id}` });
+      owner.set(p, d.name);
     }
   }
 

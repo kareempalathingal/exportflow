@@ -171,6 +171,25 @@ report the discrepancy and ask; do not silently choose.
     product"); Home shows "Now: product · step" and step overruns in
     Needs attention.
 
+## Departments and contacts (skeleton, confirmed 21 Oct 2026)
+
+-   Departments master (`departments`, label "Departments"): name, notes,
+    people (`Person`: name, designation, phone, WhatsApp if different,
+    company email, one main contact; at most 20) and the processes the
+    department handles (`processIds`, stored on the department; a
+    process in two departments is warned, not blocked). Work contacts
+    only. Real names and numbers are added after joining.
+-   Contact buttons only — no follow-up log (updates are entered in the
+    app as usual): on a Job Order's Products tab for the step running now
+    and the next one, and on Today items about steps. Call (`tel:`),
+    WhatsApp (`wa.me` with a ready message) and Email (`mailto:` with
+    subject and message); the message is a draft the user edits and
+    sends — the app never sends anything. Main contact first, others
+    under "more people". 10-digit Indian numbers get 91; incomplete
+    numbers are refused (`src/lib/contacts.ts`).
+-   Sample departments use example.com emails and no phone numbers, so no
+    real person can be called from DEMO.
+
 ## Working days and step times (confirmed 20 Oct 2026)
 
 -   Step time depends on quantity: planned days = quantity ÷ output per

@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder, type JoLine, type JoStep } from '../../lib/jobOrders';
-import type { MasterData, Process } from '../../lib/masters';
+import { COLLECTIONS, type Department, type MasterData, type Process } from '../../lib/masters';
+import { departmentsFor, stepMessage } from '../../lib/contacts';
+import { StepContacts } from '../masters/ContactButtons';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { buildLineSteps, completeCurrent, lineProgress, orderStart, orderStepProgress, planLines, routeFits, undoLast, withPlanning, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
+import { buildLineSteps, completeCurrent, lineProgress, lineSchedule, orderStart, orderStepProgress, planLines, routeFits, undoLast, withPlanning, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
 import { formatQty, unitLabel } from '../../lib/units';
-import type { WithMeta } from '../masters/useCollection';
+import { useCollection, type WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { jobOrderData } from './MaterialsTab';
 import { TrackBar } from './TrackBar';
@@ -22,6 +24,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
   const ctx = { md, cal, planningDays: profile?.planningDays };
+  const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const missing = jo.lines.filter((l) => !l.steps || l.steps.length === 0);
   const planned = planLines(jo, md);
 
@@ -58,7 +61,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} ctx={ctx} today={today} editable={editable} processes={processes} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
           </li>
         ))}
       </ul>
@@ -81,6 +84,7 @@ function LineCard(props: {
   today: string;
   editable: boolean;
   processes: Map<string, Process>;
+  departments: Department[];
   onSteps: (steps: JoStep[], what: string) => void;
 }) {
   const { jo, line, raw, today, editable, ctx } = props;
@@ -112,6 +116,34 @@ function LineCard(props: {
   const fits = routeFits(lp.plannedTotalDays, start, jo.deadline.internalDeadline, cal);
   const current = lp.current;
   const nextStep = current ? lp.steps[lp.steps.indexOf(current) + 1] : undefined;
+
+  // Who to ask: the department of the step running now and of the next one.
+  const sched = new Map(lineSchedule(lp, today, cal).map((x) => [x.view.step.key, x.finish]));
+  const nowIndex = lp.steps.findIndex((x) => x.state === 'NOW');
+  const contactFor = (v: StepView) => {
+    const idx = lp.steps.indexOf(v);
+    if (nowIndex < 0 || (idx !== nowIndex && idx !== nowIndex + 1)) return undefined;
+    const depts = departmentsFor(v.step.processId, props.departments);
+    if (!depts.length) return undefined;
+    const finish = sched.get(v.step.key);
+    const late = v.overrunDays !== null && v.overrunDays > 0;
+    return (
+      <StepContacts
+        departments={depts}
+        message={(person) =>
+          stepMessage({
+            person: person.name,
+            joNumber: jo.joNumber,
+            product: v.step.forProduct || line.productName,
+            step: v.step.label,
+            quantity: v.step.qty !== null && v.step.qtyUnit ? `${formatQty(v.step.qty)} ${unitLabel(v.step.qtyUnit)}` : null,
+            plannedFinish: finish ? formatDay(finish) : null,
+            late,
+          })
+        }
+      />
+    );
+  };
 
   return (
     <div className="card edge" style={{ ['--edge' as string]: color }}>
@@ -148,7 +180,7 @@ function LineCard(props: {
 
       <ol className="stepper">
         {lp.steps.map((v) => (
-          <StepRow key={v.step.key} v={v} productName={line.productName} />
+          <StepRow key={v.step.key} v={v} productName={line.productName} contacts={contactFor(v)} />
         ))}
       </ol>
 
@@ -180,7 +212,7 @@ function LineCard(props: {
 
 const days = (n: number) => `${formatQty(n)}d`;
 
-function StepRow({ v, productName }: { v: StepView; productName: string }) {
+function StepRow({ v, productName, contacts }: { v: StepView; productName: string; contacts?: ReactNode }) {
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
   const over = v.overrunDays !== null && v.overrunDays > 0;
@@ -219,6 +251,7 @@ function StepRow({ v, productName }: { v: StepView; productName: string }) {
         </span>
         {s.basis && <span className="muted small block">{s.basis}</span>}
         {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
+        {contacts}
       </span>
       <span className="step-time mono small">{right}</span>
     </li>

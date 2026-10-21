@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { useProfile } from '../settings/useProfile';
 import { istDateKey } from '../../lib/time';
-import { masterAttention, type AttentionItem } from '../../lib/masters';
+import { COLLECTIONS, masterAttention, type AttentionItem, type Department } from '../../lib/masters';
 import { addDays, COLLECTION_JOB_ORDERS, deadlineUpdate, formatDay, isEditable, jobOrderAttention, type JoAttention, type JobOrder } from '../../lib/jobOrders';
 import { useMasterData } from '../masters/useMasterData';
 import { useCollection } from '../masters/useCollection';
@@ -59,6 +59,7 @@ export function HomePage() {
   const { profile } = useProfile(workspaceId);
   const master = useMasterData(workspaceId);
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
+  const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const counts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
   const products = master.products;
   const company = profile?.companyName?.value;
@@ -165,7 +166,7 @@ export function HomePage() {
 
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
 
-      {!loading && jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') && <TodayCard summary={todaySummary} company={company ?? ''} compact />}
+      {!loading && jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} />}
 
       <section aria-label="Order status counts" className="counts">
         {GROUPS.map((g) => (

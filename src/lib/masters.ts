@@ -55,6 +55,22 @@ export interface Product extends MasterBase {
 /** A process or treatment (weaving, bleaching, packing…), shared by many products. */
 export type Process = MasterBase;
 
+/** A person to contact in a department (work contact only). */
+export interface Person {
+  name: string;
+  designation: string;
+  phone: string;
+  whatsapp: string; // empty = same as phone
+  email: string;
+  primary: boolean; // shown first on steps
+}
+
+/** A department, its people and the processes it handles (skeleton, confirmed 21 Oct 2026). */
+export interface Department extends MasterBase {
+  people: Person[];
+  processIds: string[];
+}
+
 /**
  * One step of a product's route. Time is a benchmark, never invented:
  * planned days = quantity ÷ output per working day + fixed days.
@@ -131,6 +147,7 @@ export const COLLECTIONS = {
   boms: 'boms',
   suppliers: 'suppliers',
   processes: 'processes',
+  departments: 'departments',
 } as const;
 
 function fact(t: Tracked<number> | undefined): Fact | undefined {

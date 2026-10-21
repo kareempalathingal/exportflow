@@ -54,7 +54,11 @@ const stepped: JobOrder & { id: string; rev: number; pending: boolean } = {
   ] }],
 };
 
-const data: Record<string, { id: string }[]> = { products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder, stepped], suppliers: [supplier], processes };
+const department = { id: 'd1', rev: 1, pending: false, name: 'Finishing', active: true, notes: '', processIds: ['pr2'], people: [
+  { name: 'Rajan K', designation: 'Supervisor', phone: '9876543210', whatsapp: '', email: 'rajan@company.in', primary: true },
+  { name: 'Anu', designation: 'Shift B', phone: '9000011111', whatsapp: '', email: '', primary: false },
+] };
+const data: Record<string, { id: string }[]> = { departments: [department], products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder, stepped], suppliers: [supplier], processes };
 
 vi.mock('../../src/firebase', () => ({ db: {}, auth: { currentUser: { uid: 'u1' } }, offlineCacheEnabled: true }));
 vi.mock('../../src/features/settings/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, pendingWrite: false, fromCache: false, error: null }) }));
@@ -86,6 +90,7 @@ const { ReportsPage } = await import('../../src/features/reports/ReportsPage');
 const { PerformancePage } = await import('../../src/features/reports/PerformancePage');
 const { Layout } = await import('../../src/components/Layout');
 const { SettingsPage } = await import('../../src/features/settings/SettingsPage');
+const { DepartmentForm } = await import('../../src/features/masters/DepartmentForm');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -324,5 +329,30 @@ describe('Settings sections', () => {
     expect(html).toContain('aria-label="Backup due"'); // ACTUAL with no backup: amber flag
     expect(html).toMatch(/setting-title">System health<\/span><span class="setting-sum">No errors/);
     expect(html).not.toContain('Sample data (DEMO)'); // ACTUAL mode
+  });
+});
+
+describe('Departments and contacts', () => {
+  it('departments tab lists each department with its main contact', () => {
+    const html = render('/masters?tab=departments', '/masters', <MastersPage />);
+    expect(html).toContain('Finishing');
+    expect(html).toContain('Rajan K (Supervisor) +1');
+  });
+  it('the department form has people and processes', () => {
+    const html = render('/masters/departments/d1', '/masters/departments/:id', <DepartmentForm />);
+    expect(html).toContain('People');
+    expect(html).toContain('Processes this department handles');
+    expect(html).toContain('+ Add person');
+  });
+  it('the running step shows who to ask, with call / WhatsApp / email', () => {
+    const html = render('/orders/j2', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('href="tel:+919876543210"');
+    expect(html).toContain('href="https://wa.me/919876543210?text=Hi%20Rajan%2C%0AJO-88');
+    expect(html).toContain('href="mailto:rajan@company.in?subject=JO-88');
+    expect(html).toContain('1 more person');
+  });
+  it('a process shows its department', () => {
+    const html = render('/masters/processes/pr2', '/masters/processes/:id', <ProcessForm />);
+    expect(html).toContain('href="/masters/departments/d1"');
   });
 });

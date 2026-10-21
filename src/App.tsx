@@ -14,6 +14,7 @@ import { ProductForm } from './features/masters/ProductForm';
 import { RawMaterialForm } from './features/masters/RawMaterialForm';
 import { SupplierForm } from './features/masters/SupplierForm';
 import { ProcessForm } from './features/masters/ProcessForm';
+import { DepartmentForm } from './features/masters/DepartmentForm';
 import { ReadinessPage } from './features/readiness/ReadinessPage';
 import { OrdersPage } from './features/orders/OrdersPage';
 import { JobOrderPage } from './features/orders/JobOrderPage';
@@ -54,6 +55,7 @@ function Gate() {
         <Route path="masters/customers/:id" element={<CustomerForm />} />
         <Route path="masters/suppliers/:id" element={<SupplierForm />} />
         <Route path="masters/processes/:id" element={<ProcessForm />} />
+        <Route path="masters/departments/:id" element={<DepartmentForm />} />
         <Route path="history" element={<HistoryPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="reports/performance" element={<PerformancePage />} />

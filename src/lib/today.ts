@@ -6,7 +6,7 @@
 import { addWorkingDays, dayOff, workingDaysBetween, type WorkCalendar } from './calendar';
 import { addDays, daysBetween, formatDay, type JobOrder } from './jobOrders';
 import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route';
-import { formatQty } from './units';
+import { formatQty, unitLabel } from './units';
 
 export const SOON_WORKING_DAYS = 2;
 
@@ -17,6 +17,8 @@ export interface TodayItem {
   date: string | null;
   text: string;
   link: string;
+  /** For process steps: what to ask the department about (contact buttons). */
+  step?: { processId: string | null; joNumber: string; product: string; label: string; quantity: string | null; finish: string | null; late: boolean };
 }
 
 export interface TodaySummary {
@@ -65,12 +67,22 @@ export function buildToday(args: {
       const cur = lp.current;
       if (!cur) continue;
       const name = `${jo.joNumber} · ${line.productName}: ${cur.step.label}`;
-      if (cur.overrunDays !== null && cur.overrunDays > 0) {
-        items.push({ when: 'OVERDUE', date: null, text: `${name} running ${formatQty(cur.overrunDays)} working day${cur.overrunDays === 1 ? '' : 's'} over plan`, link: `${link}?tab=products` });
-      } else if (cur.step.plannedDays !== null && cur.startOn) {
-        const end = addWorkingDays(cur.startOn, cur.step.plannedDays, cal);
-        const ew = end ? when(end) : null;
-        if (end && (ew === 'TODAY' || ew === 'SOON')) items.push({ when: ew, date: end, text: `${name} should finish ${day(end)}`, link: `${link}?tab=products` });
+      const end = cur.step.plannedDays !== null && cur.startOn ? addWorkingDays(cur.startOn, cur.step.plannedDays, cal) : null;
+      const late = cur.overrunDays !== null && cur.overrunDays > 0;
+      const step = {
+        processId: cur.step.processId,
+        joNumber: jo.joNumber,
+        product: cur.step.forProduct || line.productName,
+        label: cur.step.label,
+        quantity: cur.step.qty !== null && cur.step.qtyUnit ? `${formatQty(cur.step.qty)} ${unitLabel(cur.step.qtyUnit)}` : null,
+        finish: end ? formatDay(end) : null,
+        late,
+      };
+      if (late) {
+        items.push({ when: 'OVERDUE', date: null, text: `${name} running ${formatQty(cur.overrunDays!)} working day${cur.overrunDays === 1 ? '' : 's'} over plan`, link: `${link}?tab=products`, step });
+      } else if (end) {
+        const ew = when(end);
+        if (ew === 'TODAY' || ew === 'SOON') items.push({ when: ew, date: end, text: `${name} should finish ${day(end)}`, link: `${link}?tab=products`, step });
       }
     }
   }

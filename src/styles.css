@@ -386,3 +386,13 @@ button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
 
 .setting-link { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 14px; color: var(--ink); text-decoration: none; }
 .card.setting, .setting-link { margin-bottom: 8px; }
+
+/* Department contacts on steps */
+.step-contacts { margin-top: 0.35rem; display: grid; gap: 4px; }
+.contact-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 2px; }
+.contact-name { font-weight: 500; }
+.contact-buttons { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.contact-btn { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 16px; color: var(--brand); text-decoration: none; font-size: 0.85rem; font-weight: 600; }
+.contact-btn.wa { color: var(--ok); }
+.more-people summary { cursor: pointer; font-size: 0.85rem; margin-top: 2px; }
+.person-row { border-bottom: 1px solid var(--line); padding: 0.6rem 0; margin-bottom: 0.4rem; }

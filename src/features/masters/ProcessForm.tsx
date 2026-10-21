@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { COLLECTIONS, findDuplicate, type Process } from '../../lib/masters';
+import { COLLECTIONS, findDuplicate, type Department, type Process } from '../../lib/masters';
+import { departmentsFor } from '../../lib/contacts';
 import { saveRecord } from '../sync/records';
 import { FormShell } from './FormShell';
 import { TextField } from './fields';
@@ -34,6 +35,8 @@ export function ProcessForm() {
     setD({ ...EMPTY, ...item });
   }, [item]);
 
+  const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
+  const depts = useMemo(() => departmentsFor(id, departments.items), [id, departments.items]);
   const usedBy = useMemo(() => master.products.items.filter((p) => (p.route ?? []).some((s) => s.processId === id)).sort((a, b) => a.name.localeCompare(b.name)), [master.products.items, id]);
 
   if (!isNew && loading) return <p className="muted">{t('loading')}</p>;
@@ -78,6 +81,23 @@ export function ProcessForm() {
                   <Link to={`/masters/products/${p.id}?tab=details`}>{p.name}</Link>
                 </span>
               ))}
+        </p>
+      )}
+      {!isNew && (
+        <p className="small">
+          Department:{' '}
+          {depts.length === 0 ? (
+            <>
+              not set · <Link to="/masters/departments/new">+ New department</Link>
+            </>
+          ) : (
+            depts.map((x, i) => (
+              <span key={x.id}>
+                {i > 0 && ', '}
+                <Link to={`/masters/departments/${x.id}`}>{x.name}</Link>
+              </span>
+            ))
+          )}
         </p>
       )}
     </FormShell>

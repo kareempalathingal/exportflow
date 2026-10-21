@@ -118,6 +118,7 @@ const ENTITY: Record<string, string> = {
   boms: 'BOM',
   suppliers: 'Supplier',
   processes: 'Process',
+  departments: 'Department',
   jobOrders: 'Job Order',
   stockCounts: 'Stock count',
 };

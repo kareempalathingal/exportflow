@@ -5,7 +5,7 @@
  */
 import type { Tracked } from './dataStatus';
 import { addDays, computeDeadline, snapshotBoms, type JobOrder, type JoLine, type JoStatus, type StockEntry } from './jobOrders';
-import type { Bom, BomLine, Customer, MasterData, Process, Product, RawMaterial, RouteStep, Supplier } from './masters';
+import type { Bom, BomLine, Customer, Department, MasterData, Process, Product, RawMaterial, RouteStep, Supplier } from './masters';
 import { buildLineSteps, completeCurrent } from './route';
 import type { StockCount } from './materials';
 
@@ -62,6 +62,19 @@ export function buildSampleData(today: string): SampleWrite[] {
     status: perDay === null && fixedDays === null ? 'PENDING_VERIFICATION' : 'USER_PROVIDED',
     source: perDay === null && fixedDays === null ? '' : SRC,
   });
+  // Sample departments: example.com emails only (reserved domain); no phone numbers, so no real person is ever called.
+  const person = (name: string, designation: string, email: string, primary: boolean) => ({ name, designation, phone: '', whatsapp: '', email, primary });
+  const departments: Record<string, Department> = {
+    sample_d_spin: { name: 'Spinning (sample)', active: true, notes: SRC, people: [person('Spinning lead (sample)', 'Supervisor', 'spinning.lead@example.com', true)], processIds: ['sample_pr_spin'] },
+    sample_d_weave: {
+      name: 'Weaving (sample)', active: true, notes: SRC,
+      people: [person('Weaving lead (sample)', 'Supervisor', 'weaving.lead@example.com', true), person('Weaving shift B (sample)', 'Shift in-charge', 'weaving.b@example.com', false)],
+      processIds: ['sample_pr_weave'],
+    },
+    sample_d_finish: { name: 'Finishing (sample)', active: true, notes: SRC, people: [person('Finishing lead (sample)', 'Supervisor', 'finishing.lead@example.com', true)], processIds: ['sample_pr_bleach', 'sample_pr_dye', 'sample_pr_latex'] },
+    sample_d_pack: { name: 'Packing (sample)', active: true, notes: SRC, people: [person('Packing lead (sample)', 'Supervisor', 'packing.lead@example.com', true)], processIds: ['sample_pr_label', 'sample_pr_pack'] },
+  };
+  for (const [id, d] of Object.entries(departments)) create('departments', id, `Department: ${d.name}`, d);
   const rawMaterials: Record<string, RawMaterial> = {
     sample_rm_fibre: rm('Coir fibre'),
     sample_rm_latex: rm('Latex compound'),

@@ -20,7 +20,7 @@ export const READINESS_ITEMS: ReadinessItem[] = [
   { id: 'products', need: 'Product list: sizes, GSM / weight, and units like bale or roll', ask: 'Production / sales', unlocks: 'Unit conversion (pcs ↔ sq m ↔ kg) on orders and BOMs', phase: 'Masters' },
   { id: 'bom', need: 'Recipes (BOM) per product, with wastage %', ask: 'Production manager', unlocks: 'Raw materials to buy, To produce lists', phase: 'Masters' },
   { id: 'processes', need: 'Treatments / processes each product goes through, in order', ask: 'Production floor', unlocks: 'Stage tracking per order; real % progress instead of the slider', phase: 'Phase 4' },
-  { id: 'departments', need: 'Departments and which processes each one handles', ask: 'Production / HR', unlocks: 'Department-wise daily to-do and target lists', phase: 'Phase 4–5' },
+  { id: 'departments', need: 'Departments, their leaders and other contacts (name, designation, phone, WhatsApp, email) and which processes each handles', ask: 'Production / HR', unlocks: 'Department-wise daily to-do and target lists', phase: 'Phase 4–5' },
   { id: 'holidays', need: 'Weekly off day(s) and the company holiday list for the year', ask: 'HR / admin', unlocks: 'Working-day deadlines and step plans (dashboard calendar)', phase: 'Job Orders' },
   { id: 'benchmarks', need: 'Output per day for each process (and fixed days such as drying), and daily output per department', ask: 'Production manager / past records', unlocks: 'Planning, daily targets, performance reports', phase: 'Phase 4–5' },
   { id: 'approvals', need: 'Who approves what (purchases, overtime, dispatch) and how', ask: 'Management', unlocks: 'Approval records with on-time / late tracking', phase: 'Phase 4' },

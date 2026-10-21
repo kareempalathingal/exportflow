@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDay } from '../../lib/jobOrders';
+import { departmentsFor, stepMessage } from '../../lib/contacts';
+import type { Department } from '../../lib/masters';
+import { StepContacts } from '../masters/ContactButtons';
 import { TODAY_HEADINGS, todayText, type TodaySummary, type TodayWhen } from '../../lib/today';
 
 /** Share plain text through the phone's share sheet, or copy it. The app never sends anything itself. */
@@ -25,7 +28,7 @@ export async function shareText(title: string, text: string): Promise<'shared' |
 const CLS: Record<TodayWhen, string> = { OVERDUE: 'bad', TODAY: 'warn', SOON: 'neutral' };
 
 /** Home: today and the next 2 working days, with a share button. */
-export function TodayCard({ summary, company, compact = false }: { summary: TodaySummary; company: string; compact?: boolean }) {
+export function TodayCard({ summary, company, compact = false, departments = [] }: { summary: TodaySummary; company: string; compact?: boolean; departments?: Department[] }) {
   const [msg, setMsg] = useState<string | null>(null);
   async function share() {
     const r = await shareText(`Daily summary ${formatDay(summary.today)}`, todayText(summary, company));
@@ -53,11 +56,21 @@ export function TodayCard({ summary, company, compact = false }: { summary: Toda
             <div key={w} className="today-group">
               <span className={`pill ${CLS[w]}`}>{TODAY_HEADINGS[w]}</span>
               <ul className="today-list">
-                {shown.map((i, n) => (
-                  <li key={n}>
-                    <Link to={i.link}>{i.text}</Link>
-                  </li>
-                ))}
+                {shown.map((i, n) => {
+                  const st = i.step;
+                  const depts = st ? departmentsFor(st.processId, departments) : [];
+                  return (
+                    <li key={n}>
+                      <Link to={i.link}>{i.text}</Link>
+                      {st && depts.length > 0 && (
+                        <StepContacts
+                          departments={depts}
+                          message={(p) => stepMessage({ person: p.name, joNumber: st.joNumber, product: st.product, step: st.label, quantity: st.quantity, plannedFinish: st.finish, late: st.late })}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
                 {shown.length < list.length && (
                   <li className="muted small">
                     <Link to="/reports">+{list.length - shown.length} more</Link>

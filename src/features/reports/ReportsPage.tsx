@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { productionPlanDoc, todayDoc, toBuyAllDoc } from '../../lib/docs/model';
 import { COLLECTION_JOB_ORDERS, type JobOrder } from '../../lib/jobOrders';
-import { COLLECTIONS, suppliersOf, type Process, type Supplier } from '../../lib/masters';
+import { COLLECTIONS, suppliersOf, type Department, type Process, type Supplier } from '../../lib/masters';
 import { toBuyAcrossOrders } from '../../lib/materials';
 import { formatDateTime, istDateKey } from '../../lib/time';
 import { buildToday } from '../../lib/today';
@@ -21,6 +21,7 @@ export function ReportsPage() {
   const { profile } = useProfile(workspaceId);
   const company = profile?.companyName?.value ?? '';
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
+  const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const master = useMasterData(workspaceId);
   const { cal } = useWorkCalendar();
@@ -46,7 +47,7 @@ export function ReportsPage() {
         <p className="muted">{t('loading')}</p>
       ) : (
         <>
-          <TodayCard summary={summary} company={company} />
+          <TodayCard summary={summary} company={company} departments={departments.items} />
           <div className="card doc-card">
             <DocButtons label="Daily summary (PDF)" build={() => todayDoc(summary, { company, generatedAt: generatedAt() })} />
           </div>
