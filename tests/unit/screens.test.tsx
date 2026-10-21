@@ -299,7 +299,8 @@ describe('Reports', () => {
 describe('Plan document', () => {
   it('a JO page offers the plan PDF; reports let you choose a JO', () => {
     const jo = render('/orders/j2', '/orders/:id', <JobOrderPage />);
-    expect(jo).toContain('Production plan (PDF, to submit)');
+    expect(jo).toContain('Production plan (to submit)');
+    expect(jo).toContain('Working plan (details, for you)');
     expect(jo).toContain('Add your name and designation in Settings');
     const reports = render('/reports', '/reports', <ReportsPage />);
     expect(reports).toContain('Plan of a Job Order');

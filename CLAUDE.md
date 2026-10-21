@@ -261,6 +261,14 @@ report the discrepancy and ask; do not silently choose.
     marks anything approved. Available on the JO page and in Reports
     (choose a JO). PROVISIONAL band when times, routes or BOM data are
     missing.
+-   Two versions (confirmed 21 Oct 2026): "to submit" (default, clean:
+    no benchmarks, rates, calculation details, PROVISIONAL band or
+    technical notes; missing data appears as plain-language open points
+    such as "time for Latex backing to be confirmed with production";
+    schedule columns Step / Quantity / Start / Finish / Status; "To be
+    confirmed" for unknown dates) and "working" (all details, for the
+    user only, banner "WORKING PLAN - internal details, not for
+    submission"). `productionPlanDoc({ ..., variant })`.
 -   Later (after real processes are known): an Analysis tab for the
     whole factory — department load from all orders, smooth capacity,
     bottlenecks, and scheduling orders against shared capacity.

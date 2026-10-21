@@ -102,12 +102,13 @@ describe('plan document', () => {
   const input = (jo: JobOrder & { id: string }) => ({
     jo: { ...jo, rev: 4 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: '21 Oct 2026, 09:00 IST',
     preparedBy: { name: 'Kareem', designation: 'Production Manager' },
+    variant: 'working' as const,
   });
   it('a draft gives a PROPOSED plan built from the product routes, with open points', async () => {
     const { productionPlanDoc } = await import('../../src/lib/docs/model');
     const m = productionPlanDoc(input(finalJo.get('sample_jo_104')!));
-    expect(m.title).toBe('Proposed Plan');
-    expect(m.banner).toMatch(/^PROPOSED PLAN/);
+    expect(m.title).toBe('Working Plan (proposed)');
+    expect(m.banner).toMatch(/^WORKING PLAN/);
     expect(m.meta.find(([k]) => k === 'Plan version')![1]).toBe('Revision 4 · generated 21 Oct 2026, 09:00 IST');
     expect(m.meta.find(([k]) => k === 'Planning')![1]).toMatch(/^In planning for 2 working days \(benchmark 1\)/);
     expect(m.tables[0]!.rows.map((r) => r[0])).toEqual(['Planning (whole order)', 'Weaving (sample)', 'Packing (sample)']);
@@ -120,7 +121,7 @@ describe('plan document', () => {
   it('a confirmed order gives the PRODUCTION plan with actual and planned dates', async () => {
     const { productionPlanDoc } = await import('../../src/lib/docs/model');
     const m = productionPlanDoc(input(finalJo.get('sample_jo_103')!));
-    expect(m.title).toBe('Production Plan');
+    expect(m.title).toBe('Working Plan');
     const mat = m.tables[0]!;
     expect(mat.rows[0]![0]).toBe('Planning (whole order)');
     expect(mat.rows[0]![5]).toBe('Done');
@@ -133,5 +134,41 @@ describe('plan document', () => {
     const s = buildToday({ jobOrders: jos, ctx, today: TODAY });
     expect(s.items.find((i) => i.text.startsWith('DEMO-104'))).toMatchObject({ when: 'OVERDUE', text: expect.stringMatching(/still in planning after 2 working days \(benchmark 1\)/) });
     expect(buildToday({ jobOrders: jos, ctx: { ...ctx, planningDays: null }, today: TODAY }).items.some((i) => i.text.startsWith('DEMO-104'))).toBe(false);
+  });
+});
+
+describe('clean plan to submit', () => {
+  const processes = new Map(writes.filter((w) => w.collection === 'processes').map((w) => [w.docId, w.data as unknown as import('../../src/lib/masters').Process]));
+  const build = async (id: string) => {
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    return productionPlanDoc({ jo: { ...finalJo.get(id)!, rev: 4 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: 'Kareem', designation: 'PM' } });
+  };
+  it('has no benchmarks, calculations or provisional band — open points in plain language', async () => {
+    const m = await build('sample_jo_104');
+    expect(m.title).toBe('Proposed Plan');
+    expect(m.banner).toBe('PROPOSED PLAN - for review and approval');
+    expect(m.provisional).toBe(false);
+    const all = JSON.stringify([m.banner, m.meta, m.tables, m.notes, m.timeline]); // the printed text
+    expect(all).not.toMatch(/benchmark|÷|\/day|user-provided|PROVISIONAL|time pending/i);
+    expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('Started 18 Oct 2026 - this plan');
+    expect(m.tables[0]!.columns.map((c) => c.label)).toEqual(['Step', 'Quantity', 'Start', 'Finish', 'Status']);
+    expect(m.tables[0]!.rows[1]).toEqual(['Weaving (sample)', '500 pcs', expect.any(String), expect.any(String), 'Planned']);
+    expect(m.tables.at(-1)!.title).toBe('Open points');
+    expect(m.tables.at(-1)!.rows.map((r) => r[0])).toEqual([
+      'Plan confirmation pending - production can start once this plan is approved',
+      'Rubber-backed mat 50×80 (sample): sequence of process steps to be confirmed with production',
+      'Rubber-backed mat 50×80 (sample): material list (BOM) to be confirmed',
+      'Delivery date basis (ex-factory / port / arrival) to be confirmed with the customer',
+    ]);
+    expect(m.notes).toEqual(['Dates are in working days; Sundays and company holidays are not worked.', 'Prepared from the information available on 20 Oct 2026.']);
+    expect(m.fileName).toBe('DEMO-104_proposed-plan_2026-10-20.pdf');
+  });
+  it('a confirmed order shows planning dates and progress without the benchmark', async () => {
+    const m = await build('sample_jo_103');
+    expect(m.title).toBe('Production Plan');
+    expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('10 Oct 2026 to 14 Oct 2026');
+    expect(m.meta.find(([k]) => k === 'Internal deadline')![1]).toBe('19 Nov 2026');
+    expect(m.meta.find(([k]) => k === 'Progress')![1]).toMatch(/^\d+% complete \(planned \d+% by today\)$/);
+    expect(m.tables[0]!.rows[0]).toEqual(['Planning (whole order)', '—', '10 Oct 2026', '14 Oct 2026', 'Done']);
   });
 });

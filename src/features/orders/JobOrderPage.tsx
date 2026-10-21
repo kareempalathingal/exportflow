@@ -401,22 +401,26 @@ export function JobOrderPage() {
       {!isNew && item && <ProgressCard key={`${item.id}:${item.rev}`} jo={item} md={md} />}
       {!isNew && item && status !== 'CANCELLED' && (
         <div className="card doc-card">
-          <DocButtons
-            label={status === 'DRAFT' ? 'Proposed plan (PDF, to submit)' : 'Production plan (PDF, to submit)'}
-            build={() =>
-              productionPlanDoc({
-                jo: item,
-                md,
-                processes: processMap,
-                ctx: { md, cal, planningDays: profile?.planningDays },
-                today,
-                company,
-                generatedAt: `${formatDateTime(new Date())} IST`,
-                preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
-                supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
-              })
-            }
-          />
+          {(['submit', 'working'] as const).map((variant) => (
+            <DocButtons
+              key={variant}
+              label={variant === 'submit' ? (status === 'DRAFT' ? 'Proposed plan (to submit)' : 'Production plan (to submit)') : 'Working plan (details, for you)'}
+              build={() =>
+                productionPlanDoc({
+                  jo: item,
+                  md,
+                  processes: processMap,
+                  ctx: { md, cal, planningDays: profile?.planningDays },
+                  today,
+                  company,
+                  generatedAt: `${formatDateTime(new Date())} IST`,
+                  preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
+                  supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
+                  variant,
+                })
+              }
+            />
+          ))}
           {!profile?.preparedByName && <p className="muted small">Add your name and designation in Settings so they appear under “Prepared by”.</p>}
           {dirty && <p className="warn small">Unsaved changes are not in the plan — save first.</p>}
         </div>

@@ -53,7 +53,7 @@ export function ReportsPage() {
 
           <div className="card">
             <h3>Plan of a Job Order</h3>
-            <p className="muted small">Proposed plan (draft) or production plan with schedule, timeline, materials, open points and a “Prepared by / Approved by” block — ready to submit.</p>
+            <p className="muted small">A clean plan to submit (schedule, timeline, materials, open points, “Prepared by / Approved by”), and a working plan with all calculations for you.</p>
             <label>
               Job Order
               <select value={planJo} onChange={(e) => setPlanJo(e.target.value)}>
@@ -65,24 +65,27 @@ export function ReportsPage() {
                 ))}
               </select>
             </label>
-            {chosen && (
-              <DocButtons
-                label={chosen.status === 'DRAFT' ? `Proposed plan · ${chosen.joNumber}` : `Production plan · ${chosen.joNumber}`}
-                build={() =>
-                  productionPlanDoc({
-                    jo: chosen,
-                    md: master.md,
-                    processes: processMap,
-                    ctx,
-                    today,
-                    company,
-                    generatedAt: generatedAt(),
-                    preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
-                    supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
-                  })
-                }
-              />
-            )}
+            {chosen &&
+              (['submit', 'working'] as const).map((variant) => (
+                <DocButtons
+                  key={variant}
+                  label={variant === 'submit' ? `${chosen.status === 'DRAFT' ? 'Proposed' : 'Production'} plan · ${chosen.joNumber} (to submit)` : `Working plan · ${chosen.joNumber} (details)`}
+                  build={() =>
+                    productionPlanDoc({
+                      jo: chosen,
+                      md: master.md,
+                      processes: processMap,
+                      ctx,
+                      today,
+                      company,
+                      generatedAt: generatedAt(),
+                      preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
+                      supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
+                      variant,
+                    })
+                  }
+                />
+              ))}
           </div>
 
           <Link to="/reports/performance" className="card link">

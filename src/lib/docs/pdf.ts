@@ -144,7 +144,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
         doc.rect(xa, y + 0.8, Math.min(xb, W - M) - xa, rowH - 1.8, 'F');
       } else {
         doc.setTextColor(...AMBER_INK);
-        doc.text('time pending', x0 + 1, y + 3.4);
+        doc.text('to be confirmed', x0 + 1, y + 3.4);
       }
       y += rowH;
     }

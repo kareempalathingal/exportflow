@@ -374,12 +374,17 @@ export interface PlanDocInput {
   generatedAt: string;
   preparedBy: { name: string; designation: string };
   supplierNames?: SupplierNames;
+  /** 'submit' = clean plan for superiors (no benchmarks or calculation details); 'working' = full details. */
+  variant?: 'submit' | 'working';
 }
 
 export function productionPlanDoc(input: PlanDocInput): DocModel {
   const { jo, md, ctx, today } = input;
   const cal = ctx.cal;
   const draft = jo.status === 'DRAFT';
+  const clean = (input.variant ?? 'submit') === 'submit';
+  // Open points in plain business language (the clean plan shows these instead of technical risks).
+  const points: string[] = [];
   // Drafts: steps come from the product routes as they are now (a proposal).
   const order: JobOrder = draft ? { ...jo, lines: jo.lines.map((l) => (l.steps?.length ? l : { ...l, steps: buildLineSteps(l, md, input.processes) })) } : jo;
   const start = orderStart(order);
@@ -404,9 +409,13 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     if (!lp) {
       risks.push(`${line.productName}: no process route — steps and times cannot be planned`);
       provisional.push(`${line.productName}: no process route`);
+      points.push(`${line.productName}: production steps and schedule to be confirmed with production`);
       continue;
     }
-    if (product && product.route?.length && !product.routeConfirmed) risks.push(`${line.productName}: order of steps not yet confirmed with the company`);
+    if (product && product.route?.length && !product.routeConfirmed) {
+      risks.push(`${line.productName}: order of steps not yet confirmed with the company`);
+      points.push(`${line.productName}: sequence of process steps to be confirmed with production`);
+    }
     for (const st of sched) {
       const s = st.view.step;
       if (s.key === PLANNING_KEY) continue;
@@ -414,21 +423,41 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
         const why = s.note ?? (s.processId === null ? 'supplier lead time not known' : 'time benchmark not known');
         risks.push(`${line.productName} · ${s.label}: ${why}`);
         provisional.push(`Time not known for ${s.label} (${line.productName})`);
+        points.push(
+          s.processId === null
+            ? `${line.productName}: supplier ${s.label === 'Received' ? 'delivery' : 'order'} date to be confirmed`
+            : s.note?.startsWith('Conversion')
+              ? `${line.productName}: quantity for ${s.label} to be confirmed (size / weight details needed)`
+              : `${line.productName}: time for ${s.label} to be confirmed with production`,
+        );
       }
-      if (st.view.state !== 'DONE' && st.view.overrunDays !== null && st.view.overrunDays > 0) risks.push(`${line.productName} · ${s.label}: running ${formatQty(st.view.overrunDays)} working days over plan`);
+      if (st.view.state !== 'DONE' && st.view.overrunDays !== null && st.view.overrunDays > 0) {
+        risks.push(`${line.productName} · ${s.label}: running ${formatQty(st.view.overrunDays)} working days over plan`);
+        points.push(`${line.productName}: ${s.label} is running behind schedule`);
+      }
     }
   }
   const mat = planMaterials(order, md);
   for (const e of mat.errors) {
     risks.push(e);
     provisional.push(e);
+    const m = /^BOM missing for (.+?) —/.exec(e);
+    points.push(m ? `${m[1]}: material list (BOM) to be confirmed` : `Material requirement to be confirmed: ${e}`);
   }
   if (mat.provisional && !mat.errors.length) provisional.push('Some material figures use estimated or unconfirmed BOM data');
-  if (spare !== null && spare < 0) risks.push(`Expected finish is ${-spare} working day${spare === -1 ? '' : 's'} after the internal deadline`);
-  if (draft && order.deliveryDateType === 'UNCONFIRMED') risks.push('Delivery date type is not confirmed yet');
+  if (spare !== null && spare < 0) {
+    const t = `Expected finish is ${-spare} working day${spare === -1 ? '' : 's'} after the internal deadline`;
+    risks.push(t);
+    points.unshift(`${t} - action needed`);
+  }
+  if (draft && order.deliveryDateType === 'UNCONFIRMED') {
+    risks.push('Delivery date type is not confirmed yet');
+    points.push('Delivery date basis (ex-factory / port / arrival) to be confirmed with the customer');
+  }
   const planningNow = lines.find((x) => x.lp?.current?.step.key === PLANNING_KEY)?.lp?.current;
   if (planningNow && planningNow.overrunDays !== null && planningNow.overrunDays > 0) {
     risks.unshift(`Planning is ${formatQty(planningNow.overrunDays)} working day${planningNow.overrunDays === 1 ? '' : 's'} over its benchmark - confirm the plan to start production`);
+    points.unshift('Plan confirmation pending - production can start once this plan is approved');
   }
 
   const planningDaysUsed = draft ? workingDaysBetween(order.receivedDate, today, cal) ?? 0 : workingDaysBetween(order.receivedDate, order.confirmedOn ?? order.receivedDate, cal) ?? 0;
@@ -441,22 +470,26 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     ['Customer', order.customerName || '—'],
     ...(order.poNumber ? ([['Customer PO', order.poNumber]] as [string, string][]) : []),
     ['JO received', formatDay(order.receivedDate)],
-    [
+    clean
+      ? ['Planning', draft ? `Started ${formatDay(order.receivedDate)} - this plan` : `${formatDay(order.receivedDate)} to ${formatDay(order.confirmedOn)}`]
+      : [
       'Planning',
       draft
         ? `In planning for ${formatQty(planningDaysUsed)} working day${planningDaysUsed === 1 ? '' : 's'}${bench !== null ? ` (benchmark ${formatQty(bench)})` : ''}`
         : `Confirmed ${formatDay(order.confirmedOn)} · ${formatQty(planningDaysUsed)} working day${planningDaysUsed === 1 ? '' : 's'}${bench !== null ? ` (benchmark ${formatQty(bench)})` : ''}`,
-    ],
+      ],
     ['Customer delivery', `${formatDay(order.deliveryDate)} · ${DELIVERY_DATE_TYPES.find((x) => x.id === order.deliveryDateType)?.label ?? ''}`],
-    ['Internal deadline', `${formatDay(deadline)} · ${bufferText(order.deadline)} (10%, rounded up)`],
-    ['Working days available', `${available} (received to internal deadline)`],
+    ['Internal deadline', clean ? formatDay(deadline) : `${formatDay(deadline)} · ${bufferText(order.deadline)} (10%, rounded up)`],
+    ...(clean ? [] : ([['Working days available', `${available} (received to internal deadline)`]] as [string, string][])),
     [
       'Expected finish',
       expected
         ? `${formatDay(expected)} · ${spare! >= 0 ? `${spare} working day${spare === 1 ? '' : 's'} before the internal deadline` : `${-spare!} working day${spare === -1 ? '' : 's'} AFTER the internal deadline`}`
-        : 'Not known yet - some steps have no time',
+        : clean
+          ? 'To be confirmed (see open points)'
+          : 'Not known yet - some steps have no time',
     ],
-    ...(track && track.actual !== null ? ([['Progress', `${track.actual}% done · should be ${track.planned}% today`]] as [string, string][]) : []),
+    ...(track && track.actual !== null ? ([['Progress', clean ? `${track.actual}% complete (planned ${track.planned}% by today)` : `${track.actual}% done · should be ${track.planned}% today`]] as [string, string][]) : []),
   ];
 
   // Timeline (Gantt): one row per step, grouped by product.
@@ -476,11 +509,19 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     const supply = effectiveSupply(line, md.products.get(line.productId));
     return {
       title: `${line.productName} - ${qty(line.qty, line.unit)} · ${supply === 'MAKE' ? 'Make' : supply === 'BUY' ? 'Buy' : 'Make/Buy not decided'}`,
-      columns: [{ label: 'Step' }, { label: 'Quantity / basis' }, { label: 'Days', align: 'right' }, { label: 'Start' }, { label: 'Finish' }, { label: 'Status' }],
+      columns: clean
+        ? [{ label: 'Step' }, { label: 'Quantity', align: 'right' }, { label: 'Start' }, { label: 'Finish' }, { label: 'Status' }]
+        : [{ label: 'Step' }, { label: 'Quantity / basis' }, { label: 'Days', align: 'right' }, { label: 'Start' }, { label: 'Finish' }, { label: 'Status' }],
       rows: lp
         ? sched.map((st) => {
             const s = st.view.step;
             const name = s.key === PLANNING_KEY ? 'Planning (whole order)' : `${s.label}${s.forProduct !== line.productName ? ` (${s.forProduct})` : ''}`;
+            if (clean) {
+              const amount = s.qty !== null && s.qtyUnit ? qty(s.qty, s.qtyUnit) : s.key === PLANNING_KEY ? '—' : s.processId === null ? qty(line.qty, line.unit) : '—';
+              const late = st.view.overrunDays !== null && st.view.overrunDays > 0;
+              const status = st.view.state === 'DONE' ? 'Done' : st.view.state === 'NOW' ? (late ? 'In progress - delayed' : 'In progress') : st.finish ? 'Planned' : 'To be confirmed';
+              return [name, amount, st.start ? formatDay(st.start) : 'To be confirmed', st.finish ? formatDay(st.finish) : 'To be confirmed', status];
+            }
             const basis = [s.basis, s.note].filter(Boolean).join(' · ') || (s.processId === null && s.key !== PLANNING_KEY ? 'Purchase' : '—');
             const days =
               st.view.state === 'DONE'
@@ -497,7 +538,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   });
 
   const matRow = (r: PlanRow, suppliers: boolean) => [
-    `${r.name}${r.provisional ? ' *' : ''}`,
+    `${r.name}${r.provisional && !clean ? ' *' : ''}`,
     qty(r.gross, r.unit),
     r.fromStock > 0 ? qty(r.fromStock, r.unit) : '—',
     qty(r.net, r.unit),
@@ -517,19 +558,23 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       empty: 'Nothing to buy.',
     },
     {
-      title: 'Open points and risks',
+      title: clean ? 'Open points' : 'Open points and risks',
       columns: [{ label: 'Point' }],
-      rows: risks.map((r) => [r]),
+      rows: (clean ? [...new Set(points)] : risks).map((r) => [r]),
       empty: 'None found in the data available.',
     },
   );
 
   const uniq = [...new Set(provisional)];
   return {
-    title: draft ? 'Proposed Plan' : 'Production Plan',
+    title: clean ? (draft ? 'Proposed Plan' : 'Production Plan') : draft ? 'Working Plan (proposed)' : 'Working Plan',
     reference: order.joNumber,
     company: input.company,
-    banner: draft ? 'PROPOSED PLAN - for review; dates follow the benchmarks and the working-day calendar' : `PRODUCTION PLAN - status as of ${formatDay(today)}`,
+    banner: clean
+      ? draft
+        ? 'PROPOSED PLAN - for review and approval'
+        : `PRODUCTION PLAN - status as of ${formatDay(today)}`
+      : 'WORKING PLAN - internal details (benchmarks and calculations), not for submission',
     meta,
     timeline: {
       title: 'Timeline (working days; Sundays and company holidays are not worked)',
@@ -543,16 +588,18 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       rows: rowsTl,
     },
     tables,
-    notes: [
+    notes: clean
+      ? ['Dates are in working days; Sundays and company holidays are not worked.', `Prepared from the information available on ${formatDay(today)}.`]
+      : [
       'Day counts are working days. Each step starts on the day the previous one finishes; planned days = quantity / output per day + fixed days, rounded up to half a day.',
       'Each order is planned as if it had the departments to itself; other orders in the same department may delay it (capacity across orders is not planned yet).',
       'Times and quantities come from the benchmarks and BOMs entered in ExportFlow (user-provided unless marked verified). Items marked * use estimated or unconfirmed data.',
       `Prepared from the data available on ${formatDay(today)}.`,
     ],
-    provisional: uniq.length > 0,
-    provisionalReasons: uniq.slice(0, 8),
+    provisional: !clean && uniq.length > 0,
+    provisionalReasons: clean ? [] : uniq.slice(0, 8),
     signature: { preparedBy: input.preparedBy.name, designation: input.preparedBy.designation, date: formatDay(today) },
     generatedAt: input.generatedAt,
-    fileName: `${safeFileName(order.joNumber)}_${draft ? 'proposed-plan' : 'production-plan'}_${today}.pdf`,
+    fileName: `${safeFileName(order.joNumber)}_${clean ? (draft ? 'proposed-plan' : 'production-plan') : 'working-plan'}_${today}.pdf`,
   };
 }
