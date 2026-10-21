@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useApp } from '../../AppContext';
 import { emailToUsername } from '../../lib/username';
-import { DATA_STATUSES, tracked, type DataStatus } from '../../lib/dataStatus';
+import { DATA_STATUSES, tracked, type DataStatus, DATA_STATUS_LABEL } from '../../lib/dataStatus';
 import { useProfile, PROFILE_COLLECTION, PROFILE_DOC } from './useProfile';
 import { saveRecord } from '../sync/records';
 import { SyncPanel } from '../sync/SyncPanel';
@@ -82,13 +82,7 @@ function AppearanceCard() {
   );
 }
 
-const STATUS_LABEL: Record<DataStatus, string> = {
-  VERIFIED: 'Verified',
-  USER_PROVIDED: 'User-Provided',
-  ESTIMATED: 'Estimated',
-  PENDING_VERIFICATION: 'Pending Verification',
-  UNAVAILABLE: 'Unavailable',
-};
+const STATUS_LABEL = DATA_STATUS_LABEL;
 
 function ProfileForm() {
   const { t, workspaceId } = useApp();

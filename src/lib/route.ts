@@ -23,6 +23,8 @@ import { trackOf, type Track } from './progress';
 import { convert, formatQty, unitLabel } from './units';
 
 const FIRM = ['VERIFIED', 'USER_PROVIDED'];
+/** Estimates are used too (confirmed 21 Oct 2026), but every plan marks them. */
+const USABLE = [...FIRM, 'ESTIMATED'];
 
 export const PURCHASE_STEPS = ['Ordered', 'Received'] as const;
 
@@ -39,18 +41,23 @@ export const DEFAULT_PLANNING_DAYS = 1;
 
 const pos = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null);
 
-/** The benchmark of a route step when it is firm (verified or user-provided), else nulls. */
+/**
+ * The benchmark of a route step when it may be used (confirmed, known or the
+ * user's estimate), else nulls. Estimates carry `estimated: true`.
+ */
 export function firmTime(s: Pick<RouteStep, 'perDay' | 'perDayUnit' | 'fixedDays' | 'status' | 'alsoForStock'>): {
   perDay: number | null;
   perDayUnit: string | null;
   fixedDays: number | null;
   alsoForStock: boolean;
+  estimated?: boolean;
 } {
   const alsoForStock = s.alsoForStock === true;
-  if (!FIRM.includes(s.status)) return { perDay: null, perDayUnit: null, fixedDays: null, alsoForStock };
+  if (!USABLE.includes(s.status)) return { perDay: null, perDayUnit: null, fixedDays: null, alsoForStock };
   const perDay = pos(s.perDay);
   const fixedDays = pos(s.fixedDays);
-  return { perDay, perDayUnit: perDay !== null ? s.perDayUnit : null, fixedDays, alsoForStock };
+  const out = { perDay, perDayUnit: perDay !== null ? s.perDayUnit : null, fixedDays, alsoForStock };
+  return s.status === 'ESTIMATED' && (perDay !== null || fixedDays !== null) ? { ...out, estimated: true } : out;
 }
 
 /** Steps for one order line from the current masters (taken at confirmation). */
@@ -147,8 +154,13 @@ export function roundUpHalf(days: number): number {
   return Math.ceil(days * 2 - 1e-9) / 2;
 }
 
-/** Planned days for one step from its benchmark and the quantity it handles. */
+/** Planned days for one step from its benchmark and the quantity it handles. Estimated times say so in the basis. */
 export function planStep(step: JoStep, made: StepQty | undefined, product: Product | undefined): PlannedStep {
+  const p = planStepTime(step, made, product);
+  return p.estimated && p.plannedDays !== null && p.basis ? { ...p, basis: `${p.basis} · my estimate` } : p;
+}
+
+function planStepTime(step: JoStep, made: StepQty | undefined, product: Product | undefined): PlannedStep {
   // Steps like packing also handle the stock set aside for the order.
   const q = made && step.alsoForStock ? { qty: made.qty + made.fromStock, fromStock: 0, unit: made.unit } : made;
   const base: PlannedStep = { ...step, plannedDays: null, qty: null, qtyUnit: null, basis: null, note: null };

@@ -190,7 +190,7 @@ export function DeliverySection({ jos, ctx, today, company, generatedAt }: Commo
                       Internal deadline {formatDay(r.internalDeadline)} · {r.progress}
                     </span>
                     <span className="small block">
-                      Expected finish {r.outlook.fits === 'DRAFT' ? 'after plan approval' : r.outlook.expectedFinish ? formatDay(r.outlook.expectedFinish) : 'to be confirmed'} · In time:{' '}
+                      Expected finish {r.outlook.fits === 'DRAFT' ? 'after plan approval' : r.outlook.expectedFinish ? `${formatDay(r.outlook.expectedFinish)}${r.outlook.estimated ? ' (estimate)' : ''}` : 'to be confirmed'} · In time:{' '}
                       <span className={r.outlook.fits === 'NO' ? 'error' : r.outlook.fits === 'YES' ? 'ok' : 'muted'}>{FITS_LABEL[r.outlook.fits]}</span>
                     </span>
                   </li>

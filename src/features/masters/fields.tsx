@@ -1,14 +1,8 @@
 import { useId } from 'react';
-import { DATA_STATUSES, type DataStatus, type Tracked } from '../../lib/dataStatus';
+import { DATA_STATUS_HINT, DATA_STATUS_LABEL, DATA_STATUSES, type DataStatus, type Tracked } from '../../lib/dataStatus';
 import { STANDARD_UNITS, unitLabel, type CustomUnit } from '../../lib/units';
 
-export const STATUS_LABEL: Record<DataStatus, string> = {
-  VERIFIED: 'Verified',
-  USER_PROVIDED: 'User-Provided',
-  ESTIMATED: 'Estimated',
-  PENDING_VERIFICATION: 'Pending Verification',
-  UNAVAILABLE: 'Unavailable',
-};
+export const STATUS_LABEL = DATA_STATUS_LABEL;
 
 export function StatusSelect({ value, onChange, label = 'Data status' }: { value: DataStatus; onChange: (s: DataStatus) => void; label?: string }) {
   return (
@@ -21,6 +15,7 @@ export function StatusSelect({ value, onChange, label = 'Data status' }: { value
           </option>
         ))}
       </select>
+      <span className="muted small block">{DATA_STATUS_HINT[value]}</span>
     </label>
   );
 }

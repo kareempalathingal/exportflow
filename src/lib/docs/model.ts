@@ -419,6 +419,11 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     for (const st of sched) {
       const s = st.view.step;
       if (s.key === PLANNING_KEY) continue;
+      if (s.estimated && s.plannedDays !== null && st.view.state !== 'DONE') {
+        risks.push(`${line.productName} · ${s.label}: time is my estimate`);
+        provisional.push(`Estimated time for ${s.label} (${line.productName})`);
+        points.push(`${line.productName}: time for ${s.label} is approximate - to be confirmed with production`);
+      }
       if (s.plannedDays === null) {
         const why = s.note ?? (s.processId === null ? 'supplier lead time not known' : 'time benchmark not known');
         risks.push(`${line.productName} · ${s.label}: ${why}`);
@@ -593,7 +598,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       : [
       'Day counts are working days. Each step starts on the day the previous one finishes; planned days = quantity / output per day + fixed days, rounded up to half a day.',
       'Each order is planned as if it had the departments to itself; other orders in the same department may delay it (capacity across orders is not planned yet).',
-      'Times and quantities come from the benchmarks and BOMs entered in ExportFlow (user-provided unless marked verified). Items marked * use estimated or unconfirmed data.',
+      'Times and quantities come from the benchmarks and BOMs entered in ExportFlow. Times marked "my estimate" are approximate; items marked * use estimated or unconfirmed data.',
       `Prepared from the data available on ${formatDay(today)}.`,
     ],
     provisional: !clean && uniq.length > 0,

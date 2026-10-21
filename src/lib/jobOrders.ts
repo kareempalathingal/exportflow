@@ -151,12 +151,14 @@ export interface JoStep {
   label: string;
   forProduct: string; // product (or sub-product) name this step belongs to
   productId: string | null; // that product's id
-  /** Benchmark copied from the product route at confirmation (firm values only; null = not known). */
+  /** Benchmark copied from the product route at confirmation (confirmed, known or estimated; null = not known). */
   perDay: number | null;
   perDayUnit: string | null;
   fixedDays: number | null;
   /** Copied from the route: the step also handles stock set aside for the order. */
   alsoForStock?: boolean;
+  /** The time is the user's estimate (route status "My estimate"): used, but marked. */
+  estimated?: boolean;
   doneAt: string | null; // ISO time the step was marked done
 }
 

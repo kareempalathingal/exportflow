@@ -27,6 +27,8 @@ export interface OrderOutlook {
   track: Track;
   /** Latest planned finish of all products; null when any time is unknown or no steps exist. */
   expectedFinish: string | null;
+  /** Some remaining step uses an estimated time. */
+  estimated: boolean;
   /** Working days from expected finish to the internal deadline (negative = after it). */
   spareDays: number | null;
   fits: Fits;
@@ -38,8 +40,8 @@ export interface OrderOutlook {
 
 export function orderOutlook(jo: JobOrder, today: string, ctx: PlanContext): OrderOutlook {
   const track = orderTrack(jo, today, ctx);
-  if (jo.status === 'DRAFT') return { track, expectedFinish: null, spareDays: null, fits: 'DRAFT', now: [], overruns: [] };
-  if (jo.status === 'COMPLETED') return { track, expectedFinish: jo.completedOn ?? null, spareDays: null, fits: 'DONE', now: [], overruns: [] };
+  if (jo.status === 'DRAFT') return { track, expectedFinish: null, estimated: false, spareDays: null, fits: 'DRAFT', now: [], overruns: [] };
+  if (jo.status === 'COMPLETED') return { track, expectedFinish: jo.completedOn ?? null, estimated: false, spareDays: null, fits: 'DONE', now: [], overruns: [] };
   const lps = lineProgresses(jo, today, ctx);
   const finishes = lps.map(({ lp }) => lineSchedule(lp, today, ctx.cal).at(-1)?.finish ?? null);
   const expectedFinish = finishes.length && finishes.every((f) => f) ? (finishes as string[]).sort().at(-1)! : null;
@@ -48,7 +50,8 @@ export function orderOutlook(jo: JobOrder, today: string, ctx: PlanContext): Ord
   const overruns = lps
     .filter(({ lp }) => lp.current && lp.current.step.key !== PLANNING_KEY && (lp.current.overrunDays ?? 0) > 0)
     .map(({ line, lp }) => ({ product: lp.current!.step.forProduct || line.productName, step: lp.current!.step.label, days: lp.current!.overrunDays! }));
-  return { track, expectedFinish, spareDays, fits: spareDays === null ? 'UNKNOWN' : spareDays >= 0 ? 'YES' : 'NO', now, overruns };
+  const estimated = lps.some(({ lp }) => lp.steps.some((v) => v.state !== 'DONE' && v.step.estimated === true));
+  return { track, expectedFinish, estimated, spareDays, fits: spareDays === null ? 'UNKNOWN' : spareDays >= 0 ? 'YES' : 'NO', now, overruns };
 }
 
 export const FITS_LABEL: Record<Fits, string> = { YES: 'Yes', NO: 'No', UNKNOWN: 'Unknown', DRAFT: 'Draft', DONE: 'Done' };
@@ -139,7 +142,7 @@ export function atRiskOrders(args: { jobOrders: Jo[]; ctx: PlanContext; today: s
       if (late > 0) reasons.push({ level: 'LATE', text: `Internal deadline passed ${plural(late, 'day')} ago (${formatDay(jo.deadline.internalDeadline)})` });
       const o = orderOutlook(jo, today, ctx);
       if (late <= 0 && o.spareDays !== null && o.spareDays < 0)
-        reasons.push({ level: 'HIGH', text: `Expected finish ${formatDay(o.expectedFinish)} is ${plural(-o.spareDays, 'working day')} after the internal deadline` });
+        reasons.push({ level: 'HIGH', text: `Expected finish ${formatDay(o.expectedFinish)}${o.estimated ? ' (partly estimated)' : ''} is ${plural(-o.spareDays, 'working day')} after the internal deadline` });
       const t = o.track;
       if (t.kind === 'TRACKED' && t.gap !== null && t.gap < 0)
         reasons.push({ level: -t.gap >= redAt ? 'HIGH' : 'WATCH', text: `${-t.gap}% behind plan (done ${t.actual}%, plan ${t.planned}%)` });

@@ -39,7 +39,7 @@ function deliveryTable(title: string, rows: DeliveryRow[], empty: string): DocTa
       r.deliveryType,
       formatDay(r.internalDeadline),
       r.progress,
-      r.outlook.fits === 'DRAFT' ? 'After plan approval' : r.outlook.expectedFinish ? formatDay(r.outlook.expectedFinish) : 'To be confirmed',
+      r.outlook.fits === 'DRAFT' ? 'After plan approval' : r.outlook.expectedFinish ? `${formatDay(r.outlook.expectedFinish)}${r.outlook.estimated ? '\n(estimate)' : ''}` : 'To be confirmed',
       FITS_LABEL[r.outlook.fits],
     ]),
     empty,
@@ -63,7 +63,7 @@ export function deliveryDoc(s: { from: string; to: string; rows: DeliveryRow[] }
       deliveryTable('Deliveries in the period', coming, 'No deliveries in this period.'),
     ],
     notes: [
-      '"In time?" compares the expected finish with the internal deadline. Unknown = some step time is not confirmed yet.',
+      '"In time?" compares the expected finish with the internal deadline. Unknown = some step time is not known yet; (estimate) = some step times are approximate.',
       'Draft orders are not yet confirmed; their schedule starts after plan approval.',
       WORKING_DAYS_NOTE,
     ],

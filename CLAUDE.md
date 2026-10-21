@@ -195,7 +195,8 @@ report the discrepancy and ask; do not silently choose.
 -   Step time depends on quantity: planned days = quantity ÷ output per
     working day + fixed days (quantity-independent: drying, curing,
     batches), rounded UP to half a day. Hour-level planning later.
-    Benchmarks are copied to JO steps at confirmation (firm values only);
+    Benchmarks are copied to JO steps at confirmation (confirmed, known or
+    estimated values; estimates carry `estimated: true`, see below);
     planned days are worked out on display from the order as it is now
     (`planLines()` in `src/lib/route.ts`), so quantity, stock and holiday
     changes show at once.
@@ -284,6 +285,24 @@ report the discrepancy and ask; do not silently choose.
     several suppliers is listed under each ("also from", buy it once);
     unlinked items last; no prices or lead times.
 -   Not now: customer-wise, product-wise demand, pending company data.
+
+## Data status labels and estimates (confirmed 21 Oct 2026)
+
+-   The status says how sure a figure is and where it came from, not who
+    entered it (everything is entered by the user). Labels
+    (`DATA_STATUS_LABEL` in `src/lib/dataStatus.ts`, with a one-line hint
+    under every status select): VERIFIED = "Confirmed" (company document
+    or responsible person), USER_PROVIDED = "Known" (I know it / was told;
+    good enough to use), ESTIMATED = "My estimate", PENDING_VERIFICATION =
+    "To be confirmed", UNAVAILABLE = "Not available". Stored values are
+    unchanged; all five levels stay distinct.
+-   Estimated step times are now used in plans (previously "time
+    pending"), always marked: "estimate" tag on the JO step, "· my
+    estimate" in the basis, a PROVISIONAL reason in the working plan, an
+    open point "time for X is approximate - to be confirmed with
+    production" in the plan to submit, and "(estimate)" next to expected
+    finish in the delivery schedule and risks. Orders confirmed earlier keep
+    the step times copied then.
 
 ## Planning stage and plan document (confirmed 21 Oct 2026)
 

@@ -243,6 +243,7 @@ function StepRow({ v, productName, contacts }: { v: StepView; productName: strin
         <span className="step-name">
           {s.label}
           {v.state === 'NOW' && ' · now'}
+          {s.estimated && s.plannedDays !== null && v.state !== 'DONE' && <span className="pill warn"> estimate</span>}
           <span className="muted small">{sub}</span>
         </span>
         <span className="muted small block">

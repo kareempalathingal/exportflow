@@ -172,3 +172,32 @@ describe('clean plan to submit', () => {
     expect(m.tables[0]!.rows[0]).toEqual(['Planning (whole order)', '—', '10 Oct 2026', '14 Oct 2026', 'Done']);
   });
 });
+
+describe('estimated step times (confirmed 21 Oct 2026)', () => {
+  const processes = new Map(writes.filter((w) => w.collection === 'processes').map((w) => [w.docId, w.data as unknown as import('../../src/lib/masters').Process]));
+  // DEMO-104 (draft) builds its steps from the product route: mark Weaving's time as an estimate.
+  const estMd: MasterData = {
+    ...md,
+    products: new Map(
+      [...md.products].map(([id, p]) => [id, { ...p, route: (p.route ?? []).map((s) => (s.processId === 'sample_pr_weave' ? { ...s, status: 'ESTIMATED' as const } : s)) }]),
+    ),
+  };
+  it('are used in the plan and marked, in the working and the clean plan', async () => {
+    const { firmTime } = await import('../../src/lib/route');
+    expect(firmTime({ perDay: 100, perDayUnit: 'pcs', fixedDays: null, status: 'ESTIMATED' })).toMatchObject({ perDay: 100, estimated: true });
+    expect(firmTime({ perDay: 100, perDayUnit: 'pcs', fixedDays: null, status: 'USER_PROVIDED' }).estimated).toBeUndefined();
+    expect(firmTime({ perDay: 100, perDayUnit: 'pcs', fixedDays: null, status: 'PENDING_VERIFICATION' }).perDay).toBeNull();
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    const base = { jo: finalJo.get('sample_jo_104')!, md: estMd, processes, ctx: { md: estMd, cal: DEFAULT_CALENDAR }, today: TODAY, company: 'Co', generatedAt: 'now', preparedBy: { name: '', designation: '' } };
+    const working = productionPlanDoc({ ...base, variant: 'working' });
+    const weave = working.tables[0]!.rows.find((r) => r[0]!.startsWith('Weaving'))!;
+    expect(weave.join(' ')).toMatch(/my estimate/);
+    expect(working.provisionalReasons.join(' ')).toMatch(/Estimated time for Weaving/);
+    const clean = productionPlanDoc({ ...base, variant: 'submit' });
+    expect(clean.tables.at(-1)!.rows.flat().join(' ')).toMatch(/time for Weaving \(sample\) is approximate/);
+  });
+  it('labels describe how sure a figure is, not who entered it', async () => {
+    const { DATA_STATUS_LABEL } = await import('../../src/lib/dataStatus');
+    expect(Object.values(DATA_STATUS_LABEL)).toEqual(['Confirmed', 'Known', 'My estimate', 'To be confirmed', 'Not available']);
+  });
+});
