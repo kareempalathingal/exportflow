@@ -323,6 +323,10 @@ report the discrepancy and ask; do not silently choose.
     added collection to detect unpublished rules) and "Check data"
     (`src/lib/integrity.ts`: missing links, BOM loops, broken orders —
     report only, never auto-fix).
+-   Reports uses the same layout (confirmed 21 Oct 2026): Today ("2
+    overdue · 1 today", red flag when overdue), Plan of a Job Order, To buy
+    — all orders ("N items") as collapsed rows; Job Order performance and
+    History as link rows of the same size.
 -   Settings layout (confirmed 21 Oct 2026): Mode stays open; every other
     section is one collapsed row (`SettingSection`, native details) with
     a short status (e.g. "All saved", "Last: 3 days ago", "No errors")

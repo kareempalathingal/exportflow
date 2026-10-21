@@ -406,3 +406,10 @@ button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
 .pdf-pages { display: grid; gap: 10px; min-width: 100%; }
 .pdf-page { width: 100%; height: auto; background: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 0.15); }
 .pdf-msg { padding: 12px; }
+.setting-body .today-card h3 { display: none; }
+.setting-body .card { border: 0; padding: 12px 0 0; margin: 0; background: transparent; border-radius: 0; }
+.setting > summary, .setting-link { min-height: 56px; color: var(--ink); }
+.setting-title { color: var(--ink); }
+.setting:not([open]) > .setting-body { display: none; }
+.setting-link { min-height: 58px; box-sizing: border-box; }
+.setting > summary { margin: 0; }

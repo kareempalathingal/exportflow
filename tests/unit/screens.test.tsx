@@ -363,3 +363,14 @@ describe('PDF view button', () => {
     expect(html).toMatch(/>View<\/button><button[^>]*>Share PDF<\/button><button[^>]*>Download<\/button>/);
   });
 });
+
+describe('Reports layout', () => {
+  it('shows each report as one closed row with a short status', () => {
+    const html = render('/reports', '/reports', <ReportsPage />);
+    expect(html).toMatch(/setting-title">Today<\/span><span class="setting-sum">[^<]+/);
+    expect(html).toMatch(/setting-title">Plan of a Job Order<\/span>/);
+    expect(html).toMatch(/setting-title">Job Order performance<\/span>/);
+    expect(html).toMatch(/setting-title">To buy — all orders<\/span><span class="setting-sum">\d+ items?/);
+    expect(html).not.toContain('<details class="card setting" open');
+  });
+});
