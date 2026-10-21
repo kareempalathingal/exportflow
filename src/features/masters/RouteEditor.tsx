@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { DATA_STATUSES, type DataStatus } from '../../lib/dataStatus';
@@ -54,7 +54,8 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
   const { workspaceId } = useApp();
   const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
   const [newName, setNewName] = useState('');
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const newNameRef = useRef<HTMLInputElement>(null);
   const active = useMemo(() => processes.items.filter((p) => p.active !== false).sort((a, b) => a.name.localeCompare(b.name)), [processes.items]);
   const nameOf = (id: string) => processes.items.find((p) => p.id === id)?.name ?? '(missing process)';
   const { rows, onChange } = props;
@@ -70,17 +71,22 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
 
   function createProcess() {
     const name = newName.trim().replace(/\s+/g, ' ');
-    if (!name || !workspaceId) return;
+    if (!name) {
+      setMsg({ text: 'Type the new process name in the box first.', ok: false });
+      newNameRef.current?.focus();
+      return;
+    }
+    if (!workspaceId) return;
     const existing = processes.items.find((p) => normalizeName(p.name) === normalizeName(name));
     if (existing) {
       add(existing.id);
-      setMsg(`“${existing.name}” already exists — added it.`);
+      setMsg({ text: `“${existing.name}” already exists — added it.`, ok: true });
     } else {
       const id = newId(workspaceId, COLLECTIONS.processes);
       const data: Process = { name, active: true, notes: '' };
       saveRecord({ workspaceId, collectionName: COLLECTIONS.processes, docId: id, entity: `Process: ${name}`, before: null, data: { ...data } });
       add(id);
-      setMsg(`Created “${name}” and added it.`);
+      setMsg({ text: `Created “${name}” and added it.`, ok: true });
     }
     setNewName('');
     setTimeout(() => setMsg(null), 3000);
@@ -152,14 +158,30 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
       </label>
       <div className="qty-unit">
         <label>
-          Or create a new process
-          <input value={newName} maxLength={80} placeholder="e.g. Bleaching" onChange={(e) => setNewName(e.target.value)} />
+          Or create a new process (type its name)
+          <input
+            ref={newNameRef}
+            value={newName}
+            maxLength={80}
+            placeholder="New process name, e.g. Bleaching"
+            enterKeyHint="done"
+            onChange={(e) => {
+              setNewName(e.target.value);
+              if (msg && !msg.ok) setMsg(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                createProcess();
+              }
+            }}
+          />
         </label>
-        <button type="button" className="secondary small create-btn" disabled={!newName.trim()} onClick={createProcess}>
+        <button type="button" className="secondary small create-btn" onClick={createProcess}>
           Create &amp; add
         </button>
       </div>
-      {msg && <p className="ok small">{msg}</p>}
+      {msg && <p className={`${msg.ok ? 'ok' : 'error'} small`}>{msg.text}</p>}
       <label className="check">
         <input type="checkbox" checked={props.confirmed} onChange={(e) => props.onConfirmedChange(e.target.checked)} /> Order of steps confirmed with the company
       </label>
