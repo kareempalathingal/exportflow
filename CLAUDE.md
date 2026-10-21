@@ -280,6 +280,11 @@ report the discrepancy and ask; do not silently choose.
     marks anything approved. Available on the JO page and in Reports
     (choose a JO). PROVISIONAL band when times, routes or BOM data are
     missing.
+-   Every PDF button row has View / Share PDF / Download (confirmed 21 Oct
+    2026). View shows the PDF inside the app page by page (pdf.js
+    `pdfjs-dist` 6.3.289, legacy build for older browsers, loaded on the
+    first View and cached by the service worker — not precached), with
+    zoom and Share / Download from the viewer.
 -   Two versions (confirmed 21 Oct 2026): "to submit" (default, clean:
     no benchmarks, rates, calculation details, PROVISIONAL band or
     technical notes; missing data appears as plain-language open points

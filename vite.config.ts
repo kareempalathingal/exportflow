@@ -36,6 +36,9 @@ export default defineConfig({
       workbox: {
         navigateFallback: `${BASE}index.html`,
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // The PDF viewer's worker (pdf.js) is fetched the first time a PDF is viewed, then kept for offline use.
+        globIgnores: ['**/pdf-*.js'],
+        runtimeCaching: [{ urlPattern: /(\.mjs|\/pdf-[^/]+\.js)$/, handler: 'CacheFirst', options: { cacheName: 'exportflow-pdf-viewer', expiration: { maxEntries: 6 } } }],
       },
     }),
   ],

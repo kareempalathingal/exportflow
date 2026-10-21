@@ -356,3 +356,10 @@ describe('Departments and contacts', () => {
     expect(html).toContain('href="/masters/departments/d1"');
   });
 });
+
+describe('PDF view button', () => {
+  it('every document has View next to Share PDF and Download', () => {
+    const html = render('/reports', '/reports', <ReportsPage />);
+    expect(html).toMatch(/>View<\/button><button[^>]*>Share PDF<\/button><button[^>]*>Download<\/button>/);
+  });
+});
