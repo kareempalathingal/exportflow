@@ -146,3 +146,21 @@ describe('data checks', () => {
     expect(checkIntegrity({ md, jobOrders: [{ id: 'j1', ...jo('DRAFT') }], customers: [{ id: 'c1', name: 'Buyer', active: true, notes: '', country: '', customerType: 'DIRECT', contactPerson: '', phone: '', email: '' }], processes: [], suppliers: [] })).toEqual([]);
   });
 });
+
+describe('sharing a file after a slow preparation', () => {
+  it('reports "needs-tap" instead of failing when the phone refuses the late share', async () => {
+    const { saveFile } = await import('../../src/lib/docs/pdf');
+    const nav = globalThis.navigator as unknown as Record<string, unknown>;
+    const saved = { canShare: nav.canShare, share: nav.share };
+    Object.defineProperty(globalThis.navigator, 'canShare', { value: () => true, configurable: true });
+    Object.defineProperty(globalThis.navigator, 'share', { value: () => Promise.reject(new DOMException('Permission denied', 'NotAllowedError')), configurable: true });
+    try {
+      expect(await saveFile(new Blob(['{}']), 'b.json', 'application/json', 'Backup', 'share')).toBe('needs-tap');
+      Object.defineProperty(globalThis.navigator, 'share', { value: () => Promise.reject(new DOMException('x', 'AbortError')), configurable: true });
+      expect(await saveFile(new Blob(['{}']), 'b.json', 'application/json', 'Backup', 'share')).toBe('cancelled');
+    } finally {
+      Object.defineProperty(globalThis.navigator, 'canShare', { value: saved.canShare, configurable: true });
+      Object.defineProperty(globalThis.navigator, 'share', { value: saved.share, configurable: true });
+    }
+  });
+});

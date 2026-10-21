@@ -315,12 +315,19 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
  * Hand the PDF to the phone: the share sheet (WhatsApp, email, print apps)
  * where supported, otherwise a normal download.
  */
-export async function shareOrDownload(blob: Blob, fileName: string, title: string, mode: 'share' | 'download'): Promise<'shared' | 'downloaded' | 'cancelled'> {
+export async function shareOrDownload(blob: Blob, fileName: string, title: string, mode: 'share' | 'download'): Promise<SaveResult> {
   return saveFile(blob, fileName, 'application/pdf', title, mode);
 }
 
 /** Any file: the share sheet where supported, otherwise a normal download. */
-export async function saveFile(blob: Blob, fileName: string, mime: string, title: string, mode: 'share' | 'download'): Promise<'shared' | 'downloaded' | 'cancelled'> {
+/**
+ * 'needs-tap': the phone refused to open the share menu because preparing the
+ * file took too long after the tap (browsers allow ~5 s). The file is ready;
+ * the caller shows a "Share now" button that calls saveFile again.
+ */
+export type SaveResult = 'shared' | 'downloaded' | 'cancelled' | 'needs-tap';
+
+export async function saveFile(blob: Blob, fileName: string, mime: string, title: string, mode: 'share' | 'download'): Promise<SaveResult> {
   const file = new File([blob], fileName, { type: mime });
   if (mode === 'share' && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
     try {
@@ -328,6 +335,7 @@ export async function saveFile(blob: Blob, fileName: string, mime: string, title
       return 'shared';
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled';
+      if (e instanceof DOMException && e.name === 'NotAllowedError') return 'needs-tap';
       throw e;
     }
   }

@@ -4,11 +4,15 @@ import { db } from '../../firebase';
 import { useApp } from '../../AppContext';
 import { BACKUP_COLLECTIONS, BACKUP_REMIND_DAYS, backupFileName, buildBackup, daysSinceBackup, markBackedUp, readLastBackup } from '../../lib/backup';
 import { logError } from '../../lib/errorLog';
-import { saveFile } from '../../lib/docs/pdf';
+import { saveFile, type SaveResult } from '../../lib/docs/pdf';
 import { formatDateTime } from '../../lib/time';
 
 /** Reads every backed-up collection of a workspace and passes the JSON file to the share menu or a download. */
-export async function takeBackup(workspaceId: string, mode: 'ACTUAL' | 'DEMO', how: 'share' | 'download'): Promise<{ result: 'shared' | 'downloaded' | 'cancelled'; total: number; at: Date }> {
+export async function takeBackup(
+  workspaceId: string,
+  mode: 'ACTUAL' | 'DEMO',
+  how: 'share' | 'download',
+): Promise<{ result: SaveResult; total: number; at: Date; file: { blob: Blob; name: string } }> {
   const collections: Record<string, { id: string; data: unknown }[]> = {};
   for (const name of BACKUP_COLLECTIONS) {
     const snap = await getDocs(collection(db, `workspaces/${workspaceId}/${name}`));
@@ -17,9 +21,10 @@ export async function takeBackup(workspaceId: string, mode: 'ACTUAL' | 'DEMO', h
   const now = new Date();
   const file = buildBackup({ workspaceId, mode, appVersion: __APP_VERSION__, now, collections });
   const blob = new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' });
-  const r = await saveFile(blob, backupFileName(mode, now), 'application/json', 'ExportFlow backup', how);
-  if (r !== 'cancelled') markBackedUp(workspaceId, now);
-  return { result: r, total: Object.values(file.counts).reduce((a, b) => a + b, 0), at: now };
+  const name = backupFileName(mode, now);
+  const r = await saveFile(blob, name, 'application/json', 'ExportFlow backup', how);
+  if (r === 'shared' || r === 'downloaded') markBackedUp(workspaceId, now);
+  return { result: r, total: Object.values(file.counts).reduce((a, b) => a + b, 0), at: now, file: { blob, name } };
 }
 
 /** Settings card: save everything in the current mode (ACTUAL or DEMO) as one JSON file. */
@@ -28,6 +33,18 @@ export function BackupCard() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [last, setLast] = useState(() => (workspaceId ? readLastBackup(workspaceId) : null));
+  const [ready, setReady] = useState<{ blob: Blob; name: string; total: number; at: Date } | null>(null);
+
+  async function shareReady() {
+    if (!ready || !workspaceId) return;
+    const r = await saveFile(ready.blob, ready.name, 'application/json', 'ExportFlow backup', 'share');
+    if (r === 'shared' || r === 'downloaded') {
+      markBackedUp(workspaceId, ready.at);
+      setLast(ready.at.toISOString());
+      setMsg({ ok: true, text: `${r === 'shared' ? 'Passed to the share menu' : 'Saved'}: ${ready.total} records.` });
+      setReady(null);
+    }
+  }
   const days = daysSinceBackup(last, new Date());
 
   async function run(how: 'share' | 'download') {
@@ -35,8 +52,10 @@ export function BackupCard() {
     setBusy(true);
     setMsg(null);
     try {
+      setReady(null);
       const r = await takeBackup(workspaceId, mode, how);
-      if (r.result !== 'cancelled') {
+      if (r.result === 'needs-tap') setReady({ ...r.file, total: r.total, at: r.at });
+      else if (r.result !== 'cancelled') {
         setLast(r.at.toISOString());
         setMsg({ ok: true, text: `${r.result === 'shared' ? 'Passed to the share menu' : 'Saved'}: ${r.total} records.` });
       }
@@ -67,6 +86,16 @@ export function BackupCard() {
           Download
         </button>
       </div>
+      {ready && (
+        <div className="card subtle">
+          <p className="small">
+            Backup ready ({ready.total} records). The phone needs one more tap to open the share menu.
+          </p>
+          <button type="button" className="primary small" onClick={() => void shareReady()}>
+            Share now
+          </button>
+        </div>
+      )}
       {msg && <p className={`${msg.ok ? 'ok' : 'error'} small`}>{msg.text}</p>}
     </div>
   );

@@ -72,7 +72,7 @@ export function RestoreCard() {
     setBusy(true);
     try {
       const r = await takeBackup(workspaceId, mode, 'download');
-      if (r.result !== 'cancelled') setSafetyAt(r.at.toISOString());
+      if (r.result === 'shared' || r.result === 'downloaded') setSafetyAt(r.at.toISOString());
     } catch (err) {
       logError(err, 'Backup before restore');
       setMsg({ ok: false, text: `Backup failed: ${err instanceof Error ? err.message : String(err)}` });
