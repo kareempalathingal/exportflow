@@ -18,6 +18,7 @@ import { DepartmentForm } from './features/masters/DepartmentForm';
 import { ReadinessPage } from './features/readiness/ReadinessPage';
 import { OrdersPage } from './features/orders/OrdersPage';
 import { JobOrderPage } from './features/orders/JobOrderPage';
+import { ToolsPage } from './features/tools/ToolsPage';
 
 function Gate() {
   const { authReady, user, t, workspaceError, logout } = useApp();
@@ -61,6 +62,7 @@ function Gate() {
         <Route path="reports/performance" element={<PerformancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="readiness" element={<ReadinessPage />} />
+        <Route path="tools" element={<ToolsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

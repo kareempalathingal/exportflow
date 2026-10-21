@@ -313,6 +313,19 @@ report the discrepancy and ask; do not silently choose.
     finish in the delivery schedule and risks. Orders confirmed earlier keep
     the step times copied then.
 
+## Calculator and unit converter (confirmed 21 Oct 2026)
+
+-   Home header button "Calculator" opens `/tools` (`src/features/tools/
+    ToolsPage.tsx`, logic in `src/lib/calc.ts`), works offline. Calculator:
+    hand-written parser (no eval), + − × ÷, brackets, % like a phone
+    (200 + 10% = 220; 200 × 10% = 20); last 10 sums kept on the phone;
+    "Convert this number". Converter: "Units" (within one kind) and "By
+    product" (any product / raw material, every unit its size, GSM, weight
+    and own units allow, with "via" and an "estimate" tag; same engine as
+    orders; never guesses).
+-   Later, when needed: size → area per piece, GSM + size → weight per
+    piece, container fill (after packing data).
+
 ## Planning stage and plan document (confirmed 21 Oct 2026)
 
 -   The order clock starts on the JO received date. "Planning"

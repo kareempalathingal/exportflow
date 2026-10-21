@@ -424,3 +424,22 @@ button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
 .kv dd { margin: 0; }
 .report-list .reasons li { border-bottom: 0; padding: 0.1rem 0; }
 .report-list > li > .pill:first-child { margin-left: 0; }
+
+/* Calculator and unit converter (Home → Calculator) */
+.calc { display: flex; flex-direction: column; gap: 0.6rem; }
+.calc-display { background: var(--surface-2); border-radius: 12px; padding: 0.75rem 0.9rem; text-align: right; min-height: 5.2rem; overflow-wrap: anywhere; }
+.calc-expr { font-size: 1.15rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.calc-result { font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.calc-result.muted { font-size: 0.95rem; font-weight: 400; }
+.calc-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; }
+.calc-keys button { min-height: 56px; font-size: 1.35rem; border-radius: 12px; padding: 0; }
+.calc-keys .calc-num { background: var(--surface-2); color: var(--ink); }
+.calc-keys .calc-op { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); font-weight: 700; }
+.calc-keys .calc-clear { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); font-weight: 700; }
+.calc-keys .calc-eq { grid-column: 1 / -1; background: var(--brand); color: var(--brand-ink); font-weight: 700; }
+.calc-history { list-style: none; padding: 0; margin: 0; }
+.calc-history li { padding: 0.2rem 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.conv-table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
+.conv-table td { padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.conv-table td.num { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.conv-table .pill { margin-left: 6px; }

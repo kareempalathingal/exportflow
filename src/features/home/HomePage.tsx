@@ -159,9 +159,14 @@ export function HomePage() {
           <h2>Where orders stand</h2>
           {company && <span className="muted small">{company}</span>}
         </div>
-        <Link className="button primary small" to="/orders/new">
-          + New JO
-        </Link>
+        <div className="row gap">
+          <Link className="button secondary small" to="/tools" aria-label="Calculator and unit converter">
+            🧮 Calculator
+          </Link>
+          <Link className="button primary small" to="/orders/new">
+            + New JO
+          </Link>
+        </div>
       </div>
 
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
