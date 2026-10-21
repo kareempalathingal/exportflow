@@ -41,7 +41,9 @@ export function Layout() {
         </NavLink>
         <NavLink to="/orders">{t('navOrders')}</NavLink>
         <NavLink to="/masters">{t('navMasters')}</NavLink>
-        <NavLink to="/history">{t('navHistory')}</NavLink>
+        <NavLink to="/reports" className={({ isActive }) => (isActive || pathname.startsWith('/history') ? 'active' : '')}>
+          {t('navReports')}
+        </NavLink>
         <NavLink to="/settings">
           {t('navSettings')}
           {attention > 0 && <span className="nav-dot" aria-label="needs attention" />}

@@ -71,6 +71,57 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     y += 2;
   }
 
+  for (const ch of model.charts ?? []) {
+    const rowH = 4.2;
+    const gap = 2.5;
+    const groupH = ch.series.length * rowH + gap;
+    const needed = 12 + ch.rows.length * groupH;
+    if (y + needed > H - 16) {
+      doc.addPage();
+      drawHeader();
+      y = headerH + 4;
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
+    doc.text(s(ch.title), M, y + 3);
+    // legend
+    let lx = M;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    for (const se of ch.series) {
+      doc.setFillColor(...se.color);
+      doc.rect(lx, y + 5.5, 3, 3, 'F');
+      doc.setTextColor(...MUTED);
+      doc.text(s(se.label), lx + 4, y + 8.2);
+      lx += doc.getTextWidth(s(se.label)) + 10;
+    }
+    y += 12;
+    const labelW = 28;
+    const max = Math.max(1, ...ch.rows.flatMap((r) => r.values));
+    const barW = W - 2 * M - labelW - 14;
+    for (const r of ch.rows) {
+      if (y + groupH > H - 16) {
+        doc.addPage();
+        drawHeader();
+        y = headerH + 4;
+      }
+      doc.setFontSize(8.5);
+      doc.setTextColor(...INK);
+      doc.text(s(r.label), M, y + rowH * 0.8);
+      r.values.forEach((v, i) => {
+        const se = ch.series[i]!;
+        const by = y + i * rowH;
+        doc.setFillColor(...se.color);
+        doc.rect(M + labelW, by, Math.max(0.3, (v / max) * barW), rowH - 1, 'F');
+        doc.setTextColor(...MUTED);
+        doc.text(`${v}`, M + labelW + (v / max) * barW + 1.5, by + rowH * 0.7);
+      });
+      y += groupH;
+    }
+    y += 4;
+  }
+
   for (const t of model.tables) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);

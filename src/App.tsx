@@ -5,6 +5,8 @@ import { Layout } from './components/Layout';
 import { LoginPage } from './features/auth/LoginPage';
 import { HomePage } from './features/home/HomePage';
 import { HistoryPage } from './features/audit/HistoryPage';
+import { ReportsPage } from './features/reports/ReportsPage';
+import { PerformancePage } from './features/reports/PerformancePage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { MastersPage } from './features/masters/MastersPage';
 import { CustomerForm } from './features/masters/CustomerForm';
@@ -53,6 +55,8 @@ function Gate() {
         <Route path="masters/suppliers/:id" element={<SupplierForm />} />
         <Route path="masters/processes/:id" element={<ProcessForm />} />
         <Route path="history" element={<HistoryPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="reports/performance" element={<PerformancePage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="readiness" element={<ReadinessPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

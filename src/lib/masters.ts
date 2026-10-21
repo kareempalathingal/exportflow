@@ -67,6 +67,8 @@ export interface RouteStep {
   perDayUnit: string;
   /** Days that do not depend on quantity (drying, curing, a batch). */
   fixedDays: number | null;
+  /** Also count stock set aside for the order (e.g. packing, labelling); default: only what is made. */
+  alsoForStock?: boolean;
   status: DataStatus;
   source: string;
 }

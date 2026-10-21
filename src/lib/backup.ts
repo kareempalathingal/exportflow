@@ -90,3 +90,10 @@ export function daysSinceBackup(last: string | null, now: Date): number | null {
   const t = Date.parse(last);
   return Number.isFinite(t) ? Math.floor((now.getTime() - t) / 86_400_000) : null;
 }
+
+/** Backup reminder: ACTUAL only, once real data exists, after BACKUP_REMIND_DAYS (or never). */
+export function backupReminder(mode: 'ACTUAL' | 'DEMO', workspaceId: string | null, hasData: boolean, now: Date): { days: number | null } | null {
+  if (mode !== 'ACTUAL' || !workspaceId || !hasData) return null;
+  const days = daysSinceBackup(readLastBackup(workspaceId), now);
+  return days === null || days > BACKUP_REMIND_DAYS ? { days } : null;
+}

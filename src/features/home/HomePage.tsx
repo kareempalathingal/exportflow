@@ -15,7 +15,9 @@ import { lineProgresses, orderTrack, overrunningSteps } from '../../lib/route';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { WorkCalendarCard } from '../calendar/WorkCalendarCard';
 import { readRedAt } from '../../lib/theme';
-import { BACKUP_REMIND_DAYS, daysSinceBackup, readLastBackup } from '../../lib/backup';
+import { backupReminder } from '../../lib/backup';
+import { buildToday } from '../../lib/today';
+import { TodayCard } from '../reports/TodayCard';
 import { formatQty, unitLabel } from '../../lib/units';
 
 const KIND: Record<AttentionItem['kind'], { title: string; hint: string; cls: string; tab: string }> = {
@@ -139,11 +141,12 @@ export function HomePage() {
     [jos.items, cal],
   );
   // ACTUAL only, once real data exists: remind to back up every 7 days.
-  const backupDue = useMemo(() => {
-    if (mode !== 'ACTUAL' || !workspaceId || (products.items.length === 0 && jos.items.length === 0)) return null;
-    const days = daysSinceBackup(readLastBackup(workspaceId), new Date());
-    return days === null || days > BACKUP_REMIND_DAYS ? { days } : null;
-  }, [mode, workspaceId, products.items.length, jos.items.length]);
+  const backupDue = useMemo(
+    () => backupReminder(mode, workspaceId, products.items.length > 0 || jos.items.length > 0, new Date()),
+    [mode, workspaceId, products.items.length, jos.items.length],
+  );
+  // Backup stays in Needs attention; the shareable summary is about the orders.
+  const todaySummary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today }), [jos.items, ctx, today]);
   const total = attention.length + joAttention.length + over.length + overruns.length + deadlineChanges.length + (backupDue ? 1 : 0);
 
   return (
@@ -160,6 +163,8 @@ export function HomePage() {
       </div>
 
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
+
+      {!loading && jos.items.some((j) => j.status === 'CONFIRMED') && <TodayCard summary={todaySummary} company={company ?? ''} compact />}
 
       <section aria-label="Order status counts" className="counts">
         {GROUPS.map((g) => (

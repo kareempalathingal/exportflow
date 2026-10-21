@@ -72,10 +72,10 @@ export function buildSampleData(today: string): SampleWrite[] {
     sample_p_mat: product('Coir mat 40×60', 'MANUFACTURED', 'pcs', {
       size: { length: 40, width: 60, unit: 'cm', status: 'USER_PROVIDED' },
       gsm: up(1500),
-      route: [st('sample_pr_weave', 200, 'pcs'), st('sample_pr_bleach', 600, 'pcs', 1), st('sample_pr_dye', 500, 'pcs'), st('sample_pr_latex', null, 'pcs', 2), st('sample_pr_pack', 800, 'pcs')],
+      route: [st('sample_pr_weave', 200, 'pcs'), st('sample_pr_bleach', 600, 'pcs', 1), st('sample_pr_dye', 500, 'pcs'), st('sample_pr_latex', null, 'pcs', 2), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }],
     }),
-    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', null, 'pcs'), st('sample_pr_pack', 800, 'pcs')] }),
-    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 150, 'pcs'), st('sample_pr_pack', 800, 'pcs')] }),
+    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', null, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
+    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 150, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
   };
   const boms: Record<string, Bom> = {
     sample_p_yarn: { productId: 'sample_p_yarn', notes: SRC, lines: [line('RAW_MATERIAL', 'sample_rm_fibre', 1.1, 'kg')] },

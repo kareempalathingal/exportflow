@@ -155,6 +155,8 @@ export interface JoStep {
   perDay: number | null;
   perDayUnit: string | null;
   fixedDays: number | null;
+  /** Copied from the route: the step also handles stock set aside for the order. */
+  alsoForStock?: boolean;
   doneAt: string | null; // ISO time the step was marked done
 }
 

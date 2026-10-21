@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { formatDateTime } from '../../lib/time';
 import { useAuditEvents } from './useAuditEvents';
@@ -23,6 +24,11 @@ export function HistoryPage() {
 
   return (
     <section>
+      <p>
+        <Link to="/reports" className="small">
+          ← Reports
+        </Link>
+      </p>
       <h2>{t('historyTitle')}</h2>
       {loading && <p className="muted">{t('loading')}</p>}
       {error && <p className="error">{error === 'permission-denied' ? t('permissionDenied') : error}</p>}

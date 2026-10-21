@@ -82,6 +82,9 @@ const { JobOrderPage } = await import('../../src/features/orders/JobOrderPage');
 const { ProcessForm } = await import('../../src/features/masters/ProcessForm');
 const { RestoreCard } = await import('../../src/features/settings/RestoreCard');
 const { HealthCard } = await import('../../src/features/settings/HealthCard');
+const { ReportsPage } = await import('../../src/features/reports/ReportsPage');
+const { PerformancePage } = await import('../../src/features/reports/PerformancePage');
+const { Layout } = await import('../../src/components/Layout');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -261,5 +264,34 @@ describe('Crash screen', () => {
     expect(html).toContain('Copy error details');
     b.state = { error: null, copied: false };
     expect(renderToString(b.render() as React.ReactElement)).toBe('<p>ok</p>');
+  });
+});
+
+describe('Reports', () => {
+  it('the bottom menu has Reports instead of History', () => {
+    const html = render('/', '/', <Layout />);
+    expect(html).toContain('href="/reports"');
+    expect(html).not.toContain('href="/history"');
+  });
+  it('reports page has the daily summary, performance report, To buy PDF and History', () => {
+    const html = render('/reports', '/reports', <ReportsPage />);
+    expect(html).toContain('Today');
+    expect(html).toContain('Share summary');
+    expect(html).toContain('Daily summary (PDF)');
+    expect(html).toContain('Job Order performance');
+    expect(html).toContain('To buy — all confirmed orders (PDF)');
+    expect(html).toContain('href="/history"');
+  });
+  it('performance report has period choices, summary and processes', () => {
+    const html = render('/reports/performance', '/reports/performance', <PerformancePage />);
+    expect(html).toContain('Last 90 days');
+    expect(html).toContain('On time · internal');
+    expect(html).toContain('Still open');
+    expect(html).toContain('JO-88');
+  });
+  it('home shows the Today card for confirmed orders', () => {
+    const html = render('/', '/', <HomePage />);
+    expect(html).toContain('aria-label="Today"');
+    expect(html).toContain('Share summary');
   });
 });

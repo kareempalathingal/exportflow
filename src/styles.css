@@ -350,3 +350,21 @@ button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
 .health-list .dot.ok { background: var(--ok); }
 .health-list .dot.warn { background: var(--warn); }
 .health-list .dot.bad { background: var(--danger); }
+
+/* Today card, Reports, performance chart */
+.today-card { margin-bottom: 1rem; }
+.today-group { margin-top: 0.5rem; }
+.today-list { list-style: none; padding: 0; margin: 0.3rem 0 0; }
+.today-list li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
+.today-list a { color: var(--ink); text-decoration: none; }
+.segmented.wrap { flex-wrap: wrap; }
+.perf-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.perf-bars { list-style: none; padding: 0; margin: 0.4rem 0 0; }
+.perf-bars li { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.5rem; align-items: center; padding: 0.3rem 0; }
+.perf-pair { display: grid; gap: 3px; }
+.perf-bar { display: flex; align-items: center; justify-content: flex-end; min-width: 1.6rem; height: 1.1rem; border-radius: 4px; padding: 0 4px; box-sizing: border-box; }
+.perf-bar.allowed, .perf-key.allowed { background: color-mix(in oklab, var(--muted) 30%, transparent); }
+.perf-bar.actual, .perf-key.actual { background: var(--brand); color: var(--brand-ink); }
+.perf-bar.actual.late { background: var(--danger); color: #fff; }
+.perf-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+.suggestion { color: var(--brand); margin-top: 0.2rem; }

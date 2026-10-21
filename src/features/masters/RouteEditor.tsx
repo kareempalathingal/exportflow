@@ -12,6 +12,7 @@ export interface RouteDraft {
   perDayText: string;
   perDayUnit: string;
   fixedText: string;
+  alsoForStock: boolean;
   status: DataStatus;
 }
 
@@ -21,6 +22,7 @@ export function draftsFromRoute(route: RouteStep[] | undefined, baseUnit: string
     perDayText: s.perDay === null || s.perDay === undefined ? '' : String(s.perDay),
     perDayUnit: s.perDayUnit || baseUnit,
     fixedText: s.fixedDays === null || s.fixedDays === undefined ? '' : String(s.fixedDays),
+    alsoForStock: s.alsoForStock === true,
     status: s.status ?? 'PENDING_VERIFICATION',
   }));
 }
@@ -42,7 +44,7 @@ export function routeFromDrafts(rows: RouteDraft[]): RouteStep[] | string {
       : r.status === 'UNAVAILABLE' || r.status === 'PENDING_VERIFICATION'
         ? 'USER_PROVIDED'
         : r.status;
-    out.push({ processId: r.processId, perDay, perDayUnit: r.perDayUnit, fixedDays: fixed, status, source: '' });
+    out.push({ processId: r.processId, perDay, perDayUnit: r.perDayUnit, fixedDays: fixed, ...(r.alsoForStock ? { alsoForStock: true } : {}), status, source: '' });
   }
   return out;
 }
@@ -64,7 +66,7 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
     [next[i], next[j]] = [next[j]!, next[i]!];
     onChange(next);
   };
-  const add = (processId: string) => onChange([...rows, { processId, perDayText: '', perDayUnit: props.baseUnit, fixedText: '', status: 'PENDING_VERIFICATION' }]);
+  const add = (processId: string) => onChange([...rows, { processId, perDayText: '', perDayUnit: props.baseUnit, fixedText: '', alsoForStock: false, status: 'PENDING_VERIFICATION' }]);
 
   function createProcess() {
     const name = newName.trim().replace(/\s+/g, ' ');
@@ -131,6 +133,9 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
                 </select>
               </label>
             </div>
+            <label className="check small">
+              <input type="checkbox" checked={r.alsoForStock} onChange={(e) => set(i, { alsoForStock: e.target.checked })} /> Also for items taken from stock (e.g. packing)
+            </label>
           </li>
         ))}
       </ol>

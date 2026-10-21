@@ -8,6 +8,8 @@ import { orderStepProgress, orderTrack } from '../route';
 import type { MasterData } from '../masters';
 import type { BuyTotal, MaterialPlan, PlanRow } from '../materials';
 import { formatQty, unitLabel } from '../units';
+import type { PerformanceReport } from '../performance';
+import { TODAY_HEADINGS, type TodaySummary, type TodayWhen } from '../today';
 
 export interface DocTable {
   title: string;
@@ -16,11 +18,20 @@ export interface DocTable {
   empty: string;
 }
 
+/** A simple grouped bar chart (e.g. allowed vs actual days per order). */
+export interface DocChart {
+  title: string;
+  unit: string;
+  series: { label: string; color: [number, number, number] }[];
+  rows: { label: string; values: number[] }[];
+}
+
 export interface DocModel {
   title: string; // e.g. "Job Order Summary"
   reference: string; // printed under the title, e.g. "JO-1042"
   company: string;
   meta: [string, string][];
+  charts?: DocChart[];
   tables: DocTable[];
   notes: string[]; // shown after the tables
   provisional: boolean; // prints a warning band on every page
@@ -211,4 +222,118 @@ export function pdfSafe(s: string): string {
     .replace(/\u2026/g, '...')
     .replace(/\u00A0/g, ' ')
     .replace(/[^\u0020-\u007E\u00A1-\u00FF]+/g, '?');
+}
+
+// ---------------------------------------------------------------------------
+// Reports (Reports tab)
+// ---------------------------------------------------------------------------
+
+const signedDays = (n: number) => (n > 0 ? `${formatQty(n)} late` : n < 0 ? `${formatQty(-n)} early` : 'on the day');
+const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '—');
+
+export function performanceDoc(r: PerformanceReport, opts: { company: string; generatedAt: string }): DocModel {
+  const s = r.summary;
+  const over = r.completed.flatMap((c) => c.steps.filter((x) => x.overrun !== null && x.overrun > 0).map((x) => ({ c, x })));
+  return {
+    title: 'Job Order Performance',
+    reference: `${formatDay(r.from)} - ${formatDay(r.to)}`,
+    company: opts.company,
+    meta: [
+      ['Completed', String(s.completed)],
+      ['On time (internal)', `${s.onTimeInternal} of ${s.completed} (${pct(s.onTimeInternal, s.completed)})`],
+      ['On time (delivery)', `${s.onTimeDelivery} of ${s.completed} (${pct(s.onTimeDelivery, s.completed)})`],
+      ['Average delay', s.avgLateDays === null ? 'No late orders' : `${formatQty(s.avgLateDays)} working days (late orders only)`],
+      ['Average buffer used', s.avgBufferUsed === null ? '—' : `${formatQty(s.avgBufferUsed)} working days`],
+      ['Cancelled', `${r.cancelled} (received in this period)`],
+      ['Still open', String(r.open.length)],
+    ],
+    charts: r.completed.length
+      ? [
+          {
+            title: 'Working days: allowed (to internal deadline) vs actual',
+            unit: 'days',
+            series: [
+              { label: 'Allowed', color: [180, 190, 205] },
+              { label: 'Actual', color: [31, 58, 95] },
+            ],
+            rows: r.completed.map((c) => ({ label: c.joNumber, values: [c.allowedDays, c.actualDays] })),
+          },
+        ]
+      : [],
+    tables: [
+      {
+        title: 'Completed orders',
+        columns: [{ label: 'JO' }, { label: 'Customer' }, { label: 'Completed' }, { label: 'vs internal' }, { label: 'vs delivery' }, { label: 'Buffer used', align: 'right' }, { label: 'Days plan / actual', align: 'right' }, { label: 'Changes', align: 'right' }],
+        rows: r.completed.map((c) => [
+          c.joNumber,
+          c.customerName,
+          formatDay(c.completedOn),
+          signedDays(c.vsInternal),
+          signedDays(c.vsDelivery),
+          `${formatQty(c.bufferUsed)} of ${c.bufferDays}`,
+          `${c.plannedDays === null ? '—' : formatQty(c.plannedDays)} / ${formatQty(c.actualDays)}`,
+          c.changes.count ? `${c.changes.count} (${Object.keys(c.changes.fields).join(', ')})` : '0',
+        ]),
+        empty: 'No orders completed in this period.',
+      },
+      {
+        title: 'Steps that took longer than planned',
+        columns: [{ label: 'JO' }, { label: 'Product' }, { label: 'Step' }, { label: 'Planned', align: 'right' }, { label: 'Actual', align: 'right' }, { label: 'Over', align: 'right' }],
+        rows: over
+          .sort((a, b) => b.x.overrun! - a.x.overrun!)
+          .map(({ c, x }) => [c.joNumber, x.product, x.label, formatQty(x.planned ?? 0), formatQty(x.actual), `+${formatQty(x.overrun!)}`]),
+        empty: 'No step ran over its plan.',
+      },
+      {
+        title: 'Processes (steps finished in this period)',
+        columns: [{ label: 'Process' }, { label: 'Steps', align: 'right' }, { label: 'Planned', align: 'right' }, { label: 'Actual', align: 'right' }, { label: 'Actual vs plan', align: 'right' }, { label: 'Suggestion' }],
+        rows: r.processes.map((p) => [
+          p.label,
+          String(p.steps),
+          formatQty(p.plannedTotal),
+          formatQty(p.actualTotal),
+          p.ratio === null ? '—' : `${Math.round(p.ratio * 100)}%`,
+          p.suggestion ?? '',
+        ]),
+        empty: 'No process steps finished in this period.',
+      },
+      {
+        title: 'Open orders',
+        columns: [{ label: 'JO' }, { label: 'Customer' }, { label: 'Internal deadline' }, { label: 'Now' }],
+        rows: r.open.map((o) => [o.joNumber, o.customerName, formatDay(o.internalDeadline), o.late ? 'Past internal deadline' : o.gap === null ? 'Not tracked' : o.gap < 0 ? `${-o.gap}% behind plan` : 'On plan']),
+        empty: 'No open orders.',
+      },
+    ],
+    notes: [
+      'All day counts are working days (Sundays and company holidays left out).',
+      'Buffer used = working days after the internal deadline, up to the buffer. Changes = plan changes after confirmation (products, quantities, dates, BOMs, stock).',
+      `Suggestions appear when at least 5 steps differ from the plan by 15% or more. They are not applied automatically; change the product route if you agree.`,
+      ...(r.completed.some((c) => c.ruleNote) ? ['Some orders use the older calendar-day deadline rule.'] : []),
+    ],
+    provisional: false,
+    provisionalReasons: [],
+    generatedAt: opts.generatedAt,
+    fileName: `jo-performance_${r.from}_${r.to}.pdf`,
+  };
+}
+
+export function todayDoc(t: TodaySummary, opts: { company: string; generatedAt: string }): DocModel {
+  const table = (w: TodayWhen): DocTable => ({
+    title: TODAY_HEADINGS[w],
+    columns: [{ label: 'What' }],
+    rows: t.items.filter((i) => i.when === w).map((i) => [i.text]),
+    empty: 'Nothing.',
+  });
+  return {
+    title: 'Daily Summary',
+    reference: formatDay(t.today),
+    company: opts.company,
+    meta: [['Covers', `Today and the next 2 working days (to ${formatDay(t.soonUntil)})`]],
+    tables: [table('OVERDUE'), table('TODAY'), table('SOON')],
+    notes: ['Working days exclude Sundays and company holidays.'],
+    provisional: false,
+    provisionalReasons: [],
+    generatedAt: opts.generatedAt,
+    fileName: `daily-summary_${t.today}.pdf`,
+  };
 }

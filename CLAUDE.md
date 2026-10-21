@@ -205,6 +205,36 @@ report the discrepancy and ask; do not silently choose.
     expected finish) counts working days. "Days left" pills stay
     calendar days.
 
+## Reports tab and daily summary (confirmed 21 Oct 2026)
+
+-   Bottom menu: Reports replaces History (History opens from Reports).
+    Reports holds the daily summary (text share + PDF), the JO
+    performance report, the all-orders To buy PDF and History; later the
+    department to-do lists and review summaries. The To buy working list
+    stays in Orders.
+-   Home "Today" card (`src/lib/today.ts`): overdue / running late,
+    today, and the next 2 working days — internal deadlines, deliveries,
+    step overruns, steps due to finish, upcoming company holidays.
+    "Share summary" passes plain text to the share sheet (or copies it);
+    the app never sends anything. Backup reminders stay in Needs
+    attention.
+-   JO performance report (`src/lib/performance.ts`, Reports →
+    Job Order performance): presets This month / Last month / Last 90
+    days / Custom. Completed orders in the range: working days vs
+    internal deadline and delivery, buffer used, allowed / planned /
+    actual days, slowest step, furthest behind (from progressLog), plan
+    changes after confirmation (from history; step progress excluded).
+    Open orders listed separately; cancelled counted. Per process:
+    planned vs actual for steps finished in the range; a benchmark
+    suggestion only with >= 5 steps differing by >= 15% (median rate) —
+    never applied automatically. Screen chart: allowed vs actual days per
+    JO; the PDF engine draws simple grouped bar charts (`DocChart`).
+-   Route steps have "Also for items taken from stock" (`alsoForStock`,
+    default off): the step's time counts the stock set aside too (e.g.
+    packing).
+-   Desktop layout, Malayalam for the new screens and phone push
+    notifications (GitHub Actions + FCM) are postponed.
+
 ## Data safety and onboarding aids (confirmed 20 Oct 2026)
 
 -   Settings → Backup: one JSON file per mode (`src/lib/backup.ts`,

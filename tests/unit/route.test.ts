@@ -85,6 +85,15 @@ describe('planned days from quantity', () => {
     expect(part!.steps!.map((s) => s.plannedDays)).toEqual([1.5, 3, 2, 1]);
     expect(part!.steps![1]!.note).toBe('100 pcs from stock');
   });
+  it('steps marked "also for stock" (packing) count the stock set aside too', () => {
+    const packAll: MasterData = { ...md, products: new Map(md.products) };
+    packAll.products.set('mat', product('Mat', 'MANUFACTURED', 'pcs', [step('weave', 100, 'pcs'), { ...step('pack', 100, 'pcs'), alsoForStock: true }]));
+    const o = { ...order([line('a', 'mat', 400, 'MAKE')], { 'PRODUCT:mat': earmark(100) }) };
+    o.lines = o.lines.map((l) => ({ ...l, steps: buildLineSteps(l, packAll, processes) }));
+    const [l] = planLines(o, packAll);
+    expect(l!.steps!.map((s) => s.plannedDays)).toEqual([1.5, 3, 4]); // yarn 150 kg; weaving 300 made; packing all 400
+    expect(l!.steps![2]!.note).toBe('Includes 100 pcs from stock');
+  });
   it('a sub-product needed by two lines is split by each line’s share', () => {
     const [a, b] = planLines(order([line('a', 'mat', 300, 'MAKE'), line('b', 'mat', 100, 'MAKE')]), md);
     expect(a!.steps![0]!.plannedDays).toBe(1.5); // 150 kg
@@ -152,16 +161,16 @@ describe('route editor parsing', async () => {
   const { routeFromDrafts } = await import('../../src/features/masters/RouteEditor');
   it('both empty = time pending; values must be positive; a process is required', () => {
     const r = routeFromDrafts([
-      { processId: 'weave', perDayText: '400', perDayUnit: 'pcs', fixedText: '', status: 'PENDING_VERIFICATION' },
-      { processId: 'latex', perDayText: '', perDayUnit: 'pcs', fixedText: '2', status: 'ESTIMATED' },
-      { processId: 'pack', perDayText: '', perDayUnit: 'pcs', fixedText: '', status: 'USER_PROVIDED' },
+      { processId: 'weave', perDayText: '400', perDayUnit: 'pcs', fixedText: '', alsoForStock: false, status: 'PENDING_VERIFICATION' },
+      { processId: 'latex', perDayText: '', perDayUnit: 'pcs', fixedText: '2', alsoForStock: true, status: 'ESTIMATED' },
+      { processId: 'pack', perDayText: '', perDayUnit: 'pcs', fixedText: '', alsoForStock: false, status: 'USER_PROVIDED' },
     ]);
     expect(r).toEqual([
       { processId: 'weave', perDay: 400, perDayUnit: 'pcs', fixedDays: null, status: 'USER_PROVIDED', source: '' },
-      { processId: 'latex', perDay: null, perDayUnit: 'pcs', fixedDays: 2, status: 'ESTIMATED', source: '' },
+      { processId: 'latex', perDay: null, perDayUnit: 'pcs', fixedDays: 2, alsoForStock: true, status: 'ESTIMATED', source: '' },
       { processId: 'pack', perDay: null, perDayUnit: 'pcs', fixedDays: null, status: 'PENDING_VERIFICATION', source: '' },
     ]);
-    expect(routeFromDrafts([{ processId: 'weave', perDayText: '0', perDayUnit: 'pcs', fixedText: '', status: 'VERIFIED' }])).toMatch(/more than 0/);
-    expect(routeFromDrafts([{ processId: '', perDayText: '', perDayUnit: 'pcs', fixedText: '', status: 'VERIFIED' }])).toMatch(/choose a process/);
+    expect(routeFromDrafts([{ processId: 'weave', perDayText: '0', perDayUnit: 'pcs', fixedText: '', alsoForStock: false, status: 'VERIFIED' }])).toMatch(/more than 0/);
+    expect(routeFromDrafts([{ processId: '', perDayText: '', perDayUnit: 'pcs', fixedText: '', alsoForStock: false, status: 'VERIFIED' }])).toMatch(/choose a process/);
   });
 });

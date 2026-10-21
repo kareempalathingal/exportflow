@@ -34,11 +34,17 @@ export interface PlanContext {
 const pos = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null);
 
 /** The benchmark of a route step when it is firm (verified or user-provided), else nulls. */
-export function firmTime(s: Pick<RouteStep, 'perDay' | 'perDayUnit' | 'fixedDays' | 'status'>): { perDay: number | null; perDayUnit: string | null; fixedDays: number | null } {
-  if (!FIRM.includes(s.status)) return { perDay: null, perDayUnit: null, fixedDays: null };
+export function firmTime(s: Pick<RouteStep, 'perDay' | 'perDayUnit' | 'fixedDays' | 'status' | 'alsoForStock'>): {
+  perDay: number | null;
+  perDayUnit: string | null;
+  fixedDays: number | null;
+  alsoForStock: boolean;
+} {
+  const alsoForStock = s.alsoForStock === true;
+  if (!FIRM.includes(s.status)) return { perDay: null, perDayUnit: null, fixedDays: null, alsoForStock };
   const perDay = pos(s.perDay);
   const fixedDays = pos(s.fixedDays);
-  return { perDay, perDayUnit: perDay !== null ? s.perDayUnit : null, fixedDays };
+  return { perDay, perDayUnit: perDay !== null ? s.perDayUnit : null, fixedDays, alsoForStock };
 }
 
 /** Steps for one order line from the current masters (taken at confirmation). */
@@ -136,7 +142,9 @@ export function roundUpHalf(days: number): number {
 }
 
 /** Planned days for one step from its benchmark and the quantity it handles. */
-export function planStep(step: JoStep, q: StepQty | undefined, product: Product | undefined): PlannedStep {
+export function planStep(step: JoStep, made: StepQty | undefined, product: Product | undefined): PlannedStep {
+  // Steps like packing also handle the stock set aside for the order.
+  const q = made && step.alsoForStock ? { qty: made.qty + made.fromStock, fromStock: 0, unit: made.unit } : made;
   const base: PlannedStep = { ...step, plannedDays: null, qty: null, qtyUnit: null, basis: null, note: null };
   const perDay = pos(step.perDay);
   const fixed = pos(step.fixedDays);
@@ -149,7 +157,8 @@ export function planStep(step: JoStep, q: StepQty | undefined, product: Product 
   if (q.qty <= 1e-9) {
     return { ...base, plannedDays: 0, qty: 0, qtyUnit: q.unit, note: q.fromStock > 0 ? `All ${formatQty(q.fromStock)} ${unit} from stock (set aside) — nothing to make` : 'Nothing to make' };
   }
-  const stockNote = q.fromStock > 1e-9 ? `${formatQty(q.fromStock)} ${unit} from stock` : null;
+  const stockNote =
+    q.fromStock > 1e-9 ? `${formatQty(q.fromStock)} ${unit} from stock` : step.alsoForStock && made && made.fromStock > 1e-9 ? `Includes ${formatQty(made.fromStock)} ${unit} from stock` : null;
   if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), qty: q.qty, qtyUnit: q.unit, basis: `${formatQty(fixed!)} fixed days`, note: stockNote };
   const to = step.perDayUnit ?? q.unit;
   const c = product ? convert(q.qty, q.unit, to, productContext(product)) : null;
