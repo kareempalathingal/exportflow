@@ -225,7 +225,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     autoTable(doc, {
       startY: y + 5,
       head: [t.columns.map((c) => s(c.label))],
-      body: t.rows.length ? t.rows.map((r) => r.map(s)) : [[{ content: s(t.empty), colSpan: t.columns.length, styles: { textColor: MUTED, fontStyle: 'italic' } }]],
+      body: t.rows.length ? t.rows.map((r) => r.map((c) => c.split('\n').map(s).join('\n'))) : [[{ content: s(t.empty), colSpan: t.columns.length, styles: { textColor: MUTED, fontStyle: 'italic' } }]],
       theme: 'grid',
       headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 },
       styles: { fontSize: 9.5, cellPadding: 2, textColor: INK, lineColor: [220, 216, 207], lineWidth: 0.2, overflow: 'linebreak' },

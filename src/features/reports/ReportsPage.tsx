@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { productionPlanDoc, todayDoc, toBuyAllDoc } from '../../lib/docs/model';
+import { toBuyBySupplierDoc } from '../../lib/docs/managerDocs';
+import { toBuyBySupplier } from '../../lib/managerReports';
+import { readRedAt } from '../../lib/theme';
 import { COLLECTION_JOB_ORDERS, type JobOrder } from '../../lib/jobOrders';
 import { COLLECTIONS, suppliersOf, type Department, type Process, type Supplier } from '../../lib/masters';
-import { toBuyAcrossOrders } from '../../lib/materials';
+import { COLLECTION_STOCK_COUNTS, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
 import { formatDateTime, istDateKey } from '../../lib/time';
 import { buildToday } from '../../lib/today';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
@@ -15,6 +18,7 @@ import { permissionHint } from '../orders/OrderBits';
 import { useProfile } from '../settings/useProfile';
 import { TodayCard } from './TodayCard';
 import { SettingSection } from '../settings/SettingSection';
+import { DeliverySection, RiskSection, StockSection, SummarySection, WorkSection } from './ManagerReports';
 
 /** Reports, summaries and printable lists in one place (History lives here too). */
 export function ReportsPage() {
@@ -25,6 +29,9 @@ export function ReportsPage() {
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const master = useMasterData(workspaceId);
+  const stockCounts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
+  const [bySupplier, setBySupplier] = useState(false);
+  const redAt = readRedAt();
   const { cal } = useWorkCalendar();
   const today = istDateKey(new Date());
   const planningDays = profile?.planningDays;
@@ -65,6 +72,11 @@ export function ReportsPage() {
               <DocButtons label="Daily summary (PDF)" build={() => todayDoc(summary, { company, generatedAt: generatedAt() })} />
             </div>
           </SettingSection>
+
+          <RiskSection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} redAt={redAt} />
+          <DeliverySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} />
+          <SummarySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} redAt={redAt} />
+          <WorkSection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} departments={departments.items} />
 
           <SettingSection title="Plan of a Job Order" summary="To submit · PDF">
             <div className="card">
@@ -112,12 +124,24 @@ export function ReportsPage() {
             </span>
           </Link>
 
+          <StockSection jos={jos.items} md={master.md} counts={stockCounts.items} today={today} company={company} generatedAt={generatedAt} />
+
           <SettingSection title="To buy — all orders" summary={`${toBuy.rows.length} item${toBuy.rows.length === 1 ? '' : 's'}`}>
             <div className="card doc-card">
-              <DocButtons
-                label="To buy — all confirmed orders (PDF)"
-                build={() => toBuyAllDoc(toBuy.rows, toBuy.ordersWithErrors, { company, includeDrafts: false, today, generatedAt: generatedAt(), supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name) })}
-              />
+              <label className="check">
+                <input type="checkbox" checked={bySupplier} onChange={(e) => setBySupplier(e.target.checked)} /> Group by supplier
+              </label>
+              {bySupplier ? (
+                <DocButtons
+                  label="To buy — by supplier, confirmed orders (PDF)"
+                  build={() => toBuyBySupplierDoc(toBuyBySupplier(toBuy.rows, suppliers.items), toBuy.ordersWithErrors, { company, includeDrafts: false, today, generatedAt: generatedAt() })}
+                />
+              ) : (
+                <DocButtons
+                  label="To buy — all confirmed orders (PDF)"
+                  build={() => toBuyAllDoc(toBuy.rows, toBuy.ordersWithErrors, { company, includeDrafts: false, today, generatedAt: generatedAt(), supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name) })}
+                />
+              )}
               <p className="muted small">
                 The working list is in <Link to="/orders?tab=to-buy">Orders → To buy</Link>. Each order’s own PDFs are on its page.
               </p>
@@ -132,7 +156,6 @@ export function ReportsPage() {
             </span>
           </Link>
 
-          <p className="muted small">Department to-do lists and review summaries come here once departments are known.</p>
         </>
       )}
     </section>

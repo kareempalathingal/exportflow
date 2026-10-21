@@ -254,6 +254,37 @@ report the discrepancy and ask; do not silently choose.
 -   Desktop layout, Malayalam for the new screens and phone push
     notifications (GitHub Actions + FCM) are postponed.
 
+## Manager reports (confirmed 21 Oct 2026)
+
+-   Built only from data already in the app (`src/lib/managerReports.ts`,
+    PDFs in `src/lib/docs/managerDocs.ts`); unknown values stay unknown.
+    Each is a collapsed row in Reports with View / Share PDF / Download.
+-   Orders at risk (text share too): Late (delivery or internal deadline
+    passed), At risk (expected finish after the internal deadline, behind
+    plan by the red threshold or more, draft past the planning benchmark),
+    Watch (slightly behind, a step over plan, not tracked); every reason
+    listed, worst first.
+-   Delivery schedule: open orders (drafts marked) delivering in 30 / 60 /
+    90 days or a custom range, plus open orders whose delivery date has
+    passed; internal deadline, progress, expected finish (latest step
+    finish of all lines) and "In time?" (Yes / No / Unknown / Draft).
+-   Management summary (text share too): This / Last week (Monday-Sunday),
+    This / Last month or custom; received (and since cancelled), confirmed,
+    completed with on-time % (internal deadline and delivery), open orders
+    by track today, deliveries in the next 7 days, top 5 risks.
+-   Department work list (text share too): steps running now and starting
+    within N working days (default 5, adjustable 1-30, kept on the phone),
+    grouped by department; unlinked processes under "No department linked",
+    Ordered/Received under "Bought items"; one department can be chosen and
+    shared; contact buttons on running steps. Capacity not checked.
+-   Stock allocation: per item counted stock (date), set aside on confirmed
+    orders, free, drafts (info), orders; over-allocated first; a count older
+    than 30 days is "old"; no count = "manual only".
+-   To buy "Group by supplier" (Orders → To buy and Reports): an item with
+    several suppliers is listed under each ("also from", buy it once);
+    unlinked items last; no prices or lead times.
+-   Not now: customer-wise, product-wise demand, pending company data.
+
 ## Planning stage and plan document (confirmed 21 Oct 2026)
 
 -   The order clock starts on the JO received date. "Planning"

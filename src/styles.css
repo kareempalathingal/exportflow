@@ -413,3 +413,14 @@ button.icon { min-width: 36px; padding: 0.3rem 0.5rem; }
 .setting:not([open]) > .setting-body { display: none; }
 .setting-link { min-height: 58px; box-sizing: border-box; }
 .setting > summary { margin: 0; }
+
+/* Manager reports (Reports tab) */
+.report-list > li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.report-list > li:last-child { border-bottom: 0; }
+.report-list .pill { margin-left: 6px; }
+.report-list .reasons { margin: 4px 0 0; padding-left: 18px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; }
+.report-list .reasons li { border-bottom: 0; padding: 0.1rem 0; }
+.report-list > li > .pill:first-child { margin-left: 0; }
