@@ -29,6 +29,7 @@ import { ConversionCheck } from './ConversionCheck';
 import { BomEditor } from './BomEditor';
 import { ProductSummary } from './ProductSummary';
 import { ItemSuppliers } from './ItemSuppliers';
+import { BaseUnitCopy } from './BaseUnitCopy';
 import { draftsFromRoute, RouteEditor, routeFromDrafts, type RouteDraft } from './RouteEditor';
 
 export function ProductForm() {
@@ -138,7 +139,7 @@ export function ProductForm() {
     if (!name.trim()) return setError('Name is required'), false;
     if (parseError || !draftProduct) return setError(parseError ?? 'Check the values'), false;
     if (!isNew && item && item.baseUnit !== baseUnit) {
-      return setError('The base unit cannot be changed after creation (the BOM is written per base unit). Create a new product instead.'), false;
+      return setError('The base unit cannot be changed after creation (the BOM is written per base unit). Use “Wrong base unit? Copy in another unit” below.'), false;
     }
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTIONS.products) : id;
@@ -191,7 +192,7 @@ export function ProductForm() {
             <span className="muted small block">Pre-fills Make/Buy on new Job Order lines; you can still change it per order.</span>
           </label>
         )}
-        {!isNew && <p className="muted small">The base unit is fixed after creation so the BOM stays correct.</p>}
+        {!isNew && <p className="muted small">The base unit is fixed after creation so the BOM stays correct. To correct it, use “Wrong base unit?” below the form.</p>}
         <TextField label="Product code (optional)" value={code} onChange={setCode} max={40} />
         <TextField label="Specifications" multiline value={specifications} onChange={setSpecs} />
 
@@ -243,6 +244,7 @@ export function ProductForm() {
       {tab === 'details' && item && item.supplyType !== 'MANUFACTURED' && (
         <ItemSuppliers type="PRODUCT" id={id} name={item.name} here={`/masters/products/${id}?tab=details`} />
       )}
+      {tab === 'details' && item && item.active !== false && <BaseUnitCopy key={item.id} product={item} />}
       {tab === 'conversion' && (draftProduct ? <ConversionCheck ctx={productContext(draftProduct)} /> : <p className="error">{parseError}</p>)}
     </>
   );

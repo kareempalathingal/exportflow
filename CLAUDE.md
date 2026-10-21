@@ -71,6 +71,15 @@ report the discrepancy and ask; do not silently choose.
     missing conversion — return "Conversion needed".
 -   Base unit of products and raw materials is fixed after creation
     (enforced in UI and rules).
+-   "Wrong base unit? Copy in another unit" (product Details, confirmed 21
+    Oct 2026, `src/lib/baseUnitCopy.ts`): makes a NEW product in another
+    convertible standard unit (factor from size / GSM / weight); BOM
+    quantities and own units rescaled (firm figures become "My estimate"
+    when the conversion uses estimates); route, size and specs copied;
+    other BOMs that used the old product and its suppliers move to the copy;
+    the old product is set Inactive. Open orders, snapshots and stock counts
+    stay with the old product (count stock again). Preview before writing;
+    every write is a normal history entry. No in-place base-unit change.
 -   Supplier master (confirmed 19 Oct 2026, label "Suppliers"): name
     required; place, contact, phone, email, GSTIN, notes optional.
     Supplier ↔ item links (raw materials and products) are editable from
