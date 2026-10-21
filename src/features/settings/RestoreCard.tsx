@@ -106,7 +106,7 @@ export function RestoreCard() {
       </p>
       <label className="file-pick">
         <span className="button secondary small">{busy ? 'Reading…' : 'Choose backup file'}</span>
-        <input type="file" accept="application/json,.json" disabled={busy || !workspaceId} onChange={(e) => void choose(e)} hidden />
+        <input type="file" accept="application/json,.json,text/plain,.txt" disabled={busy || !workspaceId} onChange={(e) => void choose(e)} hidden />
       </label>
       {msg && <p className={`${msg.ok ? 'ok' : 'error'} small`}>{msg.text}</p>}
 

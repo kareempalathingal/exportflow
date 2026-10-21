@@ -20,9 +20,13 @@ export async function takeBackup(
   }
   const now = new Date();
   const file = buildBackup({ workspaceId, mode, appVersion: __APP_VERSION__, now, collections });
-  const blob = new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' });
-  const name = backupFileName(mode, now);
-  const r = await saveFile(blob, name, 'application/json', 'ExportFlow backup', how);
+  // Android Chrome only shares some file types (not .json), so a shared backup is a .txt file
+  // with the same JSON inside; a download stays .json. Restore accepts both.
+  const asText = how === 'share';
+  const mime = asText ? 'text/plain' : 'application/json';
+  const blob = new Blob([JSON.stringify(file, null, 1)], { type: mime });
+  const name = asText ? backupFileName(mode, now).replace(/\.json$/, '.txt') : backupFileName(mode, now);
+  const r = await saveFile(blob, name, mime, 'ExportFlow backup', how);
   if (r === 'shared' || r === 'downloaded') markBackedUp(workspaceId, now);
   return { result: r, total: Object.values(file.counts).reduce((a, b) => a + b, 0), at: now, file: { blob, name } };
 }
@@ -37,11 +41,16 @@ export function BackupCard() {
 
   async function shareReady() {
     if (!ready || !workspaceId) return;
-    const r = await saveFile(ready.blob, ready.name, 'application/json', 'ExportFlow backup', 'share');
+    let r = await saveFile(ready.blob, ready.name, ready.blob.type, 'ExportFlow backup', 'share');
+    // Still refused: save it to Downloads instead of doing nothing.
+    if (r === 'needs-tap') r = await saveFile(ready.blob, ready.name, ready.blob.type, 'ExportFlow backup', 'download');
     if (r === 'shared' || r === 'downloaded') {
       markBackedUp(workspaceId, ready.at);
       setLast(ready.at.toISOString());
-      setMsg({ ok: true, text: `${r === 'shared' ? 'Passed to the share menu' : 'Saved'}: ${ready.total} records.` });
+      setMsg({
+        ok: true,
+        text: r === 'shared' ? `Passed to the share menu: ${ready.total} records.` : `This phone would not share the file, so it was saved to Downloads (${ready.name}). Upload it to Google Drive from there.`,
+      });
       setReady(null);
     }
   }

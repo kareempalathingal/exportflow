@@ -14,8 +14,9 @@ export function DocButtons({ label, build }: { label: string; build: () => DocMo
 
   async function shareReady() {
     if (!ready) return;
-    const r = await shareOrDownload(ready.blob, ready.name, ready.title, 'share');
-    if (r !== 'needs-tap') setReady(null);
+    let r = await shareOrDownload(ready.blob, ready.name, ready.title, 'share');
+    if (r === 'needs-tap') r = await shareOrDownload(ready.blob, ready.name, ready.title, 'download'); // still refused: download instead
+    setReady(null);
     if (r === 'shared') setMsg({ kind: 'ok', text: 'Passed to the share menu.' });
     if (r === 'downloaded') setMsg({ kind: 'ok', text: `Saved as ${ready.name}.` });
   }
