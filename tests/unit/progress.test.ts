@@ -5,11 +5,11 @@ import type { Deadline, JoStatus } from '../../src/lib/jobOrders';
 
 const deadline: Deadline = { orderPeriodDays: 59, bufferDays: 6, internalDeadline: '2026-12-24', ruleVersion: 'v' };
 const jo = (status: JoStatus, pct?: number, on = '2026-11-20') => ({
-  status, confirmedOn: '2026-11-04', receivedDate: '2026-11-01', deadline, progress: pct === undefined ? null : { pct, on },
+  status, confirmedOn: '2026-11-04', receivedDate: '2026-11-04', deadline, progress: pct === undefined ? null : { pct, on },
 });
 
 describe('planned vs actual', () => {
-  it('plans linearly from confirmation to the internal deadline', () => {
+  it('plans linearly from the received date to the internal deadline', () => {
     expect(plannedPct(jo('CONFIRMED'), '2026-11-04', NO_DAYS_OFF)).toBe(0);
     expect(plannedPct(jo('CONFIRMED'), '2026-11-29', NO_DAYS_OFF)).toBe(50);
     expect(plannedPct(jo('CONFIRMED'), '2026-12-30', NO_DAYS_OFF)).toBe(100);

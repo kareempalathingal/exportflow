@@ -31,6 +31,7 @@ function ReadinessLinkCard() {
   );
 }
 import { DEFAULT_RED_AT, readRedAt, readTheme, saveRedAt, saveTheme, type ThemePref } from '../../lib/theme';
+import { DEFAULT_PLANNING_DAYS } from '../../lib/route';
 
 function AppearanceCard() {
   const [theme, setTheme] = useState<ThemePref>(readTheme);
@@ -93,6 +94,9 @@ function ProfileForm() {
   const [reason, setReason] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [person, setPerson] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [planningText, setPlanningText] = useState(String(DEFAULT_PLANNING_DAYS));
 
   // Load saved values only when a new revision arrives (or the workspace
   // changes), not on every sync-metadata update, so typing is never lost.
@@ -105,6 +109,9 @@ function ProfileForm() {
     setName(profile.companyName?.value ?? '');
     setStatus(profile.companyName?.status ?? 'USER_PROVIDED');
     setSource(profile.companyName?.source ?? '');
+    setPerson(profile.preparedByName ?? '');
+    setDesignation(profile.preparedByDesignation ?? '');
+    setPlanningText(profile.planningDays === null ? '' : String(profile.planningDays ?? DEFAULT_PLANNING_DAYS));
   }, [profile, workspaceId]);
 
   function submit(e: FormEvent) {
@@ -118,6 +125,11 @@ function ProfileForm() {
       setFormError(err instanceof Error ? err.message : String(err));
       return;
     }
+    const planning = planningText.trim() === '' ? null : Number(planningText.replace(',', '.'));
+    if (planning !== null && (!Number.isFinite(planning) || planning <= 0 || planning > 30)) {
+      setFormError('Planning time must be between 0.5 and 30 working days, or empty');
+      return;
+    }
     setFormError(null);
     saveRecord({
       workspaceId,
@@ -125,7 +137,7 @@ function ProfileForm() {
       docId: PROFILE_DOC,
       entity: 'Profile',
       before: profile,
-      data: { companyName },
+      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning },
       reason,
     });
     setReason('');
@@ -158,6 +170,21 @@ function ProfileForm() {
           <input value={source} onChange={(e) => setSource(e.target.value)} maxLength={120} />
         </label>
       </div>
+      <div className="grid2">
+        <label>
+          Your name (on plan documents)
+          <input value={person} onChange={(e) => setPerson(e.target.value)} maxLength={80} />
+        </label>
+        <label>
+          Designation
+          <input value={designation} onChange={(e) => setDesignation(e.target.value)} maxLength={80} placeholder="e.g. Production Manager" />
+        </label>
+      </div>
+      <label>
+        Planning time benchmark (working days from JO received to confirmed)
+        <input inputMode="decimal" value={planningText} onChange={(e) => setPlanningText(e.target.value)} placeholder="not set" />
+      </label>
+      <p className="muted small">Your own benchmark; drafts older than this show as late in planning. Empty = not set.</p>
       <label>
         {t('reasonOptional')}
         <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />

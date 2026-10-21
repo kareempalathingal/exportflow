@@ -29,7 +29,9 @@ describe('JO performance report', () => {
     expect(c.bufferUsed).toBe(1);
     expect(c.vsDelivery).toBeLessThan(0); // …but before the customer delivery date
     expect(r.summary).toMatchObject({ onTimeInternal: 0, onTimeDelivery: 1, avgLateDays: 1 });
-    expect(c.steps.length).toBe(6);
+    expect(c.steps.length).toBe(7); // planning + 6 process steps
+    expect(c.planningDays).toBe(2);
+    expect(c.steps[0]!.label).toBe('Planning');
     expect(c.actualDays).toBeGreaterThan(0);
     expect(r.open.map((o) => o.joNumber)).toEqual(expect.arrayContaining(['DEMO-101', 'DEMO-102', 'DEMO-103']));
     expect(r.open[0]!.joNumber).toBe('DEMO-101'); // late first
@@ -92,5 +94,44 @@ describe('daily summary', () => {
     expect(todayText(s, 'Co')).toContain('Next 2 working days:\n• 21 Oct 2026: Puja (no work)');
     expect(todayText(buildToday({ jobOrders: [], ctx, today: TODAY }), '')).toContain('Nothing due today');
     expect(todayDoc(s, { company: 'Co', generatedAt: 'now' }).tables[2]!.rows).toEqual([['21 Oct 2026: Puja (no work)']]);
+  });
+});
+
+describe('plan document', () => {
+  const processes = new Map(writes.filter((w) => w.collection === 'processes').map((w) => [w.docId, w.data as unknown as import('../../src/lib/masters').Process]));
+  const input = (jo: JobOrder & { id: string }) => ({
+    jo: { ...jo, rev: 4 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: '21 Oct 2026, 09:00 IST',
+    preparedBy: { name: 'Kareem', designation: 'Production Manager' },
+  });
+  it('a draft gives a PROPOSED plan built from the product routes, with open points', async () => {
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    const m = productionPlanDoc(input(finalJo.get('sample_jo_104')!));
+    expect(m.title).toBe('Proposed Plan');
+    expect(m.banner).toMatch(/^PROPOSED PLAN/);
+    expect(m.meta.find(([k]) => k === 'Plan version')![1]).toBe('Revision 4 · generated 21 Oct 2026, 09:00 IST');
+    expect(m.meta.find(([k]) => k === 'Planning')![1]).toMatch(/^In planning for 2 working days \(benchmark 1\)/);
+    expect(m.tables[0]!.rows.map((r) => r[0])).toEqual(['Planning (whole order)', 'Weaving (sample)', 'Packing (sample)']);
+    expect(m.tables.at(-1)!.rows.flat().join(' ')).toMatch(/BOM missing/);
+    expect(m.tables.at(-1)!.rows[0]![0]).toBe('Planning is 1 working day over its benchmark - confirm the plan to start production');
+    expect(m.provisional).toBe(true);
+    expect(m.signature).toEqual({ preparedBy: 'Kareem', designation: 'Production Manager', date: '20 Oct 2026' });
+    expect(m.timeline!.rows[0]).toMatchObject({ group: 'Rubber-backed mat 50×80 (sample)', label: 'Planning (order)', kind: 'now' });
+  });
+  it('a confirmed order gives the PRODUCTION plan with actual and planned dates', async () => {
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    const m = productionPlanDoc(input(finalJo.get('sample_jo_103')!));
+    expect(m.title).toBe('Production Plan');
+    const mat = m.tables[0]!;
+    expect(mat.rows[0]![0]).toBe('Planning (whole order)');
+    expect(mat.rows[0]![5]).toBe('Done');
+    expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('Confirmed 14 Oct 2026 · 3 working days (benchmark 1)');
+    expect(mat.rows.some((r) => r[5] === 'Planned' && r[3] !== '—' && r[4] !== '—')).toBe(true);
+    expect(m.meta.find(([k]) => k === 'Expected finish')![1]).not.toBe('');
+    expect(m.tables.map((t) => t.title)).toEqual(expect.arrayContaining(['Materials - to produce', 'Materials - to buy', 'Open points and risks']));
+  });
+  it('drafts past the planning benchmark show in the daily summary', () => {
+    const s = buildToday({ jobOrders: jos, ctx, today: TODAY });
+    expect(s.items.find((i) => i.text.startsWith('DEMO-104'))).toMatchObject({ when: 'OVERDUE', text: expect.stringMatching(/still in planning after 2 working days \(benchmark 1\)/) });
+    expect(buildToday({ jobOrders: jos, ctx: { ...ctx, planningDays: null }, today: TODAY }).items.some((i) => i.text.startsWith('DEMO-104'))).toBe(false);
   });
 });

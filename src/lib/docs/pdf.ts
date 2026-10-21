@@ -7,6 +7,7 @@ const MUTED: [number, number, number] = [91, 101, 115];
 const AMBER_BG: [number, number, number] = [253, 240, 217];
 const AMBER_INK: [number, number, number] = [122, 79, 0];
 const M = 14; // page margin, mm
+const dayNum = (d: string) => Math.round(Date.parse(`${d}T00:00:00Z`) / 86_400_000);
 
 export async function renderPdf(model: DocModel): Promise<Blob> {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
@@ -14,7 +15,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   const s = pdfSafe;
-  const headerH = model.provisional ? 34 : 26;
+  const headerH = 26 + (model.banner ? 8 : 0) + (model.provisional ? 8 : 0);
 
   const drawHeader = () => {
     doc.setFont('helvetica', 'normal');
@@ -31,13 +32,23 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     doc.setDrawColor(...NAVY);
     doc.setLineWidth(0.6);
     doc.line(M, 22.5, W - M, 22.5);
+    let by = 25;
+    if (model.banner) {
+      doc.setFillColor(232, 238, 246);
+      doc.rect(M, by, W - 2 * M, 6.5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...NAVY);
+      doc.text(s(model.banner), M + 2.5, by + 4.3);
+      by += 8;
+    }
     if (model.provisional) {
       doc.setFillColor(...AMBER_BG);
-      doc.rect(M, 25, W - 2 * M, 6.5, 'F');
+      doc.rect(M, by, W - 2 * M, 6.5, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(...AMBER_INK);
-      doc.text('PROVISIONAL - data not fully confirmed. Check before acting on these figures.', M + 2.5, 29.3);
+      doc.text('PROVISIONAL - data not fully confirmed. Check before acting on these figures.', M + 2.5, by + 4.3);
     }
   };
 
@@ -69,6 +80,85 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       y += lines.length * 4.2;
     }
     y += 2;
+  }
+
+  if (model.timeline && model.timeline.rows.length) {
+    const tl = model.timeline;
+    const d0 = dayNum(tl.from);
+    const d1 = Math.max(d0 + 1, dayNum(tl.to));
+    const labelW = 52;
+    const x0 = M + labelW;
+    const span = W - M - x0;
+    const xOf = (d: string) => x0 + ((dayNum(d) - d0) / (d1 - d0)) * span;
+    const rowH = 5;
+    const newPage = () => {
+      doc.addPage();
+      drawHeader();
+      y = headerH + 4;
+    };
+    if (y + 30 > H - 16) newPage();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
+    doc.text(s(tl.title), M, y + 3);
+    y += 7;
+    // date ticks (about 6)
+    const drawAxis = () => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(...MUTED);
+      const ticks = 6;
+      for (let i = 0; i <= ticks; i++) {
+        const dn = Math.round(d0 + ((d1 - d0) * i) / ticks);
+        const x = x0 + ((dn - d0) / (d1 - d0)) * span;
+        const label = new Date(dn * 86_400_000).toISOString().slice(5, 10).split('-').reverse().join('/');
+        doc.text(label, x, y + 2.5, { align: i === 0 ? 'left' : i === ticks ? 'right' : 'center' });
+      }
+      y += 4.5;
+    };
+    drawAxis();
+    const top = y;
+    let group = '';
+    for (const r of tl.rows) {
+      if (y + rowH > H - 22) {
+        newPage();
+        drawAxis();
+      }
+      if (r.group !== group) {
+        group = r.group;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...INK);
+        doc.text(s(group), M, y + 3.4);
+        y += rowH;
+      }
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...INK);
+      doc.text(s(r.label).slice(0, 34), M + 2, y + 3.4);
+      if (r.from && r.to) {
+        const color: [number, number, number] = r.kind === 'done' ? [120, 170, 140] : r.kind === 'now' ? NAVY : r.kind === 'late' ? [190, 60, 50] : [150, 175, 210];
+        doc.setFillColor(...color);
+        const xa = xOf(r.from);
+        const xb = Math.max(xa + 0.8, xOf(r.to) + (span / (d1 - d0)) * 0.9);
+        doc.rect(xa, y + 0.8, Math.min(xb, W - M) - xa, rowH - 1.8, 'F');
+      } else {
+        doc.setTextColor(...AMBER_INK);
+        doc.text('time pending', x0 + 1, y + 3.4);
+      }
+      y += rowH;
+    }
+    for (const mk of tl.markers) {
+      if (dayNum(mk.date) < d0 || dayNum(mk.date) > d1) continue;
+      const x = xOf(mk.date) + (span / (d1 - d0)) * 0.5;
+      doc.setDrawColor(...mk.color);
+      doc.setLineWidth(0.4);
+      doc.line(x, top - 1, x, y);
+      doc.setFontSize(7);
+      doc.setTextColor(...mk.color);
+      doc.text(s(mk.label), x, y + 3, { align: 'center' });
+    }
+    y += 8;
   }
 
   for (const ch of model.charts ?? []) {
@@ -123,14 +213,14 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
   }
 
   for (const t of model.tables) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...INK);
     if (y > H - 30) {
       doc.addPage();
       drawHeader();
       y = headerH + 4;
     }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
     doc.text(s(t.title), M, y + 3);
     autoTable(doc, {
       startY: y + 5,
@@ -164,6 +254,49 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       doc.text(lines, M, y);
       y += lines.length * 4 + 1;
     }
+  }
+
+  if (model.signature) {
+    const sig = model.signature;
+    if (y + 34 > H - 16) {
+      doc.addPage();
+      drawHeader();
+      y = headerH + 4;
+    }
+    y += 4;
+    const colW = (W - 2 * M - 10) / 2;
+    const block = (x: string | number, title: string, lines: [string, string][]) => {
+      const bx = Number(x);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...INK);
+      doc.text(s(title), bx, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      lines.forEach(([k, v], i) => {
+        const ly = y + 6 + i * 7;
+        doc.setTextColor(...MUTED);
+        doc.text(s(k), bx, ly);
+        doc.setTextColor(...INK);
+        if (v) doc.text(s(v), bx + 24, ly);
+        doc.setDrawColor(200, 196, 188);
+        doc.setLineWidth(0.2);
+        doc.line(bx + 23, ly + 1, bx + colW, ly + 1);
+      });
+    };
+    block(M, 'Prepared by', [
+      ['Name', sig.preparedBy],
+      ['Designation', sig.designation],
+      ['Signature', ''],
+      ['Date', sig.date],
+    ]);
+    block(M + colW + 10, 'Reviewed / approved by', [
+      ['Name', ''],
+      ['Designation', ''],
+      ['Signature', ''],
+      ['Date', ''],
+    ]);
+    y += 36;
   }
 
   const pages = doc.getNumberOfPages();

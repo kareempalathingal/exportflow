@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { todayDoc, toBuyAllDoc } from '../../lib/docs/model';
+import { productionPlanDoc, todayDoc, toBuyAllDoc } from '../../lib/docs/model';
 import { COLLECTION_JOB_ORDERS, type JobOrder } from '../../lib/jobOrders';
-import { COLLECTIONS, suppliersOf, type Supplier } from '../../lib/masters';
+import { COLLECTIONS, suppliersOf, type Process, type Supplier } from '../../lib/masters';
 import { toBuyAcrossOrders } from '../../lib/materials';
 import { formatDateTime, istDateKey } from '../../lib/time';
 import { buildToday } from '../../lib/today';
@@ -25,9 +25,18 @@ export function ReportsPage() {
   const master = useMasterData(workspaceId);
   const { cal } = useWorkCalendar();
   const today = istDateKey(new Date());
-  const ctx = useMemo(() => ({ md: master.md, cal }), [master.md, cal]);
+  const planningDays = profile?.planningDays;
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
   const summary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today }), [jos.items, ctx, today]);
   const generatedAt = () => `${formatDateTime(new Date())} IST`;
+  const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
+  const processMap = useMemo(() => new Map(processes.items.map((p) => [p.id, p])), [processes.items]);
+  const [planJo, setPlanJo] = useState('');
+  const planChoices = useMemo(
+    () => jos.items.filter((j) => j.status !== 'CANCELLED').sort((a, b) => (a.status === 'COMPLETED' ? 1 : 0) - (b.status === 'COMPLETED' ? 1 : 0) || b.receivedDate.localeCompare(a.receivedDate)),
+    [jos.items],
+  );
+  const chosen = jos.items.find((j) => j.id === planJo);
 
   return (
     <section>
@@ -40,6 +49,40 @@ export function ReportsPage() {
           <TodayCard summary={summary} company={company} />
           <div className="card doc-card">
             <DocButtons label="Daily summary (PDF)" build={() => todayDoc(summary, { company, generatedAt: generatedAt() })} />
+          </div>
+
+          <div className="card">
+            <h3>Plan of a Job Order</h3>
+            <p className="muted small">Proposed plan (draft) or production plan with schedule, timeline, materials, open points and a “Prepared by / Approved by” block — ready to submit.</p>
+            <label>
+              Job Order
+              <select value={planJo} onChange={(e) => setPlanJo(e.target.value)}>
+                <option value="">— choose —</option>
+                {planChoices.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.joNumber} · {j.customerName} · {j.status === 'DRAFT' ? 'draft' : j.status === 'CONFIRMED' ? 'confirmed' : 'completed'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {chosen && (
+              <DocButtons
+                label={chosen.status === 'DRAFT' ? `Proposed plan · ${chosen.joNumber}` : `Production plan · ${chosen.joNumber}`}
+                build={() =>
+                  productionPlanDoc({
+                    jo: chosen,
+                    md: master.md,
+                    processes: processMap,
+                    ctx,
+                    today,
+                    company,
+                    generatedAt: generatedAt(),
+                    preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
+                    supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
+                  })
+                }
+              />
+            )}
           </div>
 
           <Link to="/reports/performance" className="card link">

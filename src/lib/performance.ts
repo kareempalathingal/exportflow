@@ -45,6 +45,8 @@ export interface JoPerf {
   bufferUsed: number;
   /** Working days from start to the internal deadline. */
   allowedDays: number;
+  /** Working days from received to confirmed. */
+  planningDays: number | null;
   /** Longest product route by plan, when every step has a time. */
   plannedDays: number | null;
   actualDays: number;
@@ -87,6 +89,7 @@ export interface PerformanceReport {
     onTimeDelivery: number;
     avgLateDays: number | null; // over late orders (vs internal deadline)
     avgBufferUsed: number | null;
+    avgPlanningDays: number | null;
   };
   processes: ProcessPerf[];
 }
@@ -211,6 +214,7 @@ export function buildPerformance(args: {
       bufferDays: jo.deadline.bufferDays,
       bufferUsed: Math.min(jo.deadline.bufferDays, Math.max(0, vsInternal)),
       allowedDays: Math.max(0, workingDaysBetween(start, jo.deadline.internalDeadline, cal) ?? 0),
+      planningDays: jo.confirmedOn ? Math.max(0, workingDaysBetween(jo.receivedDate, jo.confirmedOn, cal) ?? 0) : null,
       plannedDays: timed ? Math.max(...lps.map(({ lp }) => lp.plannedTotalDays!)) : null,
       actualDays: Math.max(0, workingDaysBetween(start, jo.completedOn, cal) ?? 0),
       steps,
@@ -239,6 +243,10 @@ export function buildPerformance(args: {
     onTimeDelivery: completed.filter((c) => c.vsDelivery <= 0).length,
     avgLateDays: late.length ? round1(late.reduce((a, c) => a + c.vsInternal, 0) / late.length) : null,
     avgBufferUsed: completed.length ? round1(completed.reduce((a, c) => a + c.bufferUsed, 0) / completed.length) : null,
+    avgPlanningDays: (() => {
+      const xs = completed.filter((c) => c.planningDays !== null).map((c) => c.planningDays!);
+      return xs.length ? round1(xs.reduce((a, b) => a + b, 0) / xs.length) : null;
+    })(),
   };
 
   // Per process: planned vs actual, and a benchmark suggestion when the evidence is strong enough.

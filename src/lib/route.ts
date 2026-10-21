@@ -29,7 +29,13 @@ export const PURCHASE_STEPS = ['Ordered', 'Received'] as const;
 export interface PlanContext {
   md: MasterData;
   cal: WorkCalendar;
+  /** Planning benchmark in working days (received → confirmed); undefined = default, null = not known. */
+  planningDays?: number | null;
 }
+
+/** The order clock starts when the JO is received; planning (received → confirmed) is its first stage. */
+export const PLANNING_KEY = '__planning';
+export const DEFAULT_PLANNING_DAYS = 1;
 
 const pos = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null);
 
@@ -280,8 +286,35 @@ export function undoLast(steps: JoStep[]): JoStep[] | null {
 }
 
 /** Where the order's start is counted from. */
-export function orderStart(jo: Pick<JobOrder, 'confirmedOn' | 'receivedDate'>): string {
-  return jo.confirmedOn ?? jo.receivedDate;
+export function orderStart(jo: Pick<JobOrder, 'receivedDate'>): string {
+  return jo.receivedDate;
+}
+
+/** The built-in first stage of every order: received → confirmed (not stored; worked out). */
+export function planningStep(jo: Pick<JobOrder, 'status' | 'confirmedOn' | 'receivedDate'>, ctx: Pick<PlanContext, 'planningDays'>): PlannedStep {
+  const days = ctx.planningDays === undefined ? DEFAULT_PLANNING_DAYS : ctx.planningDays;
+  const done = jo.status !== 'DRAFT' ? (jo.confirmedOn ?? jo.receivedDate) : null;
+  return {
+    key: PLANNING_KEY,
+    processId: null,
+    label: 'Planning',
+    forProduct: 'Whole order',
+    productId: null,
+    perDay: null,
+    perDayUnit: null,
+    fixedDays: days,
+    doneAt: done ? `${done}T06:30:00.000Z` : null,
+    plannedDays: days,
+    qty: null,
+    qtyUnit: null,
+    basis: days === null ? null : `Received → confirmed · benchmark ${formatQty(days)} working day${days === 1 ? '' : 's'}`,
+    note: days === null ? 'Planning benchmark not set (Settings)' : null,
+  };
+}
+
+/** A line's steps with the planning stage first (for progress and schedules). */
+export function withPlanning(steps: PlannedStep[] | undefined, jo: Pick<JobOrder, 'status' | 'confirmedOn' | 'receivedDate'>, ctx: Pick<PlanContext, 'planningDays'>): PlannedStep[] | undefined {
+  return steps && steps.length ? [planningStep(jo, ctx), ...steps] : steps;
 }
 
 type StepOrder = Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate' | 'status' | 'bomSnapshot' | 'stock'>;
@@ -290,7 +323,7 @@ type StepOrder = Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate' | 'stat
 export function lineProgresses(jo: StepOrder, today: string, ctx: PlanContext): { line: PlannedLine; lp: LineProgress }[] {
   const start = orderStart(jo);
   return planLines(jo, ctx.md)
-    .map((line) => ({ line, lp: lineProgress(line.steps, start, today, ctx.cal) }))
+    .map((line) => ({ line, lp: lineProgress(withPlanning(line.steps, jo, ctx), start, today, ctx.cal) }))
     .filter((x): x is { line: PlannedLine; lp: LineProgress } => x.lp !== null);
 }
 
@@ -323,4 +356,37 @@ export function routeFits(plannedTotalDays: number | null, start: string, intern
 /** The order's track: from process steps when any line has them, else the manual slider. */
 export function orderTrack(jo: JobOrder, today: string, ctx: PlanContext): Track {
   return trackOf(jo, today, jo.status === 'DRAFT' ? null : orderStepProgress(jo, today, ctx), ctx.cal);
+}
+
+// ---------------------------------------------------------------------------
+// Schedule (dates per step, for the plan document)
+// ---------------------------------------------------------------------------
+
+export interface ScheduledStep {
+  view: StepView;
+  start: string | null;
+  finish: string | null;
+}
+
+/**
+ * Dates for every step: actual dates for finished steps, planned dates for
+ * the rest (each step starts the day the previous one finishes; working
+ * days). Unknown from the first step without a time onwards.
+ */
+export function lineSchedule(lp: LineProgress, today: string, cal: WorkCalendar): ScheduledStep[] {
+  let prev: string | null = null;
+  return lp.steps.map((v) => {
+    if (v.state === 'DONE') {
+      prev = v.doneOn;
+      return { view: v, start: v.startOn, finish: v.doneOn };
+    }
+    const start: string | null = v.state === 'NOW' ? v.startOn : prev;
+    let finish: string | null = null;
+    if (start && v.step.plannedDays !== null) {
+      finish = addWorkingDays(start, v.step.plannedDays, cal);
+      if (v.state === 'NOW' && finish && finish < today) finish = today; // running late: at the earliest today
+    }
+    prev = finish;
+    return { view: v, start, finish };
+  });
 }

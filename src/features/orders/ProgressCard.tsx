@@ -5,6 +5,7 @@ import { appendProgress, gapColor, trackLabel, trackOf } from '../../lib/progres
 import { orderStepProgress } from '../../lib/route';
 import type { MasterData } from '../../lib/masters';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
+import { useProfile } from '../settings/useProfile';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
 import type { WithMeta } from '../masters/useCollection';
@@ -19,7 +20,8 @@ export function ProgressCard({ jo, md }: { jo: WithMeta<JobOrder>; md: MasterDat
   const [pct, setPct] = useState(jo.progress?.pct ?? 0);
   const [saved, setSaved] = useState(false);
   const { cal } = useWorkCalendar();
-  const fromSteps = orderStepProgress(jo, today, { md, cal });
+  const { profile } = useProfile(workspaceId);
+  const fromSteps = orderStepProgress(jo, today, { md, cal, planningDays: profile?.planningDays });
   const track = trackOf(jo, today, fromSteps, cal);
   const color = gapColor(track, readRedAt());
   const editable = jo.status === 'CONFIRMED' && !fromSteps;

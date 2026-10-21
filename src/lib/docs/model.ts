@@ -2,11 +2,11 @@
  * Printable documents (Phase 3c). A document is built as plain data here
  * (testable, deterministic) and drawn to PDF elsewhere. English only for now.
  */
-import { bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
-import { DEFAULT_CALENDAR, type WorkCalendar } from '../calendar';
-import { orderStepProgress, orderTrack } from '../route';
-import type { MasterData } from '../masters';
-import type { BuyTotal, MaterialPlan, PlanRow } from '../materials';
+import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
+import { DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from '../calendar';
+import { buildLineSteps, DEFAULT_PLANNING_DAYS, lineProgress, lineSchedule, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, withPlanning, type PlanContext } from '../route';
+import type { MasterData, Process } from '../masters';
+import { planMaterials, type BuyTotal, type MaterialPlan, type PlanRow } from '../materials';
 import { formatQty, unitLabel } from '../units';
 import type { PerformanceReport } from '../performance';
 import { TODAY_HEADINGS, type TodaySummary, type TodayWhen } from '../today';
@@ -26,12 +26,32 @@ export interface DocChart {
   rows: { label: string; values: number[] }[];
 }
 
+/** Bars on a date axis (a simple Gantt chart). */
+export interface DocTimeline {
+  title: string;
+  from: string; // YYYY-MM-DD
+  to: string;
+  markers: { date: string; label: string; color: [number, number, number] }[];
+  rows: { label: string; group: string; from: string | null; to: string | null; kind: 'done' | 'now' | 'planned' | 'late' | 'unknown' }[];
+}
+
+export interface DocSignature {
+  preparedBy: string;
+  designation: string;
+  date: string;
+}
+
 export interface DocModel {
   title: string; // e.g. "Job Order Summary"
   reference: string; // printed under the title, e.g. "JO-1042"
   company: string;
+  /** Status band under the header (e.g. "PROPOSED PLAN"). */
+  banner?: string;
   meta: [string, string][];
   charts?: DocChart[];
+  timeline?: DocTimeline;
+  /** "Prepared by" and an empty "Reviewed / approved by" block at the end. */
+  signature?: DocSignature;
   tables: DocTable[];
   notes: string[]; // shown after the tables
   provisional: boolean; // prints a warning band on every page
@@ -244,6 +264,7 @@ export function performanceDoc(r: PerformanceReport, opts: { company: string; ge
       ['On time (delivery)', `${s.onTimeDelivery} of ${s.completed} (${pct(s.onTimeDelivery, s.completed)})`],
       ['Average delay', s.avgLateDays === null ? 'No late orders' : `${formatQty(s.avgLateDays)} working days (late orders only)`],
       ['Average buffer used', s.avgBufferUsed === null ? '—' : `${formatQty(s.avgBufferUsed)} working days`],
+      ['Average planning time', s.avgPlanningDays === null ? '—' : `${formatQty(s.avgPlanningDays)} working days (received to confirmed)`],
       ['Cancelled', `${r.cancelled} (received in this period)`],
       ['Still open', String(r.open.length)],
     ],
@@ -263,7 +284,7 @@ export function performanceDoc(r: PerformanceReport, opts: { company: string; ge
     tables: [
       {
         title: 'Completed orders',
-        columns: [{ label: 'JO' }, { label: 'Customer' }, { label: 'Completed' }, { label: 'vs internal' }, { label: 'vs delivery' }, { label: 'Buffer used', align: 'right' }, { label: 'Days plan / actual', align: 'right' }, { label: 'Changes', align: 'right' }],
+        columns: [{ label: 'JO' }, { label: 'Customer' }, { label: 'Completed' }, { label: 'vs internal' }, { label: 'vs delivery' }, { label: 'Buffer used', align: 'right' }, { label: 'Planning', align: 'right' }, { label: 'Days plan / actual', align: 'right' }, { label: 'Changes', align: 'right' }],
         rows: r.completed.map((c) => [
           c.joNumber,
           c.customerName,
@@ -271,6 +292,7 @@ export function performanceDoc(r: PerformanceReport, opts: { company: string; ge
           signedDays(c.vsInternal),
           signedDays(c.vsDelivery),
           `${formatQty(c.bufferUsed)} of ${c.bufferDays}`,
+          c.planningDays === null ? '—' : `${formatQty(c.planningDays)}d`,
           `${c.plannedDays === null ? '—' : formatQty(c.plannedDays)} / ${formatQty(c.actualDays)}`,
           c.changes.count ? `${c.changes.count} (${Object.keys(c.changes.fields).join(', ')})` : '0',
         ]),
@@ -335,5 +357,202 @@ export function todayDoc(t: TodaySummary, opts: { company: string; generatedAt: 
     provisionalReasons: [],
     generatedAt: opts.generatedAt,
     fileName: `daily-summary_${t.today}.pdf`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Production plan (Proposed Plan for drafts) — a document to submit
+// ---------------------------------------------------------------------------
+
+export interface PlanDocInput {
+  jo: JobOrder & { rev?: number };
+  md: MasterData;
+  processes: Map<string, Process>;
+  ctx: PlanContext;
+  today: string;
+  company: string;
+  generatedAt: string;
+  preparedBy: { name: string; designation: string };
+  supplierNames?: SupplierNames;
+}
+
+export function productionPlanDoc(input: PlanDocInput): DocModel {
+  const { jo, md, ctx, today } = input;
+  const cal = ctx.cal;
+  const draft = jo.status === 'DRAFT';
+  // Drafts: steps come from the product routes as they are now (a proposal).
+  const order: JobOrder = draft ? { ...jo, lines: jo.lines.map((l) => (l.steps?.length ? l : { ...l, steps: buildLineSteps(l, md, input.processes) })) } : jo;
+  const start = orderStart(order);
+  const planned = planLines(order, md);
+  const lines = planned.map((line) => {
+    const lp = lineProgress(withPlanning(line.steps, order, ctx), start, today, cal);
+    return { line, lp, sched: lp ? lineSchedule(lp, today, cal) : [] };
+  });
+  const risks: string[] = [];
+  const provisional: string[] = [];
+
+  // Expected finish: the latest product; unknown if any product has an unknown finish.
+  const finishes = lines.filter((x) => x.lp).map((x) => x.sched[x.sched.length - 1]?.finish ?? null);
+  const expected = finishes.length && finishes.every((f) => f) ? (finishes as string[]).sort().at(-1)! : null;
+  const deadline = order.deadline.internalDeadline;
+  const spare = expected ? workingDaysBetween(expected, deadline, cal) : null;
+  const available = workingDaysBetween(start, deadline, cal) ?? 0;
+
+  // Risks and missing data.
+  for (const { line, lp, sched } of lines) {
+    const product = md.products.get(line.productId);
+    if (!lp) {
+      risks.push(`${line.productName}: no process route — steps and times cannot be planned`);
+      provisional.push(`${line.productName}: no process route`);
+      continue;
+    }
+    if (product && product.route?.length && !product.routeConfirmed) risks.push(`${line.productName}: order of steps not yet confirmed with the company`);
+    for (const st of sched) {
+      const s = st.view.step;
+      if (s.key === PLANNING_KEY) continue;
+      if (s.plannedDays === null) {
+        const why = s.note ?? (s.processId === null ? 'supplier lead time not known' : 'time benchmark not known');
+        risks.push(`${line.productName} · ${s.label}: ${why}`);
+        provisional.push(`Time not known for ${s.label} (${line.productName})`);
+      }
+      if (st.view.state !== 'DONE' && st.view.overrunDays !== null && st.view.overrunDays > 0) risks.push(`${line.productName} · ${s.label}: running ${formatQty(st.view.overrunDays)} working days over plan`);
+    }
+  }
+  const mat = planMaterials(order, md);
+  for (const e of mat.errors) {
+    risks.push(e);
+    provisional.push(e);
+  }
+  if (mat.provisional && !mat.errors.length) provisional.push('Some material figures use estimated or unconfirmed BOM data');
+  if (spare !== null && spare < 0) risks.push(`Expected finish is ${-spare} working day${spare === -1 ? '' : 's'} after the internal deadline`);
+  if (draft && order.deliveryDateType === 'UNCONFIRMED') risks.push('Delivery date type is not confirmed yet');
+  const planningNow = lines.find((x) => x.lp?.current?.step.key === PLANNING_KEY)?.lp?.current;
+  if (planningNow && planningNow.overrunDays !== null && planningNow.overrunDays > 0) {
+    risks.unshift(`Planning is ${formatQty(planningNow.overrunDays)} working day${planningNow.overrunDays === 1 ? '' : 's'} over its benchmark - confirm the plan to start production`);
+  }
+
+  const planningDaysUsed = draft ? workingDaysBetween(order.receivedDate, today, cal) ?? 0 : workingDaysBetween(order.receivedDate, order.confirmedOn ?? order.receivedDate, cal) ?? 0;
+  const bench = ctx.planningDays === undefined ? DEFAULT_PLANNING_DAYS : ctx.planningDays;
+  const track = draft ? null : orderTrack(order, today, ctx);
+
+  const meta: [string, string][] = [
+    ['Status', draft ? 'PROPOSED PLAN - draft, not yet confirmed' : `PRODUCTION PLAN - status as of ${formatDay(today)}`],
+    ['Plan version', `Revision ${jo.rev ?? '-'} · generated ${input.generatedAt}`],
+    ['Customer', order.customerName || '—'],
+    ...(order.poNumber ? ([['Customer PO', order.poNumber]] as [string, string][]) : []),
+    ['JO received', formatDay(order.receivedDate)],
+    [
+      'Planning',
+      draft
+        ? `In planning for ${formatQty(planningDaysUsed)} working day${planningDaysUsed === 1 ? '' : 's'}${bench !== null ? ` (benchmark ${formatQty(bench)})` : ''}`
+        : `Confirmed ${formatDay(order.confirmedOn)} · ${formatQty(planningDaysUsed)} working day${planningDaysUsed === 1 ? '' : 's'}${bench !== null ? ` (benchmark ${formatQty(bench)})` : ''}`,
+    ],
+    ['Customer delivery', `${formatDay(order.deliveryDate)} · ${DELIVERY_DATE_TYPES.find((x) => x.id === order.deliveryDateType)?.label ?? ''}`],
+    ['Internal deadline', `${formatDay(deadline)} · ${bufferText(order.deadline)} (10%, rounded up)`],
+    ['Working days available', `${available} (received to internal deadline)`],
+    [
+      'Expected finish',
+      expected
+        ? `${formatDay(expected)} · ${spare! >= 0 ? `${spare} working day${spare === 1 ? '' : 's'} before the internal deadline` : `${-spare!} working day${spare === -1 ? '' : 's'} AFTER the internal deadline`}`
+        : 'Not known yet - some steps have no time',
+    ],
+    ...(track && track.actual !== null ? ([['Progress', `${track.actual}% done · should be ${track.planned}% today`]] as [string, string][]) : []),
+  ];
+
+  // Timeline (Gantt): one row per step, grouped by product.
+  const rowsTl: DocTimeline['rows'] = [];
+  let lastDate = order.deliveryDate;
+  for (const { line, sched } of lines) {
+    for (const st of sched) {
+      const s = st.view.step;
+      const kind: DocTimeline['rows'][number]['kind'] =
+        st.view.state === 'DONE' ? 'done' : !st.finish ? 'unknown' : st.finish > deadline ? 'late' : st.view.state === 'NOW' ? 'now' : 'planned';
+      rowsTl.push({ label: s.key === PLANNING_KEY ? 'Planning (order)' : `${s.label}${s.forProduct !== line.productName ? ` · ${s.forProduct}` : ''}`, group: line.productName, from: st.start, to: st.finish, kind });
+      if (st.finish && st.finish > lastDate) lastDate = st.finish;
+    }
+  }
+
+  const tables: DocTable[] = lines.map(({ line, lp, sched }) => {
+    const supply = effectiveSupply(line, md.products.get(line.productId));
+    return {
+      title: `${line.productName} - ${qty(line.qty, line.unit)} · ${supply === 'MAKE' ? 'Make' : supply === 'BUY' ? 'Buy' : 'Make/Buy not decided'}`,
+      columns: [{ label: 'Step' }, { label: 'Quantity / basis' }, { label: 'Days', align: 'right' }, { label: 'Start' }, { label: 'Finish' }, { label: 'Status' }],
+      rows: lp
+        ? sched.map((st) => {
+            const s = st.view.step;
+            const name = s.key === PLANNING_KEY ? 'Planning (whole order)' : `${s.label}${s.forProduct !== line.productName ? ` (${s.forProduct})` : ''}`;
+            const basis = [s.basis, s.note].filter(Boolean).join(' · ') || (s.processId === null && s.key !== PLANNING_KEY ? 'Purchase' : '—');
+            const days =
+              st.view.state === 'DONE'
+                ? `${formatQty(st.view.actualDays ?? 0)}${s.plannedDays !== null ? ` (plan ${formatQty(s.plannedDays)})` : ''}`
+                : s.plannedDays === null
+                  ? 'pending'
+                  : formatQty(s.plannedDays);
+            const status = st.view.state === 'DONE' ? 'Done' : st.view.state === 'NOW' ? (st.view.overrunDays !== null && st.view.overrunDays > 0 ? 'Now - over plan' : 'Now') : s.plannedDays === null ? 'Time pending' : 'Planned';
+            return [name, basis, days, st.start ? formatDay(st.start) : '—', st.finish ? formatDay(st.finish) : '—', status];
+          })
+        : [],
+      empty: 'No process route for this product yet.',
+    };
+  });
+
+  const matRow = (r: PlanRow, suppliers: boolean) => [
+    `${r.name}${r.provisional ? ' *' : ''}`,
+    qty(r.gross, r.unit),
+    r.fromStock > 0 ? qty(r.fromStock, r.unit) : '—',
+    qty(r.net, r.unit),
+    ...(suppliers ? [supplierCell(input.supplierNames, r.key)] : []),
+  ];
+  tables.push(
+    {
+      title: 'Materials - to produce',
+      columns: [{ label: 'Item' }, { label: 'Needed', align: 'right' }, { label: 'From stock', align: 'right' }, { label: 'To produce', align: 'right' }],
+      rows: mat.toProduce.map((r) => matRow(r, false)),
+      empty: 'Nothing to produce.',
+    },
+    {
+      title: 'Materials - to buy',
+      columns: [{ label: 'Item' }, { label: 'Needed', align: 'right' }, { label: 'From stock', align: 'right' }, { label: 'To buy', align: 'right' }, { label: 'Suppliers' }],
+      rows: mat.toBuy.map((r) => matRow(r, true)),
+      empty: 'Nothing to buy.',
+    },
+    {
+      title: 'Open points and risks',
+      columns: [{ label: 'Point' }],
+      rows: risks.map((r) => [r]),
+      empty: 'None found in the data available.',
+    },
+  );
+
+  const uniq = [...new Set(provisional)];
+  return {
+    title: draft ? 'Proposed Plan' : 'Production Plan',
+    reference: order.joNumber,
+    company: input.company,
+    banner: draft ? 'PROPOSED PLAN - for review; dates follow the benchmarks and the working-day calendar' : `PRODUCTION PLAN - status as of ${formatDay(today)}`,
+    meta,
+    timeline: {
+      title: 'Timeline (working days; Sundays and company holidays are not worked)',
+      from: order.receivedDate,
+      to: addDays(lastDate, 1)!,
+      markers: [
+        { date: today, label: 'Today', color: [91, 101, 115] },
+        { date: deadline, label: 'Internal deadline', color: [180, 120, 0] },
+        { date: order.deliveryDate, label: 'Delivery', color: [180, 40, 30] },
+      ],
+      rows: rowsTl,
+    },
+    tables,
+    notes: [
+      'Day counts are working days. Each step starts on the day the previous one finishes; planned days = quantity / output per day + fixed days, rounded up to half a day.',
+      'Each order is planned as if it had the departments to itself; other orders in the same department may delay it (capacity across orders is not planned yet).',
+      'Times and quantities come from the benchmarks and BOMs entered in ExportFlow (user-provided unless marked verified). Items marked * use estimated or unconfirmed data.',
+      `Prepared from the data available on ${formatDay(today)}.`,
+    ],
+    provisional: uniq.length > 0,
+    provisionalReasons: uniq.slice(0, 8),
+    signature: { preparedBy: input.preparedBy.name, designation: input.preparedBy.designation, date: formatDay(today) },
+    generatedAt: input.generatedAt,
+    fileName: `${safeFileName(order.joNumber)}_${draft ? 'proposed-plan' : 'production-plan'}_${today}.pdf`,
   };
 }

@@ -3,8 +3,8 @@ import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder, type JoLine, type JoStep } from '../../lib/jobOrders';
 import type { MasterData, Process } from '../../lib/masters';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { buildLineSteps, completeCurrent, lineProgress, orderStart, orderStepProgress, planLines, routeFits, undoLast, type PlannedLine, type StepView } from '../../lib/route';
-import type { WorkCalendar } from '../../lib/calendar';
+import { buildLineSteps, completeCurrent, lineProgress, orderStart, orderStepProgress, planLines, routeFits, undoLast, withPlanning, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
+import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
@@ -20,13 +20,15 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const today = istDateKey(new Date());
   const editable = jo.status === 'CONFIRMED';
   const { cal } = useWorkCalendar();
+  const { profile } = useProfile(workspaceId);
+  const ctx = { md, cal, planningDays: profile?.planningDays };
   const missing = jo.lines.filter((l) => !l.steps || l.steps.length === 0);
   const planned = planLines(jo, md);
 
   function saveLines(lines: JoLine[], what: string) {
     if (!workspaceId) return;
     const next = { ...jobOrderData(jo), lines };
-    const p = orderStepProgress(next, today, { md, cal });
+    const p = orderStepProgress(next, today, ctx);
     const data = p ? { ...next, progress: { pct: p.actual, on: today, at: new Date().toISOString() }, progressLog: appendProgress(jo.progressLog, { pct: p.actual, on: today, at: new Date().toISOString() }) } : next;
     saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Job Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>, reason: what });
   }
@@ -56,7 +58,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} cal={cal} today={today} editable={editable} processes={processes} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} ctx={ctx} today={today} editable={editable} processes={processes} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
           </li>
         ))}
       </ul>
@@ -75,16 +77,17 @@ function LineCard(props: {
   jo: JobOrder;
   raw: JoLine;
   line: PlannedLine;
-  cal: WorkCalendar;
+  ctx: PlanContext;
   today: string;
   editable: boolean;
   processes: Map<string, Process>;
   onSteps: (steps: JoStep[], what: string) => void;
 }) {
-  const { jo, line, raw, today, editable, cal } = props;
+  const { jo, line, raw, today, editable, ctx } = props;
+  const cal = ctx.cal;
   const [editing, setEditing] = useState(false);
   const start = orderStart(jo);
-  const lp = lineProgress(line.steps, start, today, cal);
+  const lp = lineProgress(withPlanning(line.steps, jo, ctx), start, today, cal);
   const supply = line.supply === 'BUY' ? 'Buy' : 'Make';
   const head = (
     <div className="row between">

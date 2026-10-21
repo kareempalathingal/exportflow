@@ -146,7 +146,7 @@ describe('progress from steps (working days)', () => {
     const o = order([line('a', 'mat', 400, 'MAKE'), line('b', 'door', 10, 'BUY')]);
     const a = completeCurrent(completeCurrent(o.lines[0]!.steps!, '2026-11-04T06:00:00Z')!, '2026-11-10T06:00:00Z')!;
     const jo = { ...o, lines: [{ ...o.lines[0]!, steps: a }, o.lines[1]!] };
-    expect(orderStepProgress(jo, '2026-11-11', ctx)).toEqual({ actual: 34, planned: null, on: '2026-11-11' }); // (67 + 0) / 2
+    expect(orderStepProgress(jo, '2026-11-11', ctx)).toEqual({ actual: 48, planned: null, on: '2026-11-11' }); // planning counts as the first stage: (70 + 25) / 2
     expect(overrunningSteps(jo, '2026-11-14', ctx).map((x) => x.view.step.label)).toEqual(['Bleaching']); // 3 working days of 2
     expect(orderStepProgress({ ...jo, lines: [line('a', 'mat', 400, 'MAKE')] }, '2026-11-11', ctx)).toBeNull();
   });

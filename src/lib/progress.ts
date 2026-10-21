@@ -25,9 +25,9 @@ export interface Track {
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-/** Linear plan in working days, from confirmation to the internal deadline. */
+/** Linear plan in working days, from the received date to the internal deadline. */
 export function plannedPct(jo: Pick<JobOrder, 'confirmedOn' | 'receivedDate' | 'deadline'>, today: string, cal: WorkCalendar = DEFAULT_CALENDAR): number {
-  const start = jo.confirmedOn ?? jo.receivedDate;
+  const start = jo.receivedDate; // the order clock starts when the JO is received (planning included)
   const span = workingDaysBetween(start, jo.deadline.internalDeadline, cal);
   const done = workingDaysBetween(start, today, cal);
   if (span === null || done === null) return 0;

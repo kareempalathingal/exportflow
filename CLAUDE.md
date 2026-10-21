@@ -235,6 +235,36 @@ report the discrepancy and ask; do not silently choose.
 -   Desktop layout, Malayalam for the new screens and phone push
     notifications (GitHub Actions + FCM) are postponed.
 
+## Planning stage and plan document (confirmed 21 Oct 2026)
+
+-   The order clock starts on the JO received date. "Planning"
+    (received → confirmed) is the built-in first stage of every order
+    (`planningStep()` / `withPlanning()` in `src/lib/route.ts`; worked
+    out, not stored). Planned % (linear and step-based) counts from the
+    received date. Planning benchmark: Settings → profile
+    `planningDays`, default 1 working day (user benchmark; empty = not
+    set). Drafts past it show in Today ("still in planning") and in the
+    plan's open points; the performance report shows planning days per
+    JO and the average.
+-   Plan document (`productionPlanDoc()` in `src/lib/docs/model.ts`),
+    for submission to superiors: "Proposed Plan" for drafts (steps from
+    the product routes at that moment) or "Production Plan — status as
+    of <date>" once confirmed. Contents: status band, plan version (JO
+    revision + time), key dates, planning time, internal deadline and
+    buffer, working days available, expected finish vs internal
+    deadline, progress; a timeline (Gantt) with today / internal
+    deadline / delivery markers; per-product schedule (quantity and
+    basis, days, start, finish, status); materials to produce / to buy;
+    open points and risks; notes (working days, capacity limitation);
+    "Prepared by" (name + designation from Settings) and an empty
+    "Reviewed / approved by" block for signing on paper — the app never
+    marks anything approved. Available on the JO page and in Reports
+    (choose a JO). PROVISIONAL band when times, routes or BOM data are
+    missing.
+-   Later (after real processes are known): an Analysis tab for the
+    whole factory — department load from all orders, smooth capacity,
+    bottlenecks, and scheduling orders against shared capacity.
+
 ## Data safety and onboarding aids (confirmed 20 Oct 2026)
 
 -   Settings → Backup: one JSON file per mode (`src/lib/backup.ts`,

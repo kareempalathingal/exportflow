@@ -295,3 +295,19 @@ describe('Reports', () => {
     expect(html).toContain('Share summary');
   });
 });
+
+describe('Plan document', () => {
+  it('a JO page offers the plan PDF; reports let you choose a JO', () => {
+    const jo = render('/orders/j2', '/orders/:id', <JobOrderPage />);
+    expect(jo).toContain('Production plan (PDF, to submit)');
+    expect(jo).toContain('Add your name and designation in Settings');
+    const reports = render('/reports', '/reports', <ReportsPage />);
+    expect(reports).toContain('Plan of a Job Order');
+    expect(reports).toContain('JO-88 · Buyer GmbH · confirmed');
+  });
+  it('the products tab shows planning as the first stage', () => {
+    const html = render('/orders/j2', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Planning');
+    expect(html).toContain('Received → confirmed · benchmark 1 working day');
+  });
+});

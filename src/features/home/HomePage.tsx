@@ -65,7 +65,8 @@ export function HomePage() {
   const today = istDateKey(new Date());
   const redAt = readRedAt();
   const { cal } = useWorkCalendar();
-  const ctx = useMemo(() => ({ md: master.md, cal }), [master.md, cal]);
+  const planningDays = profile?.planningDays;
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
 
   const open = useMemo(() => {
     return jos.items
@@ -164,7 +165,7 @@ export function HomePage() {
 
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
 
-      {!loading && jos.items.some((j) => j.status === 'CONFIRMED') && <TodayCard summary={todaySummary} company={company ?? ''} compact />}
+      {!loading && jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') && <TodayCard summary={todaySummary} company={company ?? ''} compact />}
 
       <section aria-label="Order status counts" className="counts">
         {GROUPS.map((g) => (

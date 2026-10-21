@@ -6,6 +6,11 @@ import type { VersionedRecord } from '../sync/records';
 
 export interface Profile extends VersionedRecord {
   companyName: Tracked<string>;
+  /** Shown as "Prepared by" on plan documents. */
+  preparedByName?: string;
+  preparedByDesignation?: string;
+  /** Planning benchmark (received → confirmed), working days; missing = 1, null = not set. */
+  planningDays?: number | null;
 }
 
 export interface ProfileState {

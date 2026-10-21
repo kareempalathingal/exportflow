@@ -27,7 +27,7 @@ import {
   type JoStatus,
   type SupplyMethod,
 } from '../../lib/jobOrders';
-import { COLLECTIONS, productContext, type Customer, type Product } from '../../lib/masters';
+import { COLLECTIONS, productContext, suppliersOf, type Customer, type Product, type Supplier } from '../../lib/masters';
 import { istDateKey } from '../../lib/time';
 import { availableUnits, formatQty, unitLabel } from '../../lib/units';
 import { saveRecord } from '../sync/records';
@@ -42,7 +42,7 @@ import { ProductsTab } from './ProductsTab';
 import { buildLineSteps } from '../../lib/route';
 import type { Process } from '../../lib/masters';
 import { DocButtons } from '../docs/DocButtons';
-import { joSummaryDoc } from '../../lib/docs/model';
+import { joSummaryDoc, productionPlanDoc } from '../../lib/docs/model';
 import { useProfile } from '../settings/useProfile';
 import { formatDateTime } from '../../lib/time';
 import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
@@ -97,6 +97,7 @@ export function JobOrderPage() {
   const company = profile?.companyName?.value ?? '';
   const [params, setParams] = useSearchParams();
   const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
+  const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const processMap = useMemo(() => new Map(processes.items.map((p) => [p.id, p])), [processes.items]);
   const requestedTab = params.get('tab');
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
@@ -398,6 +399,28 @@ export function JobOrderPage() {
       )}
 
       {!isNew && item && <ProgressCard key={`${item.id}:${item.rev}`} jo={item} md={md} />}
+      {!isNew && item && status !== 'CANCELLED' && (
+        <div className="card doc-card">
+          <DocButtons
+            label={status === 'DRAFT' ? 'Proposed plan (PDF, to submit)' : 'Production plan (PDF, to submit)'}
+            build={() =>
+              productionPlanDoc({
+                jo: item,
+                md,
+                processes: processMap,
+                ctx: { md, cal, planningDays: profile?.planningDays },
+                today,
+                company,
+                generatedAt: `${formatDateTime(new Date())} IST`,
+                preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
+                supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
+              })
+            }
+          />
+          {!profile?.preparedByName && <p className="muted small">Add your name and designation in Settings so they appear under “Prepared by”.</p>}
+          {dirty && <p className="warn small">Unsaved changes are not in the plan — save first.</p>}
+        </div>
+      )}
       {!isNew && (
         <div className="tabs" role="tablist">
           {(['products', 'order', 'materials'] as const).map((x) => (

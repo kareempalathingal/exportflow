@@ -122,7 +122,7 @@ export function buildSampleData(today: string): SampleWrite[] {
       lines: [jl('a', 'sample_p_mat', 1200, 'MAKE'), jl('b', 'sample_p_door', 300, 'BUY')], final: 'CONFIRMED', confirmed: -24, done: [[0, -21], [1, -20], [0, -17], [1, -12], [0, -15], [0, -13], [1, -1], [0, -1]],
       stock: { 'PRODUCT:sample_p_yarn': stock(300, 'kg', 20), 'RAW_MATERIAL:sample_rm_fibre': stock(400, 'kg', 20) },
     },
-    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 35, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -9, done: [[0, -6]], stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
+    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 35, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -6 /* planning took longer than the benchmark */, stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
     { id: 'sample_jo_104', no: 'DEMO-104', cust: 'sample_c_nordic', rec: -2, del: 60, type: 'UNCONFIRMED', lines: [jl('a', 'sample_p_rubber', 500, 'MAKE')], final: 'DRAFT' },
   ];
 

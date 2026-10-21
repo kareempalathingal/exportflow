@@ -3,9 +3,9 @@
  * the next 2 working days. Shown on Home and shareable as text or PDF; the
  * app never sends it by itself. Pure and deterministic.
  */
-import { addWorkingDays, dayOff, type WorkCalendar } from './calendar';
+import { addWorkingDays, dayOff, workingDaysBetween, type WorkCalendar } from './calendar';
 import { addDays, daysBetween, formatDay, type JobOrder } from './jobOrders';
-import { lineProgresses, type PlanContext } from './route';
+import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route';
 import { formatQty } from './units';
 
 export const SOON_WORKING_DAYS = 2;
@@ -40,9 +40,18 @@ export function buildToday(args: {
   const when = (date: string): TodayWhen | null => (date < today ? 'OVERDUE' : date === today ? 'TODAY' : date <= soonUntil ? 'SOON' : null);
   const day = (d: string) => (d === today ? 'today' : formatDay(d));
 
+  const planningDays = ctx.planningDays === undefined ? DEFAULT_PLANNING_DAYS : ctx.planningDays;
   for (const jo of args.jobOrders) {
-    if (jo.status !== 'CONFIRMED') continue;
     const link = `/orders/${jo.id}`;
+    // Drafts: planning is the first stage of the order clock.
+    if (jo.status === 'DRAFT' && planningDays !== null) {
+      const used = workingDaysBetween(jo.receivedDate, today, cal) ?? 0;
+      const due = addWorkingDays(jo.receivedDate, planningDays, cal) ?? today;
+      if (used > planningDays) items.push({ when: 'OVERDUE', date: null, text: `${jo.joNumber}: still in planning after ${formatQty(used)} working days (benchmark ${formatQty(planningDays)}) — confirm the plan`, link });
+      else if (when(due) === 'TODAY' || when(due) === 'SOON') items.push({ when: when(due)!, date: due, text: `${jo.joNumber}: plan to be confirmed by ${day(due)}`, link });
+      continue;
+    }
+    if (jo.status !== 'CONFIRMED') continue;
     const d = jo.deadline.internalDeadline;
     const w = when(d);
     if (w === 'OVERDUE') {

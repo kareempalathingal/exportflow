@@ -84,7 +84,8 @@ export function PerformancePage() {
   const [custom, setCustom] = useState(() => presetRange('90', today)!);
   const range = preset === 'custom' ? custom : presetRange(preset, today)!;
   const valid = range.from <= range.to;
-  const ctx = useMemo(() => ({ md: master.md, cal }), [master.md, cal]);
+  const planningDays = profile?.planningDays;
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
   const report = useMemo(
     () => (valid ? buildPerformance({ jobOrders: jos.items, ctx, from: range.from, to: range.to, today, history: history.events }) : null),
     [valid, jos.items, ctx, range.from, range.to, today, history.events],
@@ -205,7 +206,7 @@ export function PerformancePage() {
                     Internal deadline: {signed(c.vsInternal)} · Delivery: {signed(c.vsDelivery)} · Buffer used {formatQty(c.bufferUsed)} of {c.bufferDays}
                   </span>
                   <span className="small block">
-                    Days: plan {c.plannedDays === null ? '—' : formatQty(c.plannedDays)} · actual {formatQty(c.actualDays)} · allowed {c.allowedDays}
+                    Planning {c.planningDays === null ? '—' : `${formatQty(c.planningDays)}d`} · Days: plan {c.plannedDays === null ? '—' : formatQty(c.plannedDays)} · actual {formatQty(c.actualDays)} · allowed {c.allowedDays}
                   </span>
                   {c.slowest && (
                     <span className="small block warn">
