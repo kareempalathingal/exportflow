@@ -326,6 +326,29 @@ report the discrepancy and ask; do not silently choose.
 -   Later, when needed: size → area per piece, GSM + size → weight per
     piece, container fill (after packing data).
 
+## Capacity planning (decided 25 Oct 2026; build AFTER joining)
+
+-   Wait until the company's real capacity practice is known (checklist
+    item "capacity"): lines/machines vs total output, shifts, overtime,
+    batch processes, setup times, subcontracting. Building now risks the
+    wrong model and cannot be checked against real orders.
+-   Agreed design for then: all open orders planned together against
+    shared process / department capacity (finite capacity, working days).
+    Capacity preferably as parallel lines × each product's own route rate
+    (product difficulty stays in the calculation); "total output per day
+    in a common unit" offered as an option if that is how the company
+    measures. Queue order by internal deadline by default, with manual
+    priority (move up / Rush), an impact preview before saving and a
+    history entry with reason.
+-   Draft JO "Capacity check": expected finish vs internal deadline, where
+    it waits (process, department, behind which orders, days), impact on
+    other orders, missing times / capacities listed. Then a Reports
+    "Factory load" (weekly load % per process / department, bottlenecks
+    first) and expected finish / risks using the shared queue.
+-   No probability % until enough completed orders exist (about 10+):
+    until then exact spare / late working days plus a Low / Medium / High
+    risk level; later a % from actual-vs-planned history per process.
+
 ## Planning stage and plan document (confirmed 21 Oct 2026)
 
 -   The order clock starts on the JO received date. "Planning"

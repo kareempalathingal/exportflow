@@ -23,6 +23,13 @@ export const READINESS_ITEMS: ReadinessItem[] = [
   { id: 'departments', need: 'Departments, their leaders and other contacts (name, designation, phone, WhatsApp, email) and which processes each handles', ask: 'Production / HR', unlocks: 'Department-wise daily to-do and target lists', phase: 'Phase 4–5' },
   { id: 'holidays', need: 'Weekly off day(s) and the company holiday list for the year', ask: 'HR / admin', unlocks: 'Working-day deadlines and step plans (dashboard calendar)', phase: 'Job Orders' },
   { id: 'benchmarks', need: 'Output per day for each process (and fixed days such as drying), and daily output per department', ask: 'Production manager / past records', unlocks: 'Planning, daily targets, performance reports', phase: 'Phase 4–5' },
+  {
+    id: 'capacity',
+    need: 'Capacity of each process / department: how it is measured (lines or machines, or total output per day and in which unit), shifts per day and overtime, batch size of batch processes (bleaching, drying), setup time between products, work given outside (subcontracting)',
+    ask: 'Production manager / department heads',
+    unlocks: 'Capacity check on new Job Orders (fits / late, where it waits), order priority, Factory load report and bottlenecks',
+    phase: 'Capacity',
+  },
   { id: 'approvals', need: 'Who approves what (purchases, overtime, dispatch) and how', ask: 'Management', unlocks: 'Approval records with on-time / late tracking', phase: 'Phase 4' },
   { id: 'suppliers', need: 'Supplier list, what each supplies, usual lead times', ask: 'Purchase department', unlocks: 'Purchase planning, supplier suggestions on To buy', phase: 'Procurement' },
   { id: 'po-rfq', need: 'Purchase order and quotation-request formats; PO approval rules', ask: 'Purchase / accounts', unlocks: 'Draft RFQ letters and purchase orders (PDF)', phase: 'Procurement' },
