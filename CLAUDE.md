@@ -420,6 +420,20 @@ report the discrepancy and ask; do not silently choose.
     ("Known"). No ERP logins, payroll / personal records, accounts or
     prices.
 
+## Weekly report to management (noted 27 Oct 2026; build AFTER the 3-month learning period)
+
+-   After the learning period the user must give management a weekly
+    report of what he did that week: a normal weekly report that also
+    shows his work is needed. Idea discussed, not designed: built only
+    from data recorded in the app (orders planned / confirmed, planning
+    days, steps updated, orders completed and on-time %, risks caught
+    early and how they ended, Work tasks and follow-ups done, plans and
+    reports submitted, KPI change vs last week, documentation status
+    later) plus a "Highlights" section of outcomes the app suggests and
+    the user edits. Outcomes over activity counts; nothing inflated or
+    invented — every figure must be checkable. Encourage a one-line note
+    when a task is marked Done.
+
 ## Capacity planning (decided 25 Oct 2026; build AFTER joining)
 
 -   Wait until the company's real capacity practice is known (checklist
