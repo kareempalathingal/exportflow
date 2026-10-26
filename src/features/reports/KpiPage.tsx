@@ -146,6 +146,29 @@ export function KpiPage() {
             })}
           </div>
 
+          <h3>Planning</h3>
+          <div className="card">
+            <p className="small">
+              {r.factory.planningConfirmed} order{r.factory.planningConfirmed === 1 ? '' : 's'} confirmed in the period · average {fmtDays(r.factory.avgPlanningDays)}
+              {r.planningBenchmark !== null ? ` · benchmark ${formatQty(r.planningBenchmark)} working day${r.planningBenchmark === 1 ? '' : 's'}` : ' · no benchmark set (Settings → Profile)'}
+            </p>
+            {r.planning.filter((p) => p.over).length > 0 ? (
+              <ul className="today-list">
+                {r.planning
+                  .filter((p) => p.over)
+                  .map((p) => (
+                    <li key={p.joId}>
+                      <Link to={`/orders/${p.joId}`}>
+                        {p.joNumber}: {formatQty(p.days)} working days (received {formatDay(p.received)}, confirmed {formatDay(p.confirmed)})
+                      </Link>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              r.factory.planningConfirmed > 0 && r.planningBenchmark !== null && <p className="ok small">All confirmed within the benchmark.</p>
+            )}
+          </div>
+
           <h3>Departments</h3>
           {r.worstGroup && (
             <p className="warn small">

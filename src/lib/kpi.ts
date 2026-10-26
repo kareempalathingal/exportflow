@@ -9,10 +9,11 @@
  * otherwise everything since the previous step finished (waiting included).
  */
 import { addDays, daysBetween, type JobOrder } from './jobOrders';
+import { workingDaysBetween } from './calendar';
 import { departmentsFor } from './contacts';
 import type { Department } from './masters';
 import { buildPerformance, type JoHistoryEvent } from './performance';
-import { lineProgresses, orderTrack, PLANNING_KEY, type PlanContext } from './route';
+import { DEFAULT_PLANNING_DAYS, lineProgresses, orderTrack, PLANNING_KEY, type PlanContext } from './route';
 import { formatQty, unitLabel } from './units';
 
 type Jo = JobOrder & { id: string };
@@ -20,6 +21,7 @@ type Jo = JobOrder & { id: string };
 export interface KpiTargets {
   onTimeDeliveryPct?: number | null;
   onTimeInternalPct?: number | null;
+  planningOnTimePct?: number | null;
   onTimeStepPct?: number | null;
   efficiencyPct?: number | null;
   maxAvgDelayDays?: number | null;
@@ -73,7 +75,10 @@ export interface FactoryKpi {
   onTimeDeliveryPct: number | null;
   onTimeInternalPct: number | null;
   avgBufferUsed: number | null;
+  /** Planning (received → confirmed) of orders CONFIRMED in the period, completed or not. */
   avgPlanningDays: number | null;
+  planningConfirmed: number;
+  planningOnTimePct: number | null; // within the planning benchmark; null when no benchmark is set
   avgChanges: number | null;
   onTimeStepPct: number | null;
   efficiencyPct: number | null;
@@ -94,6 +99,30 @@ export interface KpiReport {
   /** Department with the most late orders, then the lowest on-time %. */
   worstGroup: string | null;
   steps: number;
+  /** Orders confirmed in the period, slowest planning first. */
+  planning: PlanningRow[];
+  planningBenchmark: number | null;
+}
+
+export interface PlanningRow {
+  joId: string;
+  joNumber: string;
+  received: string;
+  confirmed: string;
+  days: number;
+  over: boolean;
+}
+
+/** Planning time of every order confirmed in the period (working days, received → confirmed). */
+export function planningRows(jobOrders: Jo[], ctx: PlanContext, from: string, to: string): PlanningRow[] {
+  const bench = ctx.planningDays === undefined ? DEFAULT_PLANNING_DAYS : ctx.planningDays;
+  return jobOrders
+    .filter((j) => j.status !== 'DRAFT' && j.confirmedOn && j.confirmedOn >= from && j.confirmedOn <= to)
+    .map((j) => {
+      const days = Math.max(0, workingDaysBetween(j.receivedDate, j.confirmedOn!, ctx.cal) ?? 0);
+      return { joId: j.id, joNumber: j.joNumber, received: j.receivedDate, confirmed: j.confirmedOn!, days, over: bench !== null && days > bench };
+    })
+    .sort((a, b) => b.days - a.days || a.joNumber.localeCompare(b.joNumber));
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
@@ -241,7 +270,15 @@ function periodKpi(args: { jobOrders: Jo[]; ctx: PlanContext; from: string; to: 
     onTimeDeliveryPct: pct(s.onTimeDelivery, s.completed),
     onTimeInternalPct: pct(s.onTimeInternal, s.completed),
     avgBufferUsed: s.avgBufferUsed,
-    avgPlanningDays: s.avgPlanningDays,
+    ...(() => {
+      const rows = planningRows(jobOrders, ctx, from, to);
+      const bench = ctx.planningDays === undefined ? DEFAULT_PLANNING_DAYS : ctx.planningDays;
+      return {
+        avgPlanningDays: avg(rows.map((r) => r.days)),
+        planningConfirmed: rows.length,
+        planningOnTimePct: bench === null ? null : pct(rows.filter((r) => !r.over).length, rows.length),
+      };
+    })(),
     avgChanges: completedPerf.length ? avg(completedPerf.map((c) => c.changes.count)) : null,
     onTimeStepPct: all.onTimePct,
     efficiencyPct: all.efficiencyPct,
@@ -280,6 +317,8 @@ export function buildKpis(args: {
     prevGroups: new Map(prev.groups.map((g) => [g.id, g])),
     worstGroup: worst && (worst.lateOrderShare > 0 || (worst.onTimePct ?? 100) < 100) ? worst.name : null,
     steps: cur.steps,
+    planning: planningRows(args.jobOrders, args.ctx, args.from, args.to),
+    planningBenchmark: args.ctx.planningDays === undefined ? DEFAULT_PLANNING_DAYS : args.ctx.planningDays,
   };
 }
 
@@ -321,6 +360,8 @@ export function kpiText(r: KpiReport, company: string, fmtDay: (d: string) => st
     `Efficiency (planned ÷ actual time): ${fmtPct(f.efficiencyPct)}`,
     `Average delay per step: ${fmtDays(f.avgDelay)} · average wait before a step: ${fmtDays(f.avgWait)}`,
     `Open orders late now: ${f.openLate}`,
+    `Planning (orders confirmed in the period): ${f.planningConfirmed} · average ${fmtDays(f.avgPlanningDays)}${f.planningOnTimePct !== null ? ` · within ${r.planningBenchmark} working day benchmark ${fmtPct(f.planningOnTimePct)}` : ''}`,
+    ...r.planning.filter((p) => p.over).map((p) => `  - ${p.joNumber}: ${formatQty(p.days)} working days (benchmark ${r.planningBenchmark})`),
   ];
   for (const g of r.groups) {
     out.push('', `${g.name}: ${g.steps} steps · on time ${fmtPct(g.onTimePct)} · efficiency ${fmtPct(g.efficiencyPct)} · avg delay ${fmtDays(g.avgDelay)}${g.lateOrderShare ? ` · main delay in ${g.lateOrderShare} late order${g.lateOrderShare === 1 ? '' : 's'}` : ''}${g.runningNow ? ` · ${g.runningNow} running now (${g.overNow} over plan)` : ''}`);

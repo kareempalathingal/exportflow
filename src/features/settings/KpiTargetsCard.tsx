@@ -7,6 +7,7 @@ import { saveRecord } from '../sync/records';
 const FIELDS: { key: keyof KpiTargets; label: string; unit: string; hint: string }[] = [
   { key: 'onTimeDeliveryPct', label: 'On-time delivery at least', unit: '%', hint: 'orders finished by the customer delivery date' },
   { key: 'onTimeInternalPct', label: 'Done by internal deadline at least', unit: '%', hint: '' },
+  { key: 'planningOnTimePct', label: 'Planning within benchmark at least', unit: '%', hint: 'orders confirmed within the planning benchmark (Settings → Profile)' },
   { key: 'onTimeStepPct', label: 'Steps on time at least', unit: '%', hint: 'per department too' },
   { key: 'efficiencyPct', label: 'Efficiency at least', unit: '%', hint: 'planned ÷ actual time' },
   { key: 'maxAvgDelayDays', label: 'Average delay per step at most', unit: 'working days', hint: '' },

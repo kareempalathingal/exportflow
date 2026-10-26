@@ -364,6 +364,12 @@ report the discrepancy and ask; do not silently choose.
     efficiency, department needing most attention), always shown (a note
     when there is no data yet), placed just above the calendar near the
     end of Home (not needed all the time).
+-   Planning KPI (confirmed 26 Oct 2026): counted from every order
+    CONFIRMED in the period (completed or not): average planning days
+    (received → confirmed, working days), % within the planning benchmark
+    (Settings → profile), and the orders over it (KPI page section with
+    links, text share, PDF table). Target "Planning within benchmark at
+    least %" in KPI targets. No benchmark = no % and nothing marked over.
 -   Benchmark suggestions (performance report) now use working time when
     the start was recorded. Daily department output vs target needs a
     production record — decide after joining.

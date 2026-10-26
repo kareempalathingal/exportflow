@@ -89,3 +89,31 @@ describe('KPIs', () => {
     expect(doc.charts!.length).toBe(1);
   });
 });
+
+describe('planning KPI (orders confirmed in the period, confirmed 26 Oct 2026)', () => {
+  it('lists every order confirmed in the period, with planning days and benchmark check', () => {
+    const r = kpis('2026-10-01', TODAY);
+    const d105 = r.planning.find((p) => p.joNumber === 'DEMO-105');
+    expect(d105).toBeDefined();
+    expect(d105!.days).toBeGreaterThan(1);
+    expect(d105!.over).toBe(true);
+    expect(r.planningBenchmark).toBe(1);
+    expect(r.factory.planningConfirmed).toBe(r.planning.length);
+    const within = r.planning.filter((p) => !p.over).length;
+    expect(r.factory.planningOnTimePct).toBe(Math.round((within / r.planning.length) * 100));
+    // worst first
+    expect(r.planning.map((p) => p.days)).toEqual([...r.planning.map((p) => p.days)].sort((a, b) => b - a));
+  });
+  it('no benchmark = nothing marked over and no on-time %', () => {
+    const r = buildKpis({ jobOrders: jos, ctx: { ...ctx, planningDays: null }, from: '2026-10-01', to: TODAY, today: TODAY, departments, processNames, history: [] });
+    expect(r.planning.some((p) => p.over)).toBe(false);
+    expect(r.factory.planningOnTimePct).toBeNull();
+  });
+  it('shows in the text share and the PDF', () => {
+    const r = kpis('2026-10-01', TODAY);
+    const text = kpiText(r, 'X', (d) => d);
+    expect(text).toContain('DEMO-105:');
+    const doc = kpiDoc(r, { planningOnTimePct: 80 }, { company: 'X', generatedAt: '' });
+    expect(doc.tables.some((t) => t.title.startsWith('Planning'))).toBe(true);
+  });
+});
