@@ -180,8 +180,6 @@ export function HomePage() {
 
       {!loading && (jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') || tasks.items.some(isActive)) && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} />}
 
-      {!loading && <KpiStrip />}
-
       <section aria-label="Order status counts" className="counts">
         {GROUPS.map((g) => (
           <div key={g.id} style={{ boxShadow: `inset 0 4px 0 ${g.edge}` }}>
@@ -361,6 +359,8 @@ export function HomePage() {
           })}
         </ul>
       </div>
+
+      {!loading && <KpiStrip />}
 
       <WorkCalendarCard />
     </section>
