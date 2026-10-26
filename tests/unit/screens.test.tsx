@@ -58,7 +58,11 @@ const department = { id: 'd1', rev: 1, pending: false, name: 'Finishing', active
   { name: 'Rajan K', designation: 'Supervisor', phone: '9876543210', whatsapp: '', email: 'rajan@company.in', primary: true },
   { name: 'Anu', designation: 'Shift B', phone: '9000011111', whatsapp: '', email: '', primary: false },
 ] };
-const data: Record<string, { id: string }[]> = { departments: [department], products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder, stepped], suppliers: [supplier], processes };
+const tasks = [
+  { id: 't1', rev: 1, pending: false, title: 'Artwork approval from buyer', departmentId: 'd1', person: 'Rajan K', dueDate: '2020-01-01', priority: 'HIGH', status: 'WAITING', waitingOn: 'buyer', joId: 'j1', joNumber: 'JO-77', notes: '', repeat: null, doneOn: null },
+  { id: 't2', rev: 1, pending: false, title: 'GST filing status', departmentId: '', person: '', dueDate: '2099-01-10', priority: 'NORMAL', status: 'OPEN', waitingOn: '', joId: null, joNumber: '', notes: '', repeat: { kind: 'MONTHLY', day: 10 }, doneOn: null },
+];
+const data: Record<string, { id: string }[]> = { tasks, departments: [department], products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder, stepped], suppliers: [supplier], processes };
 
 vi.mock('../../src/firebase', () => ({ db: {}, auth: { currentUser: { uid: 'u1' } }, offlineCacheEnabled: true }));
 vi.mock('../../src/features/settings/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, pendingWrite: false, fromCache: false, error: null }) }));
@@ -372,5 +376,40 @@ describe('Reports layout', () => {
     expect(html).toMatch(/setting-title">Job Order performance<\/span>/);
     expect(html).toMatch(/setting-title">To buy — all orders<\/span><span class="setting-sum">\d+ items?/);
     expect(html).not.toContain('<details class="card setting" open');
+  });
+});
+
+describe('Work (tasks and follow-ups)', () => {
+  it('lists tasks by group with contact buttons and the follow-up PDF', async () => {
+    const { WorkPage } = await import('../../src/features/work/WorkPage');
+    const html = render('/work', '/work', <WorkPage />);
+    expect(html).toContain('Quick add');
+    expect(html).toContain('Overdue · 1');
+    expect(html).toContain('Artwork approval from buyer');
+    expect(html).toContain('waiting on buyer');
+    expect(html).toContain('every month on day 10');
+    expect(html).toContain('Follow-up list (PDF)');
+    expect(html).toContain('Rajan K');
+  });
+  it('task form shows repeat and Done', async () => {
+    const { TaskForm } = await import('../../src/features/work/TaskForm');
+    const html = render('/work/t2', '/work/:id', <TaskForm />);
+    expect(html).toContain('GST filing status');
+    expect(html).toContain('Every month');
+    expect(html).toContain('✓ Done (adds the next one)');
+    expect(render('/work/new', '/work/:id', <TaskForm />)).toContain('New task');
+  });
+  it('menu has Work; Masters opens from Settings', () => {
+    const nav = render('/', '/', <Layout />);
+    expect(nav).toContain('navWork');
+    expect(nav).not.toContain('>navMasters<');
+    expect(render('/settings', '/settings', <SettingsPage />)).toContain('href="/masters"');
+  });
+  it('reports has the follow-up list; KPIs and calculator render', async () => {
+    expect(render('/reports', '/reports', <ReportsPage />)).toContain('Follow-ups (Work)');
+    const { KpiPage } = await import('../../src/features/reports/KpiPage');
+    expect(render('/reports/kpi', '/reports/kpi', <KpiPage />)).toContain('KPIs');
+    const { ToolsPage } = await import('../../src/features/tools/ToolsPage');
+    expect(render('/tools', '/tools', <ToolsPage />)).toContain('Calculator');
   });
 });

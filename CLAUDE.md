@@ -355,6 +355,32 @@ report the discrepancy and ask; do not silently choose.
     the start was recorded. Daily department output vs target needs a
     production record — decide after joining.
 
+## Work: tasks and follow-ups (confirmed 26 Oct 2026)
+
+-   Other departments (design, finance, HR…) may come under the user. Same
+    app, separate "Work" section, for the user only (no other users).
+    Accounting, payroll and personal HR records stay in the company's own
+    systems — never in this app.
+-   Bottom menu: Home · Orders · Work · Reports · Settings; Masters opens
+    from Settings (link row; back link on Masters).
+-   Tasks (`tasks` collection, `src/lib/tasks.ts`): title, department
+    (or General), whom to ask, due date, priority Normal/High, status
+    Open / Waiting (waiting on…) / Done / Dropped, optional Job Order,
+    notes; never deleted. Repeats: weekly (weekday of the due date),
+    monthly (day of the due date; last day in shorter months), every N
+    days; Done adds the next one (never a date already past).
+-   Work screen: Quick add, groups Overdue / Today / This week / Waiting /
+    Later / No date / Done (last 7 days; older behind a button), filter by
+    department, contact buttons (drafts only), follow-up list text + PDF
+    (`src/lib/docs/tasksDoc.ts`). Today card / daily summary include tasks
+    (overdue, today, next 2 working days). Reports → "Follow-ups (Work)".
+-   Rules: `tasks` validated (title, status, priority, dates, repeat; a
+    repeat needs a due date). Included in backup / restore, Check data,
+    Check rules. DEMO: Design and Finance sample departments and 4 sample
+    tasks; "Add new sample records" adds only missing sample records.
+-   After joining: department KPIs the user defines (monthly figures),
+    approvals register, meeting notes (checklist item "other-departments").
+
 ## Capacity planning (decided 25 Oct 2026; build AFTER joining)
 
 -   Wait until the company's real capacity practice is known (checklist

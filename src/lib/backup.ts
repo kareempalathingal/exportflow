@@ -15,6 +15,7 @@ export const BACKUP_COLLECTIONS = [
   'departments',
   'jobOrders',
   'stockCounts',
+  'tasks',
   'auditEvents',
 ] as const;
 

@@ -234,6 +234,14 @@ export function SettingsPage() {
         <p className="muted small">{mode === 'ACTUAL' ? t('modeActualHelp') : t('modeDemoHelp')}</p>
       </div>
 
+      <Link to="/masters" className="card setting-link">
+        <span className="setting-title">{t('navMasters')}</span>
+        <span className="setting-sum">Products, BOMs, processes, departments, suppliers</span>
+        <span className="setting-chev" aria-hidden="true">
+          ›
+        </span>
+      </Link>
+
       <SettingSection title={t('profile')} summary={[company, profile?.preparedByName].filter(Boolean).join(' · ') || 'Company name, your name'}>
         <ProfileForm />
       </SettingSection>

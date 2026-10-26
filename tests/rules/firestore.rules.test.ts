@@ -318,6 +318,29 @@ describe('versioned records with audit', () => {
     expect(after.products!.find((r) => r.id === 'sample_p_mat')!.data.name).toBe('Coir mat 40×60 (sample)');
     expect(planRestore(backup, after, { workspaceId: ws, mode: 'DEMO' }).writes).toHaveLength(0);
   });
+  it('tasks: validated, repeats checked, never deleted', async () => {
+    const db = dbFor(ALICE);
+    const ws = await createWorkspace(db, ALICE, 'ACTUAL');
+    const write = (id: string, rev: number, ev: string, data: Record<string, unknown>) => {
+      const b = writeBatch(db);
+      b.set(doc(db, `workspaces/${ws}/tasks/${id}`), { ...data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
+      b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
+        entity: 'Task', entityPath: `workspaces/${ws}/tasks/${id}`, entityId: id, action: rev === 1 ? 'CREATE' : 'UPDATE',
+        rev, changes: [], reason: null, actorUid: ALICE, at: serverTimestamp(),
+      });
+      return b.commit();
+    };
+    const task = { title: 'GST filing status', departmentId: '', person: '', dueDate: '2026-11-10', priority: 'NORMAL', status: 'OPEN', waitingOn: '', joId: null, joNumber: '', notes: '', repeat: { kind: 'MONTHLY', day: 10 }, doneOn: null };
+    await assertSucceeds(write('t1', 1, 'k1', task));
+    await assertSucceeds(write('t1', 2, 'k2', { ...task, status: 'DONE', doneOn: '2026-11-09' }));
+    await assertFails(write('t2', 1, 'k3', { ...task, title: '' }));
+    await assertFails(write('t3', 1, 'k4', { ...task, repeat: { kind: 'MONTHLY', day: 40 } }));
+    await assertFails(write('t4', 1, 'k5', { ...task, dueDate: null })); // a repeat needs a first date
+    await assertFails(write('t5', 1, 'k6', { ...task, status: 'MAYBE' }));
+    const { deleteDoc } = await import('firebase/firestore');
+    await assertFails(deleteDoc(doc(db, `workspaces/${ws}/tasks/t1`)));
+    await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/tasks/t1`)));
+  });
   it('unknown collections are denied', async () => {
     const db = dbFor(ALICE);
     const ws = await createWorkspace(db, ALICE, 'ACTUAL');

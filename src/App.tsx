@@ -20,6 +20,8 @@ import { OrdersPage } from './features/orders/OrdersPage';
 import { JobOrderPage } from './features/orders/JobOrderPage';
 import { ToolsPage } from './features/tools/ToolsPage';
 import { KpiPage } from './features/reports/KpiPage';
+import { WorkPage } from './features/work/WorkPage';
+import { TaskForm } from './features/work/TaskForm';
 
 function Gate() {
   const { authReady, user, t, workspaceError, logout } = useApp();
@@ -65,6 +67,8 @@ function Gate() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="readiness" element={<ReadinessPage />} />
         <Route path="tools" element={<ToolsPage />} />
+        <Route path="work" element={<WorkPage />} />
+        <Route path="work/:id" element={<TaskForm />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

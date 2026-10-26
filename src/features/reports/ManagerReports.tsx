@@ -32,6 +32,8 @@ import { DocButtons } from '../docs/DocButtons';
 import { StepContacts } from '../masters/ContactButtons';
 import { SettingSection } from '../settings/SettingSection';
 import { shareText } from './TodayCard';
+import { tasksDoc } from '../../lib/docs/tasksDoc';
+import { groupTasks, isActive, tasksText, type Task } from '../../lib/tasks';
 
 type Jo = JobOrder & { id: string };
 interface Common {
@@ -420,3 +422,44 @@ export function StockSection({ jos, md, counts, today, company, generatedAt }: O
   );
 }
 
+
+// ---------------------------------------------------------------------------
+// Follow-up list (Work tasks)
+// ---------------------------------------------------------------------------
+
+export function FollowUpSection({ tasks, departments, company, today, generatedAt }: { tasks: (Task & { id: string })[]; departments: (Department & { id: string })[]; company: string; today: string; generatedAt: () => string }) {
+  const [dept, setDept] = useState('');
+  const deptName = (id: string) => (id ? (departments.find((d) => d.id === id)?.name ?? 'Unknown department') : 'General');
+  const list = tasks.filter((t) => !dept || (dept === 'general' ? !t.departmentId : t.departmentId === dept));
+  const open = tasks.filter(isActive).length;
+  const overdue = groupTasks(tasks, today).find((g) => g.group === 'OVERDUE')?.tasks.length ?? 0;
+  const label = dept ? (dept === 'general' ? 'General' : deptName(dept)) : undefined;
+  return (
+    <SettingSection title="Follow-ups (Work)" summary={open ? `${open} open${overdue ? ` · ${overdue} overdue` : ''}` : 'Nothing open'} flag={overdue ? 'bad' : null} flagLabel="Overdue tasks">
+      <div className="card">
+        <label>
+          Department
+          <select value={dept} onChange={(e) => setDept(e.target.value)}>
+            <option value="">All departments</option>
+            <option value="general">General</option>
+            {departments
+              .filter((d) => d.active !== false)
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <div className="row gap wrap">
+          <ShareTextButton title={label ? `Follow-ups - ${label}` : 'Follow-ups'} text={() => tasksText(list, { company, today, title: label ? `Follow-ups - ${label}` : 'Follow-ups', deptName })} />
+        </div>
+        <DocButtons label={label ? `Follow-up list · ${label} (PDF)` : 'Follow-up list (PDF)'} build={() => tasksDoc(list, { company, today, generatedAt: generatedAt(), deptName, department: label })} />
+        <p className="muted small">
+          The working list is in <Link to="/work">Work</Link>.
+        </p>
+      </div>
+    </SettingSection>
+  );
+}

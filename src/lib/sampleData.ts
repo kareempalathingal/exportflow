@@ -6,6 +6,7 @@
 import type { Tracked } from './dataStatus';
 import { addDays, computeDeadline, snapshotBoms, type JobOrder, type JoLine, type JoStatus, type StockEntry } from './jobOrders';
 import type { Bom, BomLine, Customer, Department, MasterData, Process, Product, RawMaterial, RouteStep, Supplier } from './masters';
+import { emptyTask, monthDay, nextDue, type Task } from './tasks';
 import { buildLineSteps, completeCurrent, startCurrent } from './route';
 import type { StockCount } from './materials';
 
@@ -73,6 +74,8 @@ export function buildSampleData(today: string): SampleWrite[] {
     },
     sample_d_finish: { name: 'Finishing (sample)', active: true, notes: SRC, people: [person('Finishing lead (sample)', 'Supervisor', 'finishing.lead@example.com', true)], processIds: ['sample_pr_bleach', 'sample_pr_dye', 'sample_pr_latex'] },
     sample_d_pack: { name: 'Packing (sample)', active: true, notes: SRC, people: [person('Packing lead (sample)', 'Supervisor', 'packing.lead@example.com', true)], processIds: ['sample_pr_label', 'sample_pr_pack'] },
+    sample_d_design: { name: 'Design (sample)', active: true, notes: SRC, people: [person('Design lead (sample)', 'Designer', 'design.lead@example.com', true)], processIds: [] },
+    sample_d_finance: { name: 'Finance (sample)', active: true, notes: SRC, people: [person('Accounts (sample)', 'Accountant', 'accounts@example.com', true)], processIds: [] },
   };
   for (const [id, d] of Object.entries(departments)) create('departments', id, `Department: ${d.name}`, d);
   const rawMaterials: Record<string, RawMaterial> = {
@@ -174,5 +177,11 @@ export function buildSampleData(today: string): SampleWrite[] {
     }
     if (o.final === 'COMPLETED') step({ ...current, status: 'COMPLETED', completedOn: d(o.completed!) });
   }
+  // Work: follow-ups in other departments (Design, Finance) and a repeating one.
+  const task = (t: Partial<Task>): Task => ({ ...emptyTask(), notes: SRC, ...t });
+  create('tasks', 'sample_t_artwork', 'Task: Artwork approval (sample)', task({ title: 'Artwork approval for printed door mat (sample)', departmentId: 'sample_d_design', person: 'Design lead (sample)', dueDate: d(2), status: 'WAITING', waitingOn: "buyer's reply", joId: 'sample_jo_102', joNumber: 'DEMO-102' }));
+  create('tasks', 'sample_t_payment', 'Task: Payment follow-up (sample)', task({ title: 'Advance payment status from Hansa (sample)', departmentId: 'sample_d_finance', person: 'Accounts (sample)', dueDate: d(-1), priority: 'HIGH' }));
+  create('tasks', 'sample_t_gst', 'Task: Monthly GST status (sample)', task({ title: 'Ask accounts for GST filing status (sample)', departmentId: 'sample_d_finance', dueDate: monthDay(d(0).slice(0, 7), 10) >= d(0) ? monthDay(d(0).slice(0, 7), 10) : nextDue({ kind: 'MONTHLY', day: 10 }, d(0)), repeat: { kind: 'MONTHLY', day: 10 } }));
+  create('tasks', 'sample_t_review', 'Task: Weekly review (sample)', task({ title: 'Weekly production review notes (sample)', dueDate: d(4) }));
   return writes;
 }

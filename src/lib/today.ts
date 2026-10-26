@@ -7,6 +7,7 @@ import { addWorkingDays, dayOff, workingDaysBetween, type WorkCalendar } from '.
 import { addDays, daysBetween, formatDay, type JobOrder } from './jobOrders';
 import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route';
 import { formatQty, unitLabel } from './units';
+import { isActive, type Task } from './tasks';
 
 export const SOON_WORKING_DAYS = 2;
 
@@ -34,6 +35,9 @@ export function buildToday(args: {
   ctx: PlanContext;
   today: string;
   backupDue?: { days: number | null } | null;
+  /** Work tasks (any department): overdue, today and the next 2 working days. */
+  tasks?: (Task & { id: string })[];
+  deptName?: (id: string) => string;
 }): TodaySummary {
   const { today, ctx } = args;
   const cal: WorkCalendar = ctx.cal;
@@ -91,6 +95,15 @@ export function buildToday(args: {
   for (let d = addDays(today, 1)!; d <= soonUntil; d = addDays(d, 1)!) {
     const off = dayOff(d, cal);
     if (off.off && d in cal.holidays) items.push({ when: 'SOON', date: d, text: `${formatDay(d)}: ${off.reason} (no work)`, link: '/' });
+  }
+
+  for (const t of args.tasks ?? []) {
+    if (!isActive(t) || !t.dueDate) continue;
+    const w = when(t.dueDate);
+    if (!w) continue;
+    const who = [t.departmentId && args.deptName ? args.deptName(t.departmentId) : '', t.person].filter(Boolean).join(' · ');
+    const lateBy = w === 'OVERDUE' ? ` - due ${formatDay(t.dueDate)}` : w === 'SOON' ? ` - ${day(t.dueDate)}` : '';
+    items.push({ when: w, date: t.dueDate, text: `Task${t.priority === 'HIGH' ? ' [High]' : ''}: ${t.title}${who ? ` (${who})` : ''}${t.status === 'WAITING' ? ' · waiting' : ''}${lateBy}`, link: `/work/${t.id}` });
   }
 
   if (args.backupDue) {

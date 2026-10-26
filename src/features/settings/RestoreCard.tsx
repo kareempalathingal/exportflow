@@ -19,7 +19,9 @@ const LABEL: Record<string, string> = {
   suppliers: 'Suppliers',
   processes: 'Processes',
   jobOrders: 'Job Orders',
+  departments: 'Departments',
   stockCounts: 'Stock counts',
+  tasks: 'Tasks',
 };
 const SAFETY_MINUTES = 30;
 /** Free plan: about 20,000 writes a day; each restored revision is 2 writes. */

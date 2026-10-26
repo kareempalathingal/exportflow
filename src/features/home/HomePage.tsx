@@ -16,6 +16,7 @@ import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { WorkCalendarCard } from '../calendar/WorkCalendarCard';
 import { readRedAt } from '../../lib/theme';
 import { backupReminder } from '../../lib/backup';
+import { COLLECTION_TASKS, isActive, type Task } from '../../lib/tasks';
 import { buildToday } from '../../lib/today';
 import { KpiStrip } from '../reports/KpiPage';
 import { TodayCard } from '../reports/TodayCard';
@@ -149,7 +150,12 @@ export function HomePage() {
     [mode, workspaceId, products.items.length, jos.items.length],
   );
   // Backup stays in Needs attention; the shareable summary is about the orders.
-  const todaySummary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today }), [jos.items, ctx, today]);
+  const tasks = useCollection<Task>(workspaceId, COLLECTION_TASKS);
+  const deptName = useMemo(() => {
+    const m = new Map(departments.items.map((d) => [d.id, d.name]));
+    return (id: string) => m.get(id) ?? '';
+  }, [departments.items]);
+  const todaySummary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today, tasks: tasks.items, deptName }), [jos.items, ctx, today, tasks.items, deptName]);
   const total = attention.length + joAttention.length + over.length + overruns.length + deadlineChanges.length + (backupDue ? 1 : 0);
 
   return (
@@ -172,7 +178,7 @@ export function HomePage() {
 
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
 
-      {!loading && jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} />}
+      {!loading && (jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') || tasks.items.some(isActive)) && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} />}
 
       {!loading && <KpiStrip />}
 

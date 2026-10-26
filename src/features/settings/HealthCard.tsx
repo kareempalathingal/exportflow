@@ -6,6 +6,7 @@ import { useApp } from '../../AppContext';
 import { BACKUP_REMIND_DAYS, daysSinceBackup, readLastBackup } from '../../lib/backup';
 import { clearErrors, errorReport, quotaErrors, readErrors, subscribeErrors, type ErrorEntry } from '../../lib/errorLog';
 import { checkIntegrity } from '../../lib/integrity';
+import { COLLECTION_TASKS, type Task } from '../../lib/tasks';
 import { COLLECTION_JOB_ORDERS, type JobOrder } from '../../lib/jobOrders';
 import { COLLECTIONS, type Customer, type Department, type Process, type Supplier } from '../../lib/masters';
 import { readinessWorkspace } from '../../lib/readiness';
@@ -25,6 +26,7 @@ export function useErrors(): ErrorEntry[] {
 const RULES_PROBES = [
   { collection: 'processes', since: 'Phase 4 (processes, calendar)' },
   { collection: 'departments', since: 'departments and contacts' },
+  { collection: 'tasks', since: 'Work (tasks and follow-ups)' },
 ];
 
 type RulesState = { state: 'idle' | 'checking' | 'ok' | 'old' | 'error'; text?: string };
@@ -145,10 +147,11 @@ function DataChecks() {
   const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
+  const tasks = useCollection<Task>(workspaceId, COLLECTION_TASKS);
   const loading = master.loading || jos.loading || customers.loading || processes.loading || suppliers.loading;
   const issues = useMemo(
-    () => (loading ? [] : checkIntegrity({ md: master.md, jobOrders: jos.items, customers: customers.items, processes: processes.items, suppliers: suppliers.items, departments: departments.items })),
-    [loading, master.md, jos.items, customers.items, processes.items, suppliers.items, departments.items],
+    () => (loading ? [] : checkIntegrity({ md: master.md, jobOrders: jos.items, customers: customers.items, processes: processes.items, suppliers: suppliers.items, departments: departments.items, tasks: tasks.items })),
+    [loading, master.md, jos.items, customers.items, processes.items, suppliers.items, departments.items, tasks.items],
   );
   if (loading) return <p className="muted small">Checking…</p>;
   if (issues.length === 0) return <p className="ok small">All records fit together: no missing links, loops or broken orders found.</p>;

@@ -30,6 +30,13 @@ export const READINESS_ITEMS: ReadinessItem[] = [
     unlocks: 'Capacity check on new Job Orders (fits / late, where it waits), order priority, Factory load report and bottlenecks',
     phase: 'Capacity',
   },
+  {
+    id: 'other-departments',
+    need: 'Other departments that may come under you (design, finance, HR…): what each one does, what they report and when, their key deadlines (e.g. monthly filings) and who to contact',
+    ask: 'Management / department heads',
+    unlocks: 'Recurring follow-ups in Work, department KPIs you define, approvals register, meeting notes',
+    phase: 'Work',
+  },
   { id: 'approvals', need: 'Who approves what (purchases, overtime, dispatch) and how', ask: 'Management', unlocks: 'Approval records with on-time / late tracking', phase: 'Phase 4' },
   { id: 'suppliers', need: 'Supplier list, what each supplies, usual lead times', ask: 'Purchase department', unlocks: 'Purchase planning, supplier suggestions on To buy', phase: 'Procurement' },
   { id: 'po-rfq', need: 'Purchase order and quotation-request formats; PO approval rules', ask: 'Purchase / accounts', unlocks: 'Draft RFQ letters and purchase orders (PDF)', phase: 'Procurement' },

@@ -9,6 +9,7 @@ import { COLLECTION_JOB_ORDERS, type JobOrder } from '../../lib/jobOrders';
 import { COLLECTIONS, suppliersOf, type Department, type Process, type Supplier } from '../../lib/masters';
 import { COLLECTION_STOCK_COUNTS, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
 import { formatDateTime, istDateKey } from '../../lib/time';
+import { COLLECTION_TASKS, type Task } from '../../lib/tasks';
 import { buildToday } from '../../lib/today';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { DocButtons } from '../docs/DocButtons';
@@ -18,7 +19,7 @@ import { permissionHint } from '../orders/OrderBits';
 import { useProfile } from '../settings/useProfile';
 import { TodayCard } from './TodayCard';
 import { SettingSection } from '../settings/SettingSection';
-import { DeliverySection, RiskSection, StockSection, SummarySection, WorkSection } from './ManagerReports';
+import { DeliverySection, FollowUpSection, RiskSection, StockSection, SummarySection, WorkSection } from './ManagerReports';
 
 /** Reports, summaries and printable lists in one place (History lives here too). */
 export function ReportsPage() {
@@ -36,7 +37,12 @@ export function ReportsPage() {
   const today = istDateKey(new Date());
   const planningDays = profile?.planningDays;
   const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
-  const summary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today }), [jos.items, ctx, today]);
+  const tasks = useCollection<Task>(workspaceId, COLLECTION_TASKS);
+  const deptName = useMemo(() => {
+    const m = new Map(departments.items.map((d) => [d.id, d.name]));
+    return (id: string) => m.get(id) ?? '';
+  }, [departments.items]);
+  const summary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today, tasks: tasks.items, deptName }), [jos.items, ctx, today, tasks.items, deptName]);
   const generatedAt = () => `${formatDateTime(new Date())} IST`;
   const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
   const processMap = useMemo(() => new Map(processes.items.map((p) => [p.id, p])), [processes.items]);
@@ -77,6 +83,8 @@ export function ReportsPage() {
           <DeliverySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} />
           <SummarySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} redAt={redAt} />
           <WorkSection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} departments={departments.items} />
+
+          <FollowUpSection tasks={tasks.items} departments={departments.items} company={company} today={today} generatedAt={generatedAt} />
 
           <SettingSection title="Plan of a Job Order" summary="To submit · PDF">
             <div className="card">

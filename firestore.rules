@@ -139,6 +139,26 @@ service cloud.firestore {
         && isDate(d.countedOn);
     }
 
+    // ---- Work: tasks and follow-ups (confirmed 26 Oct 2026) -------------
+    function validRepeat(r) {
+      return r == null
+        || (r is map && (
+          (r.kind == 'WEEKLY' && r.weekday is int && r.weekday >= 0 && r.weekday <= 6)
+          || (r.kind == 'MONTHLY' && r.day is int && r.day >= 1 && r.day <= 31)
+          || (r.kind == 'EVERY_N_DAYS' && r.days is int && r.days >= 1 && r.days <= 366)));
+    }
+
+    function validTask(d) {
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 200
+        && d.departmentId is string
+        && d.status in ['OPEN', 'WAITING', 'DONE', 'DROPPED']
+        && d.priority in ['NORMAL', 'HIGH']
+        && (d.dueDate == null || isDate(d.dueDate))
+        && (d.doneOn == null || isDate(d.doneOn))
+        && validRepeat(d.repeat)
+        && (d.repeat == null || isDate(d.dueDate));
+    }
+
     match /workspaces/{wsId} {
       allow get: if ownWorkspaceId(wsId)
         && (resource == null || request.auth.uid in resource.data.members);
@@ -190,6 +210,14 @@ service cloud.firestore {
         allow read: if isMember(wsId);
         allow create: if validCreate(wsId, docId) && validStockCount(request.resource.data, docId);
         allow update: if validUpdate(wsId, docId) && validStockCount(request.resource.data, docId);
+        allow delete: if false;
+      }
+
+      // Tasks: never deleted (Done or Dropped instead).
+      match /tasks/{docId} {
+        allow read: if isMember(wsId);
+        allow create: if validCreate(wsId, docId) && validTask(request.resource.data);
+        allow update: if validUpdate(wsId, docId) && validTask(request.resource.data);
         allow delete: if false;
       }
 

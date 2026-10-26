@@ -56,6 +56,11 @@ export function MastersPage() {
 
   return (
     <section>
+      <p>
+        <Link to="/settings" className="small">
+          ← Settings
+        </Link>
+      </p>
       <div className="row between">
         <h2>Masters</h2>
         <Link className="button primary small" to={`/masters/${tab}/new`}>

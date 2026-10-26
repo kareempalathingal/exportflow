@@ -470,3 +470,14 @@ a.button.icon-btn { justify-content: center; min-width: 40px; padding: 0.35rem 0
 .kpi-mini.tone-bad { box-shadow: inset 0 -3px 0 var(--danger); }
 .kpi-mini.tone-warn { box-shadow: inset 0 -3px 0 var(--warn); }
 .kpi-mini.tone-ok { box-shadow: inset 0 -3px 0 var(--ok); }
+
+/* Work: tasks */
+.quick-add { display: flex; flex-direction: column; gap: 0.4rem; }
+label.inline { display: flex; align-items: center; gap: 0.5rem; }
+.task-list { list-style: none; padding: 0; margin: 0.3rem 0 0.6rem; }
+.task { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+.task-check { flex: 0 0 auto; width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 50%; border: 2px solid var(--line); background: transparent; color: var(--ok); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.task-check.done { border-color: transparent; color: var(--muted); }
+.task-body { flex: 1; min-width: 0; }
+.task-title { color: var(--ink); text-decoration: none; font-weight: 600; overflow-wrap: anywhere; }
+.task.done .task-title, .task.dropped .task-title { color: var(--muted); text-decoration: line-through; }

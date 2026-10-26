@@ -6,6 +6,7 @@ import type { JobOrder } from './jobOrders';
 import { lineComponent, type Customer, type Department, type MasterData, type Process, type Supplier } from './masters';
 import { parseItemKey } from './materials';
 import { normalizeJoNumber } from './jobOrders';
+import type { Task } from './tasks';
 
 export interface IntegrityIssue {
   severity: 'error' | 'warn';
@@ -20,6 +21,7 @@ export function checkIntegrity(args: {
   processes: (Process & { id: string })[];
   suppliers: (Supplier & { id: string })[];
   departments?: (Department & { id: string })[];
+  tasks?: (Task & { id: string })[];
 }): IntegrityIssue[] {
   const { md } = args;
   const out: IntegrityIssue[] = [];
@@ -107,6 +109,14 @@ export function checkIntegrity(args: {
       if (!itemExists(k)) out.push({ severity: 'warn', text: `${jo.joNumber}: stock is set aside for a missing item`, link: `${link}?tab=materials` });
     }
     if (jo.deadline.internalDeadline >= jo.deliveryDate) out.push({ severity: 'error', text: `${jo.joNumber}: internal deadline is not before the delivery date`, link });
+  }
+  // Tasks: links to a missing department or Job Order.
+  const deptIds = new Set((args.departments ?? []).map((d) => d.id));
+  const joIds = new Set(args.jobOrders.map((j) => j.id));
+  for (const t of args.tasks ?? []) {
+    if (t.status === 'DONE' || t.status === 'DROPPED') continue;
+    if (t.departmentId && args.departments && !deptIds.has(t.departmentId)) out.push({ severity: 'warn', text: `Task "${t.title}": department is missing`, link: `/work/${t.id}` });
+    if (t.joId && !joIds.has(t.joId)) out.push({ severity: 'warn', text: `Task "${t.title}": Job Order ${t.joNumber || ''} is missing`, link: `/work/${t.id}` });
   }
   return out.sort((a, b) => (a.severity === b.severity ? a.text.localeCompare(b.text) : a.severity === 'error' ? -1 : 1));
 }
