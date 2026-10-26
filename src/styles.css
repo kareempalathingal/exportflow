@@ -494,3 +494,7 @@ label.inline { display: flex; align-items: center; gap: 0.5rem; }
 .items-pct { display: flex; flex-direction: column; align-items: flex-end; gap: 0.2rem; min-width: 3.6rem; font-variant-numeric: tabular-nums; }
 .items-bar { display: block; width: 3.4rem; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .items-bar span { display: block; height: 100%; background: var(--brand); }
+
+/* Published rules older than the app */
+.rules-banner { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--ink); border-bottom: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); font-size: 0.85rem; padding: 0.55rem 16px; line-height: 1.4; }
+.rules-banner a { color: var(--danger); font-weight: 600; }

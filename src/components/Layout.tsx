@@ -4,10 +4,15 @@ import { useApp } from '../AppContext';
 import { useSyncOps } from '../features/sync/syncStore';
 import { summarize } from '../lib/syncState';
 import { UpdatePrompt } from './UpdatePrompt';
+import { RULES_URL, useAutoRulesCheck, useRulesState } from '../features/settings/rulesCheck';
 
 export function Layout() {
-  const { t, mode, online } = useApp();
-  const counts = summarize(useSyncOps());
+  const { t, mode, online, workspaceId } = useApp();
+  const ops = useSyncOps();
+  const counts = summarize(ops);
+  const permissionFailures = ops.filter((o) => o.status === 'FAILED' && o.error === 'permission-denied').length;
+  useAutoRulesCheck(workspaceId, online, permissionFailures);
+  const rules = useRulesState();
   const attention = counts.CONFLICT + counts.FAILED;
   const { pathname } = useLocation();
 
@@ -29,6 +34,15 @@ export function Layout() {
         {attention > 0 && <span className="badge alert">{attention} !</span>}
       </header>
       {!online && <div className="offline-note">{t('offlineNote')}</div>}
+      {rules.state === 'old' && (
+        <div className="rules-banner" role="alert">
+          <strong>Firestore rules need publishing.</strong> New parts of the app cannot save yet ({rules.missing?.join(', ')}). Copy{' '}
+          <a href={RULES_URL} target="_blank" rel="noreferrer">
+            firestore.rules
+          </a>{' '}
+          → Firebase console → Firestore → Rules → Publish, then <NavLink to="/settings">Settings → System health → Check rules</NavLink>.
+        </div>
+      )}
       <UpdatePrompt />
       <main className="content">
         <ErrorBoundary resetKey={pathname}>

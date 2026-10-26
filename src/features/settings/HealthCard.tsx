@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, getDocsFromServer, limit, query } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { useApp } from '../../AppContext';
 import { BACKUP_REMIND_DAYS, daysSinceBackup, readLastBackup } from '../../lib/backup';
 import { clearErrors, errorReport, quotaErrors, readErrors, subscribeErrors, type ErrorEntry } from '../../lib/errorLog';
@@ -15,6 +13,7 @@ import { formatDateTime } from '../../lib/time';
 import { useCollection } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { useSyncOps } from '../sync/syncStore';
+import { checkRules, useRulesState } from './rulesCheck';
 
 export function useErrors(): ErrorEntry[] {
   const [list, setList] = useState(readErrors);
@@ -22,14 +21,7 @@ export function useErrors(): ErrorEntry[] {
   return list;
 }
 
-/** Collections added to the rules over time: if one cannot be read, the published rules are older than the app. */
-const RULES_PROBES = [
-  { collection: 'processes', since: 'Phase 4 (processes, calendar)' },
-  { collection: 'departments', since: 'departments and contacts' },
-  { collection: 'tasks', since: 'Work (tasks and follow-ups)' },
-];
 
-type RulesState = { state: 'idle' | 'checking' | 'ok' | 'old' | 'error'; text?: string };
 
 /** Settings card: backups, sync, errors on this phone, rules version and data checks. */
 export function HealthCard() {
@@ -39,29 +31,10 @@ export function HealthCard() {
   const counts = summarize(useSyncOps());
   const actualWs = readinessWorkspace(app.user?.uid, workspaceId);
   const actualDays = actualWs ? daysSinceBackup(readLastBackup(actualWs), new Date()) : null;
-  const [rules, setRules] = useState<RulesState>({ state: 'idle' });
+  const rules = useRulesState();
   const [checks, setChecks] = useState(false);
   const [copied, setCopied] = useState(false);
   const quota = quotaErrors(errors);
-
-  async function checkRules() {
-    if (!workspaceId) return;
-    setRules({ state: 'checking' });
-    try {
-      for (const p of RULES_PROBES) {
-        try {
-          await getDocsFromServer(query(collection(db, `workspaces/${workspaceId}/${p.collection}`), limit(1)));
-        } catch (e) {
-          const code = (e as { code?: string }).code;
-          if (code === 'permission-denied') return setRules({ state: 'old', text: `The published Firestore rules are older than the app (missing ${p.since}).` });
-          throw e;
-        }
-      }
-      setRules({ state: 'ok' });
-    } catch (e) {
-      setRules({ state: 'error', text: e instanceof Error ? e.message : String(e) });
-    }
-  }
 
   async function copy() {
     const text = errorReport(errors, { userAgent: navigator.userAgent });
@@ -115,7 +88,7 @@ export function HealthCard() {
         </li>
       </ul>
       <div className="row gap wrap">
-        <button type="button" className="secondary small" disabled={!online || rules.state === 'checking'} onClick={() => void checkRules()}>
+        <button type="button" className="secondary small" disabled={!online || rules.state === 'checking'} onClick={() => workspaceId && void checkRules(workspaceId)}>
           Check rules
         </button>
         <button type="button" className="secondary small" onClick={() => setChecks(true)} disabled={checks}>

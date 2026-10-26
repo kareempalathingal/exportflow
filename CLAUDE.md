@@ -486,6 +486,13 @@ report the discrepancy and ask; do not silently choose.
     added collection to detect unpublished rules) and "Check data"
     (`src/lib/integrity.ts`: missing links, BOM loops, broken orders —
     report only, never auto-fix).
+-   Rules-out-of-date warning (confirmed 26 Oct 2026,
+    `src/features/settings/rulesCheck.ts`): the app probes the newer
+    collections (processes, departments, tasks) once per start when online
+    and again after any save refused with permission-denied; if any is
+    refused, a red banner under the header names what is missing and how to
+    publish (link to firestore.rules, then Check rules). Add each new
+    collection to `RULES_PROBES`.
 -   Reports uses the same layout (confirmed 21 Oct 2026): Today ("2
     overdue · 1 today", red flag when overdue), Plan of a Job Order, To buy
     — all orders ("N items") as collapsed rows; Job Order performance and

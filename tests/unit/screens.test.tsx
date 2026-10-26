@@ -415,3 +415,14 @@ describe('Work (tasks and follow-ups)', () => {
     expect(render('/tools', '/tools', <ToolsPage />)).toContain('Calculator');
   });
 });
+
+describe('Rules warning', () => {
+  it('the banner appears when the published rules are older than the app', async () => {
+    const { checkRules } = await import('../../src/features/settings/rulesCheck');
+    const s = await checkRules('u1_actual', async (path) => {
+      if (path.endsWith('/tasks')) throw Object.assign(new Error('denied'), { code: 'permission-denied' });
+    });
+    expect(s).toMatchObject({ state: 'old', missing: ['Work (tasks and follow-ups)'] });
+    expect(render('/', '/', <Layout />)).toContain('Firestore rules need publishing');
+  });
+});
