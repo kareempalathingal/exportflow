@@ -116,6 +116,14 @@ export function ReportsPage() {
             </div>
           </SettingSection>
 
+          <Link to="/reports/kpi" className="card setting-link">
+            <span className="setting-title">KPIs</span>
+            <span className="setting-sum">Factory and departments · PDF</span>
+            <span className="setting-chev" aria-hidden="true">
+              ›
+            </span>
+          </Link>
+
           <Link to="/reports/performance" className="card setting-link">
             <span className="setting-title">Job Order performance</span>
             <span className="setting-sum">Any period · PDF</span>

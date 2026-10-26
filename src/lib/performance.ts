@@ -172,8 +172,9 @@ export function buildPerformance(args: {
           label: v.step.label,
           processId: v.step.processId,
           planned: v.step.plannedDays,
-          actual: v.actualDays ?? 0,
-          overrun: v.overrunDays,
+          // Working time only when the start was recorded (waiting is not the process's speed).
+          actual: v.workDays ?? v.actualDays ?? 0,
+          overrun: v.step.plannedDays !== null ? (v.workDays ?? v.actualDays ?? 0) - v.step.plannedDays : v.overrunDays,
           perDay: v.step.perDay,
           perDayUnit: v.step.perDayUnit,
           fixedDays: v.step.fixedDays,

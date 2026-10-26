@@ -17,6 +17,7 @@ import { WorkCalendarCard } from '../calendar/WorkCalendarCard';
 import { readRedAt } from '../../lib/theme';
 import { backupReminder } from '../../lib/backup';
 import { buildToday } from '../../lib/today';
+import { KpiStrip } from '../reports/KpiPage';
 import { TodayCard } from '../reports/TodayCard';
 import { formatQty, unitLabel } from '../../lib/units';
 
@@ -172,6 +173,8 @@ export function HomePage() {
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
 
       {!loading && jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} />}
+
+      {!loading && <KpiStrip />}
 
       <section aria-label="Order status counts" className="counts">
         {GROUPS.map((g) => (

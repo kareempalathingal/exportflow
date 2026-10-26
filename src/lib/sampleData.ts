@@ -6,7 +6,7 @@
 import type { Tracked } from './dataStatus';
 import { addDays, computeDeadline, snapshotBoms, type JobOrder, type JoLine, type JoStatus, type StockEntry } from './jobOrders';
 import type { Bom, BomLine, Customer, Department, MasterData, Process, Product, RawMaterial, RouteStep, Supplier } from './masters';
-import { buildLineSteps, completeCurrent } from './route';
+import { buildLineSteps, completeCurrent, startCurrent } from './route';
 import type { StockCount } from './materials';
 
 export interface SampleWrite {
@@ -126,16 +126,16 @@ export function buildSampleData(today: string): SampleWrite[] {
 
   const orders: {
     id: string; no: string; cust: string; rec: number; del: number; type: JobOrder['deliveryDateType'];
-    lines: JoLine[]; final: JoStatus; confirmed?: number; completed?: number; done?: [number, number][] /* [line index, day] step completions */; stock?: Record<string, StockEntry>;
+    lines: JoLine[]; final: JoStatus; confirmed?: number; completed?: number; done?: [number, number, number?][] /* [line index, day done, day started (optional)] */; started?: [number, number][] /* current step started: [line index, day] */; stock?: Record<string, StockEntry>;
   }[] = [
     { id: 'sample_jo_099', no: 'DEMO-099', cust: 'sample_c_nordic', rec: -70, del: -20, type: 'PORT', lines: [jl('a', 'sample_p_mat', 800, 'MAKE')], final: 'COMPLETED', confirmed: -68, completed: -25, done: [[0, -60], [0, -50], [0, -45], [0, -40], [0, -33], [0, -26]] },
     { id: 'sample_jo_101', no: 'DEMO-101', cust: 'sample_c_hansa', rec: -40, del: 3, type: 'PORT', lines: [jl('a', 'sample_p_mat', 1500, 'MAKE')], final: 'CONFIRMED', confirmed: -38, done: [[0, -34], [0, -27], [0, -22], [0, -17], [0, -5]], stock: { 'PRODUCT:sample_p_mat': stock(300, 'pcs', 30) } },
     {
       id: 'sample_jo_102', no: 'DEMO-102', cust: 'sample_c_nordic', rec: -25, del: 12, type: 'FACTORY_DISPATCH',
-      lines: [jl('a', 'sample_p_mat', 1200, 'MAKE'), jl('b', 'sample_p_door', 300, 'BUY')], final: 'CONFIRMED', confirmed: -24, done: [[0, -21], [1, -20], [0, -17], [1, -12], [0, -15], [0, -13], [1, -1], [0, -1]],
+      lines: [jl('a', 'sample_p_mat', 1200, 'MAKE'), jl('b', 'sample_p_door', 300, 'BUY')], final: 'CONFIRMED', confirmed: -24, done: [[0, -21], [1, -20], [0, -17, -18], [1, -12], [0, -15, -16], [0, -13], [1, -1], [0, -1]],
       stock: { 'PRODUCT:sample_p_yarn': stock(300, 'kg', 20), 'RAW_MATERIAL:sample_rm_fibre': stock(400, 'kg', 20) },
     },
-    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 35, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -6 /* planning took longer than the benchmark */, stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
+    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 35, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -6 /* planning took longer than the benchmark */, started: [[0, -3]] /* spinning waited, then started */, stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
     { id: 'sample_jo_104', no: 'DEMO-104', cust: 'sample_c_nordic', rec: -2, del: 60, type: 'UNCONFIRMED', lines: [jl('a', 'sample_p_rubber', 500, 'MAKE')], final: 'DRAFT' },
   ];
 
@@ -161,7 +161,15 @@ export function buildSampleData(today: string): SampleWrite[] {
     step({ ...current, status: 'CONFIRMED', confirmedOn: d(o.confirmed!), bomSnapshot: snapshotBoms(o.lines, md, () => 1), stock: o.stock ?? {}, lines: confirmedLines });
     if (o.done) {
       const lines = confirmedLines.map((l) => ({ ...l, steps: [...l.steps] }));
-      for (const [li, day] of o.done) lines[li]!.steps = completeCurrent(lines[li]!.steps, at(day)) ?? lines[li]!.steps;
+      for (const [li, day, startDay] of o.done) {
+        if (startDay !== undefined) lines[li]!.steps = startCurrent(lines[li]!.steps, at(startDay)) ?? lines[li]!.steps;
+        lines[li]!.steps = completeCurrent(lines[li]!.steps, at(day)) ?? lines[li]!.steps;
+      }
+      step({ ...current, lines });
+    }
+    if (o.started) {
+      const lines = current.lines.map((l) => ({ ...l, steps: [...(l.steps ?? [])] }));
+      for (const [li, day] of o.started) lines[li]!.steps = startCurrent(lines[li]!.steps, at(day)) ?? lines[li]!.steps;
       step({ ...current, lines });
     }
     if (o.final === 'COMPLETED') step({ ...current, status: 'COMPLETED', completedOn: d(o.completed!) });

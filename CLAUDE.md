@@ -326,6 +326,34 @@ report the discrepancy and ask; do not silently choose.
 -   Later, when needed: size → area per piece, GSM + size → weight per
     piece, container fill (after packing data).
 
+## KPIs (confirmed 26 Oct 2026)
+
+-   Steps: optional "<step> started" and "<step> done" on the JO Products
+    tab, both with "Date of this update" (default today; back-dating
+    allowed, never future, never before the previous step / the start).
+    `JoStep.startedAt` (ISO); `stepTime()` stores midday IST for past
+    dates. With a start, step time splits into wait (previous done →
+    started) and work (started → done); without it, everything counts as
+    the step (marked "includes waiting"). "Undo start" for mistakes.
+-   `src/lib/kpi.ts` (`buildKpis`), Reports → KPIs (`/reports/kpi`), any
+    period vs the previous period of equal length: factory (orders
+    completed, on-time delivery %, by internal deadline %, steps on time %,
+    efficiency = planned ÷ actual days (same-day = half a day), average
+    delay and wait per step, buffer used, planning days, plan changes per
+    order, open orders late now) and per department (steps, on time,
+    efficiency, delay, wait with start coverage, average days per step,
+    main delay in late orders, running now / over plan; per process incl.
+    quantity handled — never summed across processes). Purchase steps
+    grouped as "Bought items"; unlinked processes as "No department
+    linked". PDF with a chart, text share.
+-   Targets: Settings → KPI targets (doc `settings/kpiTargets`, per
+    workspace), user's own; empty = no colour. Met / within 10% (warn) /
+    below. Home strip: last 30 days (on-time delivery, steps on time,
+    efficiency, department needing most attention), hidden without data.
+-   Benchmark suggestions (performance report) now use working time when
+    the start was recorded. Daily department output vs target needs a
+    production record — decide after joining.
+
 ## Capacity planning (decided 25 Oct 2026; build AFTER joining)
 
 -   Wait until the company's real capacity practice is known (checklist

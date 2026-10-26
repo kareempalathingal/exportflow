@@ -159,7 +159,9 @@ export interface JoStep {
   alsoForStock?: boolean;
   /** The time is the user's estimate (route status "My estimate"): used, but marked. */
   estimated?: boolean;
-  doneAt: string | null; // ISO time the step was marked done
+  /** Optional: when work on the step actually started (ISO). Separates waiting from working time (KPIs). */
+  startedAt?: string | null;
+  doneAt: string | null; // ISO time the step was marked done (may be back-dated)
 }
 
 export interface BomSnapshotEntry {

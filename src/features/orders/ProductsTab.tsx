@@ -5,7 +5,7 @@ import { COLLECTIONS, type Department, type MasterData, type Process } from '../
 import { departmentsFor, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { buildLineSteps, completeCurrent, lineProgress, lineSchedule, orderStart, orderStepProgress, planLines, routeFits, undoLast, withPlanning, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
+import { buildLineSteps, completeCurrent, lineProgress, lineSchedule, orderStart, orderStepProgress, planLines, routeFits, startCurrent, stepTime, undoLast, undoStart, withPlanning, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
@@ -90,6 +90,7 @@ function LineCard(props: {
   const { jo, line, raw, today, editable, ctx } = props;
   const cal = ctx.cal;
   const [editing, setEditing] = useState(false);
+  const [when, setWhen] = useState(today);
   const start = orderStart(jo);
   const lp = lineProgress(withPlanning(line.steps, jo, ctx), start, today, cal);
   const supply = line.supply === 'BUY' ? 'Buy' : 'Make';
@@ -184,11 +185,37 @@ function LineCard(props: {
         ))}
       </ol>
 
+      {editable && current && (
+        <StepDate current={current} today={today} value={when} onChange={setWhen} />
+      )}
       {editable && (
         <div className="row gap step-actions">
+          {current && !current.startedOn && (
+            <button
+              type="button"
+              className="secondary small"
+              disabled={when > today || (current.startOn !== null && when < current.startOn)}
+              onClick={() => props.onSteps(startCurrent(raw.steps!, stepTime(when, today))!, `${current.step.label} started ${when === today ? 'today' : formatDay(when)} (${line.productName})`)}
+            >
+              {current.step.label} started
+            </button>
+          )}
           {current && (
-            <button type="button" className="primary small" onClick={() => props.onSteps(completeCurrent(raw.steps!, new Date().toISOString())!, `${current.step.label} done (${line.productName})`)}>
+            <button
+              type="button"
+              className="primary small"
+              disabled={when > today || when < (current.startedOn ?? current.startOn ?? when)}
+              onClick={() => {
+                props.onSteps(completeCurrent(raw.steps!, stepTime(when, today))!, `${current.step.label} done ${when === today ? 'today' : formatDay(when)} (${line.productName})`);
+                setWhen(today);
+              }}
+            >
               {current.step.label} done{nextStep ? ` → ${nextStep.step.label}` : ''}
+            </button>
+          )}
+          {current?.startedOn && (
+            <button type="button" className="secondary small" onClick={() => window.confirm('Remove the recorded start of this step?') && props.onSteps(undoStart(raw.steps!)!, `Undo start (${line.productName})`)}>
+              Undo start
             </button>
           )}
           {lp.steps.some((s) => s.state === 'DONE') && (
@@ -211,6 +238,22 @@ function LineCard(props: {
 }
 
 const days = (n: number) => `${formatQty(n)}d`;
+
+/** The date used by "started" / "done": today by default, or an earlier day (back-dated, confirmed 26 Oct 2026). */
+function StepDate({ current, today, value, onChange }: { current: StepView; today: string; value: string; onChange: (d: string) => void }) {
+  const min = current.startedOn ?? current.startOn ?? undefined;
+  const bad = value > today ? 'The date cannot be in the future.' : min && value < min ? `The date cannot be before ${formatDay(min)} (when the previous step finished${current.startedOn ? ' / this step started' : ''}).` : null;
+  return (
+    <div className="step-date">
+      <label className="small">
+        Date of this update
+        <input type="date" value={value} max={today} min={min} onChange={(e) => onChange(e.target.value || today)} />
+      </label>
+      {value !== today && !bad && <span className="muted small">Recording for {formatDay(value)} (not today).</span>}
+      {bad && <span className="error small">{bad}</span>}
+    </div>
+  );
+}
 
 function StepRow({ v, productName, contacts }: { v: StepView; productName: string; contacts?: ReactNode }) {
   const s = v.step;
@@ -248,7 +291,9 @@ function StepRow({ v, productName, contacts }: { v: StepView; productName: strin
         </span>
         <span className="muted small block">
           {v.state === 'DONE' && v.doneOn && `Done ${formatDay(v.doneOn)}`}
-          {v.state === 'NOW' && v.startOn && `Since ${formatDay(v.startOn)} · ${formatQty(v.actualDays!)} working day${v.actualDays === 1 ? '' : 's'} so far`}
+          {v.state === 'NOW' && v.startOn && !v.startedOn && `Since ${formatDay(v.startOn)} · ${formatQty(v.actualDays!)} working day${v.actualDays === 1 ? '' : 's'} so far`}
+          {v.state === 'NOW' && v.startedOn && `Started ${formatDay(v.startedOn)} · waited ${days(v.waitDays!)} · working ${days(v.workDays!)} so far`}
+          {v.state === 'DONE' && v.startedOn && ` · waited ${days(v.waitDays!)}, worked ${days(v.workDays!)}`}
         </span>
         {s.basis && <span className="muted small block">{s.basis}</span>}
         {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}

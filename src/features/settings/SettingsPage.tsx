@@ -9,6 +9,7 @@ import { offlineCacheEnabled } from '../../firebase';
 import { BackupCard } from './BackupCard';
 import { RestoreCard } from './RestoreCard';
 import { HealthCard, useErrors } from './HealthCard';
+import { KpiTargetsCard } from './KpiTargetsCard';
 import { SettingSection } from './SettingSection';
 import { useSyncOps } from '../sync/syncStore';
 import { summarize } from '../../lib/syncState';
@@ -246,6 +247,9 @@ export function SettingsPage() {
         <SyncPanel />
       </SettingSection>
 
+      <SettingSection title="KPI targets" summary="Your own targets">
+        <KpiTargetsCard />
+      </SettingSection>
       <SettingSection title={t('language')} summary={lang === 'en' ? 'English' : 'മലയാളം'}>
         <div className="card">
           <h3>{t('language')}</h3>

@@ -216,6 +216,12 @@ export interface StepView {
   actualDays: number | null;
   /** actual − planned (done, or running past its plan), when planned is known. */
   overrunDays: number | null;
+  /** Day work started, when "Started" was recorded. */
+  startedOn: string | null;
+  /** Working days waiting before work started (needs startedOn). */
+  waitDays: number | null;
+  /** Working days of actual work: started → done (or → today while running). */
+  workDays: number | null;
 }
 
 export interface LineProgress {
@@ -247,7 +253,8 @@ export function lineProgress(steps: PlannedStep[] | undefined, startOn: string, 
     if (s.doneAt) {
       const doneOn = dayOf(s.doneAt);
       const actualDays = Math.max(0, workingDaysBetween(prevDone, doneOn, cal) ?? 0);
-      const v: StepView = { step: s, state: 'DONE', startOn: prevDone, doneOn, actualDays, overrunDays: s.plannedDays !== null ? actualDays - s.plannedDays : null };
+      const split = splitWait(prevDone, s.startedAt, doneOn, cal);
+      const v: StepView = { step: s, state: 'DONE', startOn: prevDone, doneOn, actualDays, overrunDays: s.plannedDays !== null ? actualDays - s.plannedDays : null, ...split };
       prevDone = doneOn;
       doneWeight += weight(s);
       return v;
@@ -255,9 +262,10 @@ export function lineProgress(steps: PlannedStep[] | undefined, startOn: string, 
     if (!foundNow) {
       foundNow = true;
       const actualDays = Math.max(0, workingDaysBetween(prevDone, today, cal) ?? 0);
-      return { step: s, state: 'NOW', startOn: prevDone, doneOn: null, actualDays, overrunDays: s.plannedDays !== null ? actualDays - s.plannedDays : null };
+      const split = splitWait(prevDone, s.startedAt, today, cal);
+      return { step: s, state: 'NOW', startOn: prevDone, doneOn: null, actualDays, overrunDays: s.plannedDays !== null ? actualDays - s.plannedDays : null, ...split };
     }
-    return { step: s, state: 'TODO', startOn: null, doneOn: null, actualDays: null, overrunDays: null };
+    return { step: s, state: 'TODO', startOn: null, doneOn: null, actualDays: null, overrunDays: null, startedOn: null, waitDays: null, workDays: null };
   });
   const current = views.find((v) => v.state === 'NOW') ?? null;
   const elapsed = Math.max(0, workingDaysBetween(startOn, today, cal) ?? 0);
@@ -278,6 +286,41 @@ export function lineProgress(steps: PlannedStep[] | undefined, startOn: string, 
     expectedFinish,
     done: !current,
   };
+}
+
+/** Waiting vs working days of a step whose start was recorded (wait + work = all days). */
+function splitWait(prevDone: string, startedAt: string | null | undefined, end: string, cal: WorkCalendar): Pick<StepView, 'startedOn' | 'waitDays' | 'workDays'> {
+  if (!startedAt) return { startedOn: null, waitDays: null, workDays: null };
+  let startedOn = dayOf(startedAt);
+  if (startedOn < prevDone) startedOn = prevDone; // cannot start before the previous step finished
+  if (startedOn > end) startedOn = end;
+  return {
+    startedOn,
+    waitDays: Math.max(0, workingDaysBetween(prevDone, startedOn, cal) ?? 0),
+    workDays: Math.max(0, workingDaysBetween(startedOn, end, cal) ?? 0),
+  };
+}
+
+/**
+ * The time to store for a step recorded on `date`: now when it is today,
+ * otherwise midday IST of that date (back-dated entries, confirmed 26 Oct 2026).
+ */
+export function stepTime(date: string, today: string, now: Date = new Date()): string {
+  return date === today ? now.toISOString() : `${date}T06:30:00.000Z`;
+}
+
+/** Records when work on the current step started. Null when all steps are done. */
+export function startCurrent(steps: JoStep[], iso: string): JoStep[] | null {
+  const i = steps.findIndex((s) => !s.doneAt);
+  if (i < 0) return null;
+  return steps.map((s, j) => (j === i ? { ...s, startedAt: iso } : s));
+}
+
+/** Removes the recorded start of the current step (for mistakes). */
+export function undoStart(steps: JoStep[]): JoStep[] | null {
+  const i = steps.findIndex((s) => !s.doneAt);
+  if (i < 0 || !steps[i]!.startedAt) return null;
+  return steps.map((s, j) => (j === i ? { ...s, startedAt: null } : s));
 }
 
 /** Marks the current step done (now). Returns the new steps, or null when all are done. */

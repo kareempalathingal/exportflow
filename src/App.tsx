@@ -19,6 +19,7 @@ import { ReadinessPage } from './features/readiness/ReadinessPage';
 import { OrdersPage } from './features/orders/OrdersPage';
 import { JobOrderPage } from './features/orders/JobOrderPage';
 import { ToolsPage } from './features/tools/ToolsPage';
+import { KpiPage } from './features/reports/KpiPage';
 
 function Gate() {
   const { authReady, user, t, workspaceError, logout } = useApp();
@@ -60,6 +61,7 @@ function Gate() {
         <Route path="history" element={<HistoryPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="reports/performance" element={<PerformancePage />} />
+        <Route path="reports/kpi" element={<KpiPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="readiness" element={<ReadinessPage />} />
         <Route path="tools" element={<ToolsPage />} />

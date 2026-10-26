@@ -17,9 +17,9 @@ import { useMasterData } from '../masters/useMasterData';
 import { permissionHint } from '../orders/OrderBits';
 import { useProfile } from '../settings/useProfile';
 
-type Preset = 'month' | 'last-month' | '90' | 'custom';
+export type Preset = 'month' | 'last-month' | '90' | 'custom';
 
-function presetRange(p: Preset, today: string): { from: string; to: string } | null {
+export function presetRange(p: Preset, today: string): { from: string; to: string } | null {
   const month = today.slice(0, 7);
   if (p === 'month') return { from: `${month}-01`, to: today };
   if (p === 'last-month') {
@@ -31,7 +31,7 @@ function presetRange(p: Preset, today: string): { from: string; to: string } | n
 }
 
 /** Job Order history (all orders) for "changes after confirmation"; read once per visit. */
-function useJoHistory(workspaceId: string | null) {
+export function useJoHistory(workspaceId: string | null) {
   const [events, setEvents] = useState<JoHistoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
