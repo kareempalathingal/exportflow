@@ -92,6 +92,20 @@ export function buildSampleData(today: string): SampleWrite[] {
     }),
     sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', null, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
     sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 150, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
+    // For the larger sample order (DEMO-105, 7 products).
+    sample_p_runner: product('Coir runner 60×180', 'MANUFACTURED', 'pcs', {
+      size: { length: 60, width: 180, unit: 'cm', status: 'USER_PROVIDED' },
+      gsm: up(1500),
+      route: [st('sample_pr_weave', 80, 'pcs'), st('sample_pr_bleach', 300, 'pcs', 1), st('sample_pr_latex', null, 'pcs', 2), { ...st('sample_pr_pack', 600, 'pcs'), alsoForStock: true }],
+    }),
+    sample_p_printed: product('Printed coir mat 50×80', 'MANUFACTURED', 'pcs', {
+      size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' },
+      route: [st('sample_pr_weave', 150, 'pcs'), st('sample_pr_dye', 400, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }],
+    }),
+    sample_p_rug: product('Coir rug 120×180', 'MANUFACTURED', 'pcs', {
+      size: { length: 120, width: 180, unit: 'cm', status: 'USER_PROVIDED' },
+      route: [st('sample_pr_weave', 40, 'pcs'), st('sample_pr_bleach', 200, 'pcs', 1), { ...st('sample_pr_latex', null, 'pcs', 2), status: 'ESTIMATED' }, { ...st('sample_pr_pack', 300, 'pcs'), alsoForStock: true }],
+    }),
   };
   const boms: Record<string, Bom> = {
     sample_p_yarn: { productId: 'sample_p_yarn', notes: SRC, lines: [line('RAW_MATERIAL', 'sample_rm_fibre', 1.1, 'kg')] },
@@ -99,6 +113,9 @@ export function buildSampleData(today: string): SampleWrite[] {
       productId: 'sample_p_mat', notes: SRC,
       lines: [line('PRODUCT', 'sample_p_yarn', 0.9, 'kg', 3), line('RAW_MATERIAL', 'sample_rm_latex', 150, 'g', 0, 'ESTIMATED'), line('RAW_MATERIAL', 'sample_rm_dye', 20, 'g')],
     },
+    sample_p_runner: { productId: 'sample_p_runner', notes: SRC, lines: [line('PRODUCT', 'sample_p_yarn', 4.05, 'kg', 3), line('RAW_MATERIAL', 'sample_rm_latex', 680, 'g', 0, 'ESTIMATED')] },
+    sample_p_printed: { productId: 'sample_p_printed', notes: SRC, lines: [line('PRODUCT', 'sample_p_yarn', 1.5, 'kg', 3), line('RAW_MATERIAL', 'sample_rm_dye', 30, 'g')] },
+    sample_p_rug: { productId: 'sample_p_rug', notes: SRC, lines: [line('PRODUCT', 'sample_p_yarn', 8.1, 'kg', 3), line('RAW_MATERIAL', 'sample_rm_latex', 1.35, 'kg', 0, 'ESTIMATED')] },
     // No BOM for the rubber-backed mat: shows the "BOM missing" warnings.
   };
   for (const [id, r] of Object.entries(rawMaterials)) create('rawMaterials', id, `Raw material: ${r.name}`, r);
@@ -125,7 +142,7 @@ export function buildSampleData(today: string): SampleWrite[] {
   const md: MasterData = { products: new Map(Object.entries(products)), rawMaterials: new Map(Object.entries(rawMaterials)), boms: new Map(Object.entries(boms)) };
   const processMap = new Map(Object.entries(processes));
   const stock = (baseQty: number, unit: string, daysAgo: number): StockEntry => ({ qty: baseQty, unit, baseQty, location: 'Godown (sample)', remarks: '', changedAt: at(-daysAgo), prevBaseQty: null });
-  const jl = (id: string, productId: string, qty: number, supply: JoLine['supply']): JoLine => ({ id, productId, productName: products[productId]!.name, qty, unit: 'pcs', supply });
+  const jl = (id: string, productId: string, qty: number, supply: JoLine['supply'], unit = 'pcs'): JoLine => ({ id, productId, productName: products[productId]!.name, qty, unit, supply });
 
   const orders: {
     id: string; no: string; cust: string; rec: number; del: number; type: JobOrder['deliveryDateType'];
@@ -139,6 +156,13 @@ export function buildSampleData(today: string): SampleWrite[] {
       stock: { 'PRODUCT:sample_p_yarn': stock(300, 'kg', 20), 'RAW_MATERIAL:sample_rm_fibre': stock(400, 'kg', 20) },
     },
     { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 35, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -6 /* planning took longer than the benchmark */, started: [[0, -3]] /* spinning waited, then started */, stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
+    {
+      id: 'sample_jo_105', no: 'DEMO-105', cust: 'sample_c_hansa', rec: -3, del: 45, type: 'PORT', final: 'CONFIRMED', confirmed: 0 /* planning finished today */,
+      lines: [
+        jl('a', 'sample_p_mat', 2000, 'MAKE'), jl('b', 'sample_p_runner', 600, 'MAKE'), jl('c', 'sample_p_printed', 800, 'MAKE'), jl('d', 'sample_p_rug', 150, 'MAKE'),
+        jl('e', 'sample_p_door', 500, 'BUY'), jl('f', 'sample_p_rubber', 400, 'MAKE'), jl('g', 'sample_p_yarn', 300, 'MAKE', 'kg'),
+      ],
+    },
     { id: 'sample_jo_104', no: 'DEMO-104', cust: 'sample_c_nordic', rec: -2, del: 60, type: 'UNCONFIRMED', lines: [jl('a', 'sample_p_rubber', 500, 'MAKE')], final: 'DRAFT' },
   ];
 

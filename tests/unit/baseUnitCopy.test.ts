@@ -44,7 +44,7 @@ describe('copy with another base unit', () => {
     expect(p.bom!.lines.find((l) => l.componentId === 'sample_rm_latex')!.status).toBe('ESTIMATED');
     expect(p.parentBoms).toEqual([{ productId: 'kit', productName: 'Mat kit', problems: [], lines: [expect.objectContaining({ componentId: 'copy', qty: 2, unit: 'pcs' })] }]);
     expect(p.suppliers).toEqual([{ id: 's1', name: 'Mat maker', items: ['PRODUCT:sample_p_mat', 'PRODUCT:copy'] }]);
-    expect(p.openOrders.map((o) => o.joNumber)).toEqual(['DEMO-101', 'DEMO-102', 'DEMO-103']);
+    expect(p.openOrders.map((o) => o.joNumber)).toEqual(['DEMO-101', 'DEMO-102', 'DEMO-103', 'DEMO-105']);
     expect(p.summary.join(' ')).toMatch(/set Inactive/);
   });
   it('refuses a conversion it cannot make, and the same unit', () => {

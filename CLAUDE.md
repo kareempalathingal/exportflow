@@ -391,6 +391,8 @@ report the discrepancy and ask; do not silently choose.
     repeat needs a due date). Included in backup / restore, Check data,
     Check rules. DEMO: Design and Finance sample departments and 4 sample
     tasks; "Add new sample records" adds only missing sample records.
+    DEMO-105 (confirmed the day the samples are added, 7 products incl. a
+    bought one, one without BOM and yarn in kg) shows a larger plan.
 -   After joining: department KPIs the user defines (monthly figures),
     approvals register, meeting notes (checklist item "other-departments").
 

@@ -47,7 +47,7 @@ describe('periods', () => {
 describe('delivery schedule', () => {
   it('lists open orders by delivery date with expected finish and whether it fits', () => {
     const d = deliverySchedule({ jobOrders: jos, ctx, today: TODAY, from: TODAY, to: '2026-12-31' });
-    expect(d.rows.map((r) => r.joNumber)).toEqual(['DEMO-101', 'DEMO-102', 'DEMO-103', 'DEMO-104']);
+    expect(d.rows.map((r) => r.joNumber)).toEqual(['DEMO-101', 'DEMO-102', 'DEMO-103', 'DEMO-105', 'DEMO-104']);
     const by = Object.fromEntries(d.rows.map((r) => [r.joNumber, r]));
     expect(by['DEMO-102']!.outlook.fits).toBe('YES');
     expect(by['DEMO-103']!.outlook.fits).toBe('NO');
@@ -94,10 +94,10 @@ describe('orders at risk', () => {
 describe('management summary', () => {
   it('counts the period and lists open orders, next deliveries and top risks', () => {
     const s = managementSummary({ jobOrders: jos, ctx, today: TODAY, redAt: 20, ...periodRange('this-month', TODAY) });
-    expect(s.openNow).toEqual({ drafts: 1, onTrack: 1, behind: 1, late: 1, notTracked: 0 });
+    expect(s.openNow).toEqual({ drafts: 1, onTrack: 2, behind: 1, late: 1, notTracked: 0 });
     expect(s.nextDeliveries.map((r) => r.joNumber)).toEqual(['DEMO-101']);
     expect(s.risks.length).toBeLessThanOrEqual(5);
-    expect(summaryText(s, 'Co')).toMatch(/Open now .*1 on track · 1 behind · 1 late/);
+    expect(summaryText(s, 'Co')).toMatch(/Open now .*2 on track · 1 behind · 1 late/);
     const wide = managementSummary({ jobOrders: jos, ctx, today: TODAY, redAt: 20, from: '2026-07-01', to: TODAY });
     expect(wide.completed.count).toBe(1);
     expect(wide.completed).toMatchObject({ onTimeInternal: 0, onTimeDelivery: 1 });

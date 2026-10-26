@@ -40,7 +40,7 @@ describe('JO performance report', () => {
     const r = buildPerformance({ jobOrders: jos, ctx, from: '2026-10-01', to: TODAY, today: TODAY, history: [] });
     expect(r.summary.completed).toBe(0);
     expect(r.summary.avgLateDays).toBeNull();
-    expect(r.open.length).toBe(3);
+    expect(r.open.length).toBe(4);
   });
   it('counts plan changes after confirmation, not step progress or the confirmation itself', () => {
     const line = { id: 'a', productId: 'p', productName: 'Mat', qty: 10, unit: 'pcs', supply: 'MAKE' };

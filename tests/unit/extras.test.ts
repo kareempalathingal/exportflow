@@ -60,7 +60,7 @@ describe('DEMO sample data', () => {
       }
       revs.set(w.docId, { rev: (prev?.rev ?? 0) + 1, status });
     }
-    expect(revs.size).toBe(5);
+    expect(revs.size).toBe(6);
   });
   it('produces the intended dashboard situations', () => {
     const md: MasterData = {
