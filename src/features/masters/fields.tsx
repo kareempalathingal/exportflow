@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { DATA_STATUS_HINT, DATA_STATUS_LABEL, DATA_STATUSES, type DataStatus, type Tracked } from '../../lib/dataStatus';
-import { STANDARD_UNITS, unitLabel, type CustomUnit } from '../../lib/units';
+import { STANDARD_UNITS, UNIT_CHOICES, unitLabel, type CustomUnit } from '../../lib/units';
 
 export const STATUS_LABEL = DATA_STATUS_LABEL;
 
@@ -87,7 +87,7 @@ export function TrackedNumberField({ label, unit, draft, onChange }: { label: st
 
 export function UnitSelect({ value, onChange, label, units, allowEmpty }: { value: string; onChange: (v: string) => void; label: string; units?: string[]; allowEmpty?: boolean }) {
   const id = useId();
-  const list = units ?? STANDARD_UNITS.map((u) => u.id);
+  const list = units ?? UNIT_CHOICES.map((u) => u.id);
   return (
     <label htmlFor={id}>
       {label}

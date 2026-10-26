@@ -6,7 +6,7 @@
  *   200 × 10%  = 20    (10% = 0.1)
  *   50%        = 0.5
  */
-import { convert, STANDARD_UNITS, unitLabel, type ConversionContext, type Dimension } from './units';
+import { convert, UNIT_CHOICES, unitLabel, type ConversionContext, type Dimension } from './units';
 
 export type CalcResult = { ok: true; value: number } | { ok: false; error: string };
 
@@ -135,7 +135,7 @@ export const DIMENSIONS: { id: Dimension; label: string }[] = [
   { id: 'count', label: 'Count' },
 ];
 
-export const unitsOf = (dim: Dimension) => STANDARD_UNITS.filter((u) => u.dim === dim).map((u) => u.id);
+export const unitsOf = (dim: Dimension) => UNIT_CHOICES.filter((u) => u.dim === dim).map((u) => u.id);
 
 const PLAIN: ConversionContext = { baseUnit: 'pcs', customUnits: [] };
 

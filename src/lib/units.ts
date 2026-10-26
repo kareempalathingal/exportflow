@@ -18,6 +18,8 @@ interface UnitDef {
   dim: Dimension;
   /** Size of one unit in the dimension's SI unit (pcs, kg, m, m², litre). */
   si: number;
+  /** Still converts (older records), but not offered in lists. */
+  hidden?: boolean;
 }
 
 export const STANDARD_UNITS: readonly UnitDef[] = [
@@ -34,14 +36,18 @@ export const STANDARD_UNITS: readonly UnitDef[] = [
   { id: 'ft', label: 'ft', dim: 'length', si: 0.3048 },
   { id: 'sqcm', label: 'sq cm', dim: 'area', si: 0.0001 },
   { id: 'sqm', label: 'sq m', dim: 'area', si: 1 },
+  { id: 'sqin', label: 'sq inch', dim: 'area', si: 0.00064516 },
   { id: 'sqft', label: 'sq ft', dim: 'area', si: 0.09290304 },
-  { id: 'sqyd', label: 'sq yd', dim: 'area', si: 0.83612736 },
+  { id: 'sqyd', label: 'sq yd', dim: 'area', si: 0.83612736, hidden: true },
   { id: 'ml', label: 'ml', dim: 'volume', si: 0.001 },
   { id: 'l', label: 'litre', dim: 'volume', si: 1 },
   { id: 'cbm', label: 'CBM', dim: 'volume', si: 1000 },
 ];
 
 const BY_ID = new Map(STANDARD_UNITS.map((u) => [u.id, u]));
+
+/** Units offered in lists and conversions (hidden ones still convert for older records). */
+export const UNIT_CHOICES: readonly UnitDef[] = STANDARD_UNITS.filter((u) => !u.hidden);
 
 export const LENGTH_UNITS = STANDARD_UNITS.filter((u) => u.dim === 'length');
 
@@ -175,7 +181,7 @@ export function convert(qty: number, from: string, to: string, ctx: ConversionCo
 /** Units this item can be expressed in, given the facts available. */
 export function availableUnits(ctx: ConversionContext): string[] {
   const out: string[] = [];
-  for (const u of STANDARD_UNITS) if (convert(1, ctx.baseUnit, u.id, ctx).ok) out.push(u.id);
+  for (const u of UNIT_CHOICES) if (convert(1, ctx.baseUnit, u.id, ctx).ok) out.push(u.id);
   for (const c of ctx.customUnits) if (convert(1, ctx.baseUnit, c.name, ctx).ok) out.push(c.name);
   return out;
 }

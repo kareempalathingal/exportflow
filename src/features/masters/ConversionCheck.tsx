@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { availableUnits, convert, formatQty, STANDARD_UNITS, unitLabel, type ConversionContext } from '../../lib/units';
+import { availableUnits, convert, formatQty, UNIT_CHOICES, unitLabel, type ConversionContext } from '../../lib/units';
 import { parseNum } from './fields';
 
 /** Shows what one quantity equals in every unit this item can be converted to. */
@@ -9,7 +9,7 @@ export function ConversionCheck({ ctx }: { ctx: ConversionContext }) {
   const [from, setFrom] = useState(ctx.baseUnit);
   const unit = reachable.includes(from) ? from : ctx.baseUnit;
   const qty = parseNum(qtyText);
-  const blocked = STANDARD_UNITS.filter((u) => !reachable.includes(u.id) && ['count', 'mass', 'area'].includes(u.dim));
+  const blocked = UNIT_CHOICES.filter((u) => !reachable.includes(u.id) && ['count', 'mass', 'area'].includes(u.dim));
 
   return (
     <div className="card">

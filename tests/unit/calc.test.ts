@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertItemAll, convertStandard, evaluate, formatResult, showQty } from '../../src/lib/calc';
+import { convertItemAll, convertStandard, evaluate, formatResult, showQty, unitsOf } from '../../src/lib/calc';
 import { productContext, type Product } from '../../src/lib/masters';
 import { buildSampleData } from '../../src/lib/sampleData';
 import { availableUnits, completeFacts } from '../../src/lib/units';
@@ -46,6 +46,10 @@ describe('unit converter', () => {
     const r = convertStandard(1, 'sqm', 'sqft');
     expect(r.ok && r.value).toBeCloseTo(10.7639, 4);
     expect(convertStandard(1, 'kg', 'sqm').ok).toBe(false);
+    const sqin = convertStandard(1, 'sqm', 'sqin');
+    expect(sqin.ok && sqin.value).toBeCloseTo(1550.0031, 3);
+    expect(unitsOf('area')).toEqual(['sqcm', 'sqm', 'sqin', 'sqft']); // sq yd not offered
+    expect(convertStandard(1, 'sqyd', 'sqft').ok).toBe(true); // …but older records still convert
   });
   it('converts a product between pieces, area and weight using its size and GSM', () => {
     const writes = buildSampleData('2026-10-21');
