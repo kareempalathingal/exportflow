@@ -164,6 +164,8 @@ describe('Phase 3 Job Order screens render', () => {
     expect(html).toContain('BOM changed after confirmation'); // snapshot rev 1, current BOM rev 2
     expect(html).toContain('Mark completed');
     expect(html).toContain('= 100 pcs');
+    expect(html).toContain('items-list'); // products at a glance at the top
+    expect(html).toContain('?tab=products&amp;line=l1');
   });
   it('the new Job Order form renders', () => {
     const html = render('/orders/new', '/orders/:id', <JobOrderPage />);

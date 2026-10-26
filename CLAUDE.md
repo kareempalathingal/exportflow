@@ -152,6 +152,18 @@ report the discrepancy and ask; do not silently choose.
     linearly from confirmation to the internal deadline; no update =
     "Not tracked".
 
+## Order items at a glance (confirmed 26 Oct 2026)
+
+-   JO page, under the deadline / delivery / buffer boxes: numbered list
+    of products (`ItemsCard`, `src/lib/orderSummary.ts`): name, ordered
+    quantity as on the order (+ base-unit equivalent when the unit
+    differs), Make/Buy, "now <step>", and that product's own progress bar
+    and %; no item count heading and no overall total (overall progress is
+    already shown below). First 5, then "+N more". Tap → Products tab
+    scrolled to that product (`?line=`).
+-   Orders list: "N items · 3,500 pcs + 500 sq m" (totals only within one
+    unit, never across units).
+
 ## Phase 4 skeleton: process steps (confirmed 20 Oct 2026)
 
 -   Processes master (`processes`, label "Processes"): treatments and

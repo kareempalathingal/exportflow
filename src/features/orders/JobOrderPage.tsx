@@ -37,6 +37,7 @@ import { newId, useCollection, useDocument } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { MaterialsTab } from './MaterialsTab';
+import { ItemsCard } from './ItemsCard';
 import { ProgressCard } from './ProgressCard';
 import { ProductsTab } from './ProductsTab';
 import { buildLineSteps } from '../../lib/route';
@@ -332,6 +333,8 @@ export function JobOrderPage() {
               <span className="muted small">10% rounded up · {item!.deadline.ruleVersion}</span>
             </div>
           </div>
+
+          <ItemsCard jo={item!} id={item!.id} md={md} ctx={{ md, cal, planningDays: profile?.planningDays }} today={today} />
 
           {changed.length > 0 && (
             <div className="card subtle">

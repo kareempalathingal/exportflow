@@ -7,6 +7,7 @@ import { istDateKey } from '../../lib/time';
 import { useCollection } from '../masters/useCollection';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { ToBuyList } from './ToBuyList';
+import { quantityTotals } from '../../lib/orderSummary';
 import { useProfile } from '../settings/useProfile';
 import { useMasterData } from '../masters/useMasterData';
 import { COLLECTION_STOCK_COUNTS, type StockCount } from '../../lib/materials';
@@ -80,8 +81,13 @@ export function OrdersPage() {
                 </span>
               </div>
               <span className="block">{j.customerName}</span>
+              {j.lines.length > 0 && (
+                <span className="small block">
+                  {j.lines.length} item{j.lines.length === 1 ? '' : 's'} · {quantityTotals(j)}
+                </span>
+              )}
               <span className="muted small block">
-                Internal deadline {formatDay(j.deadline.internalDeadline)} · Delivery {formatDay(j.deliveryDate)} · {j.lines.length} line{j.lines.length === 1 ? '' : 's'}
+                Internal deadline {formatDay(j.deadline.internalDeadline)} · Delivery {formatDay(j.deliveryDate)}
                 {j.pending && <span className="badge pending inline">{t('PENDING')}</span>}
               </span>
             </Link>

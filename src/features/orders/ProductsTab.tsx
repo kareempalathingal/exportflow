@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder, type JoLine, type JoStep } from '../../lib/jobOrders';
 import { COLLECTIONS, type Department, type MasterData, type Process } from '../../lib/masters';
@@ -25,6 +26,14 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const { profile } = useProfile(workspaceId);
   const ctx = { md, cal, planningDays: profile?.planningDays };
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
+  const [params] = useSearchParams();
+  const focusLine = params.get('line');
+  // Opened from the items list at the top: bring that product into view.
+  useEffect(() => {
+    if (!focusLine) return;
+    const t = setTimeout(() => document.getElementById(`line-${focusLine}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    return () => clearTimeout(t);
+  }, [focusLine]);
   const missing = jo.lines.filter((l) => !l.steps || l.steps.length === 0);
   const planned = planLines(jo, md);
 
@@ -60,7 +69,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       )}
       <ul className="master-list">
         {jo.lines.map((l, i) => (
-          <li key={l.id}>
+          <li key={l.id} id={`line-${l.id}`}>
             <LineCard jo={jo} raw={l} line={planned[i]!} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
           </li>
         ))}
