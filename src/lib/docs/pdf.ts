@@ -1,11 +1,28 @@
 /** Draws a DocModel as an A4 PDF (jsPDF + autotable, loaded on demand). */
-import { pdfSafe, type DocModel } from './model';
+import { pdfSafe, type DocModel, type DocRoadMap, type DocStepRoads, type DocTone } from './model';
 
 const NAVY: [number, number, number] = [31, 58, 95];
 const INK: [number, number, number] = [23, 32, 43];
 const MUTED: [number, number, number] = [91, 101, 115];
 const AMBER_BG: [number, number, number] = [253, 240, 217];
 const AMBER_INK: [number, number, number] = [122, 79, 0];
+const AMBER_LINE: [number, number, number] = [199, 119, 0];
+const RED: [number, number, number] = [163, 38, 30];
+const RED_INK: [number, number, number] = [126, 29, 23];
+const GREY: [number, number, number] = [107, 114, 128];
+const SOFT: [number, number, number] = [244, 246, 249];
+const RULE: [number, number, number] = [195, 205, 217];
+const WHITE: [number, number, number] = [255, 255, 255];
+type RGB = [number, number, number];
+/** Badge (light) and pill (strong) colours per tone. */
+const TONE: Record<DocTone, { bg: RGB; ink: RGB; pill: RGB; pillInk: RGB }> = {
+  ok: { bg: [221, 239, 227], ink: [44, 107, 66], pill: [63, 143, 90], pillInk: WHITE },
+  tight: { bg: [251, 239, 208], ink: [122, 74, 0], pill: [224, 161, 0], pillInk: INK },
+  late: { bg: [250, 222, 219], ink: RED_INK, pill: RED, pillInk: WHITE },
+  unknown: { bg: [236, 239, 243], ink: [74, 82, 96], pill: WHITE, pillInk: [74, 82, 96] },
+  done: { bg: [232, 238, 246], ink: NAVY, pill: NAVY, pillInk: WHITE },
+};
+const ROW_TONE: Partial<Record<DocTone, RGB>> = { tight: [255, 246, 224], late: [252, 232, 230], unknown: SOFT };
 const M = 14; // page margin, mm
 const dayNum = (d: string) => Math.round(Date.parse(`${d}T00:00:00Z`) / 86_400_000);
 
@@ -54,6 +71,251 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
 
   let y = headerH + 2;
   drawHeader();
+  const newPage = () => {
+    doc.addPage();
+    drawHeader();
+    y = headerH + 4;
+  };
+  const dashed = (on: boolean) => doc.setLineDashPattern(on ? [1.2, 0.9] : [], 0);
+  const pill = (text: string, cx: number | null, x: number, top: number, tone: DocTone, strong: boolean, size = 7.5) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(size);
+    const t = TONE[tone];
+    const w = doc.getTextWidth(s(text)) + 5;
+    const h = 4.8;
+    const left = cx !== null ? cx - w / 2 : x;
+    doc.setFillColor(...(strong ? t.pill : t.bg));
+    if (strong && tone === 'unknown') {
+      doc.setDrawColor(...GREY);
+      doc.setLineWidth(0.35);
+      dashed(true);
+      doc.roundedRect(left, top, w, h, h / 2, h / 2, 'FD');
+      dashed(false);
+    } else doc.roundedRect(left, top, w, h, h / 2, h / 2, 'F');
+    doc.setTextColor(...(strong ? t.pillInk : t.ink));
+    doc.text(s(text), left + w / 2, top + h / 2 + size * 0.13, { align: 'center' });
+    return w;
+  };
+
+  /** The order's journey: received → plan → production → internal deadline → delivery. */
+  const drawRoadMap = (rm: DocRoadMap) => {
+    if (y + 52 > H - 16) newPage();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
+    doc.text(s(rm.title), M, y + 3);
+    y += 9;
+    const n = rm.stops.length;
+    const colW = (W - 2 * M) / n;
+    const cx = (i: number) => M + colW * (i + 0.5);
+    const ly = y + 2.5;
+    doc.setLineWidth(1);
+    doc.setDrawColor(...RULE);
+    doc.line(cx(0), ly, cx(n - 1), ly);
+    if (rm.reached > 0) {
+      doc.setDrawColor(...NAVY);
+      doc.line(cx(0), ly, cx(rm.reached), ly);
+    }
+    let bottom = ly;
+    rm.stops.forEach((st, i) => {
+      const color: RGB = st.kind === 'deadline' ? AMBER_LINE : st.kind === 'delivery' ? RED : st.kind === 'next' ? GREY : NAVY;
+      doc.setDrawColor(...color);
+      doc.setLineWidth(st.kind === 'now' ? 1.1 : 0.8);
+      if (st.kind === 'done') {
+        doc.setFillColor(...NAVY);
+        doc.circle(cx(i), ly, 2.4, 'F');
+      } else {
+        doc.setFillColor(...WHITE);
+        doc.circle(cx(i), ly, 2.4, 'FD');
+      }
+      let ty = ly + 7.5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...(st.kind === 'deadline' ? AMBER_INK : st.kind === 'delivery' ? RED_INK : INK));
+      doc.text(s(st.label), cx(i), ty, { align: 'center' });
+      ty += 4.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...INK);
+      doc.text(s(st.date), cx(i), ty, { align: 'center' });
+      if (st.here) {
+        ty += 2;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        const w = doc.getTextWidth('we are here') + 5;
+        doc.setFillColor(...NAVY);
+        doc.roundedRect(cx(i) - w / 2, ty, w, 4.4, 2.2, 2.2, 'F');
+        doc.setTextColor(...WHITE);
+        doc.text('we are here', cx(i), ty + 3.1, { align: 'center' });
+        ty += 4.4;
+      }
+      if (st.note) {
+        ty += 4;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...(st.kind === 'deadline' ? AMBER_INK : MUTED));
+        const lines = doc.splitTextToSize(s(st.note), colW - 2) as string[];
+        doc.text(lines, cx(i), ty, { align: 'center' });
+        ty += (lines.length - 1) * 3.2;
+      }
+      bottom = Math.max(bottom, ty);
+    });
+    y = bottom + 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9.5);
+    const lines = doc.splitTextToSize(s(`In short: ${rm.summary}`), W - 2 * M - 8) as string[];
+    const h = lines.length * 4.3 + 4.5;
+    doc.setFillColor(...SOFT);
+    doc.rect(M, y, W - 2 * M, h, 'F');
+    doc.setTextColor(...INK);
+    doc.text(lines, M + 4, y + 5.3);
+    y += h + 7;
+  };
+
+  /** Each product's steps as landmarks ending in "Ready" (cards; small ones in pairs). */
+  const drawStepRoads = (sr: DocStepRoads) => {
+    if (y + 45 > H - 16) newPage();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
+    doc.text(s(sr.title), M, y + 3);
+    let px = W - M;
+    for (const c of [...sr.counts].reverse()) {
+      doc.setFontSize(7.5);
+      const w = doc.getTextWidth(s(c.text)) + 5;
+      px -= w;
+      pill(c.text, null, px, y - 0.6, c.tone, false);
+      px -= 2;
+    }
+    y += 8;
+    const FULL = 7;
+    const HALF = 3;
+    const nodeCount = (r: DocStepRoads['items'][number]) => (r.empty ? 0 : r.nodes.length + 1);
+    // Rows of one full-width card, or two half cards for products with up to 2 steps.
+    const rows: DocStepRoads['items'][] = [];
+    for (let i = 0; i < sr.items.length; i++) {
+      const a = sr.items[i]!;
+      const b = sr.items[i + 1];
+      if (b && !a.empty && !b.empty && nodeCount(a) <= HALF && nodeCount(b) <= HALF) {
+        rows.push([a, b]);
+        i++;
+      } else rows.push([a]);
+    }
+    let num = 0;
+    const textH = (cols: number, w: number, r: DocStepRoads['items'][number]) => {
+      const colW = (w - 4) / cols;
+      doc.setFontSize(7.5);
+      let max = 0;
+      for (const n of r.nodes) {
+        const l = (doc.splitTextToSize(s(n.label), colW - 1.5) as string[]).length;
+        const sub = n.sub ? (doc.splitTextToSize(s(n.sub), colW - 1.5) as string[]).length : 0;
+        const d = (doc.splitTextToSize(s(n.dates), colW - 1.5) as string[]).length;
+        max = Math.max(max, l * 3.2 + sub * 2.9 + d * 3);
+      }
+      return max;
+    };
+    const cardH = (cols: number, w: number, r: DocStepRoads['items'][number]) => {
+      if (r.empty) return 11 + 9;
+      const chunks = Math.ceil(nodeCount(r) / cols);
+      return 11 + chunks * (9.5 + textH(cols, w, r)) + 3;
+    };
+    const drawCard = (r: DocStepRoads['items'][number], x: number, top: number, w: number, h: number, cols: number, n: number) => {
+      // header band, then the outline on top
+      doc.setFillColor(...SOFT);
+      doc.roundedRect(x, top, w, 11, 2, 2, 'F');
+      doc.rect(x, top + 6, w, 5, 'F');
+      doc.setDrawColor(...(r.dashed ? GREY : [220, 226, 234] as RGB));
+      doc.setLineWidth(0.3);
+      dashed(r.dashed);
+      doc.roundedRect(x, top, w, h, 2, 2, 'S');
+      dashed(false);
+      doc.setFillColor(...NAVY);
+      doc.circle(x + 6, top + 5.5, 3, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(...WHITE);
+      doc.text(String(n), x + 6, top + 6.6, { align: 'center' });
+      doc.setFontSize(7.5);
+      const bw = doc.getTextWidth(s(r.badge.text)) + 5;
+      pill(r.badge.text, null, x + w - 3 - bw, top + 3.1, r.badge.tone, false);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(...INK);
+      doc.text((doc.splitTextToSize(s(r.name), w - 16 - bw) as string[])[0] ?? '', x + 11, top + 5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...MUTED);
+      doc.text((doc.splitTextToSize(s(r.sub), w - 16 - bw) as string[])[0] ?? '', x + 11, top + 8.8);
+      if (r.empty) {
+        doc.setFontSize(8.5);
+        doc.text(s(r.empty), x + 4, top + 16.5);
+        return;
+      }
+      const colW = (w - 4) / cols;
+      const all = [...r.nodes.map((nd, i) => ({ nd, i })), null];
+      const th = textH(cols, w, r);
+      for (let c = 0; c * cols < all.length; c++) {
+        const chunk = all.slice(c * cols, (c + 1) * cols);
+        const ly = top + 11 + c * (9.5 + th) + 5.5;
+        const cx = (i: number) => x + 2 + colW * (i + 0.5);
+        doc.setDrawColor(...RULE);
+        doc.setLineWidth(0.8);
+        dashed(r.dashed);
+        if (chunk.length > 1) doc.line(cx(0), ly, cx(chunk.length - 1), ly);
+        dashed(false);
+        chunk.forEach((item, i) => {
+          if (!item) {
+            pill(r.ready.text, cx(i), 0, ly - 2.4, r.ready.tone, true);
+            return;
+          }
+          const { nd } = item;
+          const ring: RGB = nd.state === 'late' ? RED : nd.state === 'unknown' ? GREY : NAVY;
+          doc.setDrawColor(...ring);
+          doc.setLineWidth(nd.state === 'now' ? 0.9 : 0.5);
+          dashed(nd.state === 'unknown' || nd.state === 'approx');
+          doc.setFillColor(...(nd.state === 'done' ? NAVY : WHITE));
+          doc.circle(cx(i), ly, 2.4, nd.state === 'done' ? 'F' : 'FD');
+          dashed(false);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(6.5);
+          doc.setTextColor(...(nd.state === 'done' ? WHITE : ring));
+          doc.text(String(item.i + 1), cx(i), ly + 0.85, { align: 'center' });
+          let ty = ly + 6.2;
+          doc.setFontSize(7.5);
+          doc.setTextColor(...INK);
+          const label = doc.splitTextToSize(s(nd.label), colW - 1.5) as string[];
+          doc.text(label, cx(i), ty, { align: 'center' });
+          ty += label.length * 3.2;
+          doc.setFont('helvetica', 'normal');
+          if (nd.sub) {
+            doc.setFontSize(6.5);
+            doc.setTextColor(...MUTED);
+            const sub = doc.splitTextToSize(s(nd.sub), colW - 1.5) as string[];
+            doc.text(sub, cx(i), ty - 0.3, { align: 'center' });
+            ty += sub.length * 2.9;
+          }
+          doc.setFont('helvetica', nd.state === 'now' ? 'bold' : 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(...(nd.state === 'late' ? RED_INK : nd.state === 'now' ? NAVY : MUTED));
+          doc.text(doc.splitTextToSize(s(nd.dates), colW - 1.5) as string[], cx(i), ty, { align: 'center' });
+        });
+      }
+    };
+    for (const row of rows) {
+      const two = row.length === 2;
+      const w = two ? (W - 2 * M - 5) / 2 : W - 2 * M;
+      const cols = two ? HALF : FULL;
+      const h = Math.max(...row.map((r) => cardH(cols, w, r)));
+      if (y + h > H - 16) newPage();
+      row.forEach((r, i) => drawCard(r, M + i * (w + 5), y, w, h, cols, ++num));
+      y += h + 4;
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text(s(sr.note), M, y + 2);
+    y += 9;
+  };
 
   // Key facts
   autoTable(doc, {
@@ -82,6 +344,8 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     y += 2;
   }
 
+  if (model.roadMap) drawRoadMap(model.roadMap);
+
   if (model.timeline && model.timeline.rows.length) {
     const tl = model.timeline;
     const d0 = dayNum(tl.from);
@@ -91,11 +355,6 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     const span = W - M - x0;
     const xOf = (d: string) => x0 + ((dayNum(d) - d0) / (d1 - d0)) * span;
     const rowH = 5;
-    const newPage = () => {
-      doc.addPage();
-      drawHeader();
-      y = headerH + 4;
-    };
     if (y + 30 > H - 16) newPage();
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -117,12 +376,34 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       y += 4.5;
     };
     drawAxis();
-    const top = y;
+    let top = y;
+    // Today / deadline / delivery lines on every page of the chart, labels under them (staggered when close).
+    const drawMarkers = () => {
+      let lastX = -99;
+      let level = 0;
+      const shown = tl.markers.filter((mk) => dayNum(mk.date) >= d0 && dayNum(mk.date) <= d1).sort((a, b) => dayNum(a.date) - dayNum(b.date));
+      for (const mk of shown) {
+        const x = xOf(mk.date) + (span / (d1 - d0)) * 0.5;
+        doc.setDrawColor(...mk.color);
+        doc.setLineWidth(0.4);
+        doc.line(x, top - 1, x, y);
+        level = x - lastX < 24 ? level + 1 : 0;
+        lastX = x;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(...mk.color);
+        const align = x > W - M - 12 ? 'right' : x < x0 + 12 ? 'left' : 'center';
+        doc.text(s(mk.label), x, y + 3 + level * 3, { align });
+      }
+      return shown.length ? 3 + level * 3 : 0;
+    };
     let group = '';
     for (const r of tl.rows) {
       if (y + rowH > H - 22) {
+        drawMarkers();
         newPage();
         drawAxis();
+        top = y;
       }
       if (r.group !== group) {
         group = r.group;
@@ -135,7 +416,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(...INK);
-      doc.text(s(r.label).slice(0, 34), M + 2, y + 3.4);
+      doc.text((doc.splitTextToSize(s(r.label), labelW - 3) as string[])[0] ?? '', M + 2, y + 3.4);
       if (r.from && r.to) {
         const color: [number, number, number] = r.kind === 'done' ? [120, 170, 140] : r.kind === 'now' ? NAVY : r.kind === 'late' ? [190, 60, 50] : [150, 175, 210];
         doc.setFillColor(...color);
@@ -148,17 +429,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       }
       y += rowH;
     }
-    for (const mk of tl.markers) {
-      if (dayNum(mk.date) < d0 || dayNum(mk.date) > d1) continue;
-      const x = xOf(mk.date) + (span / (d1 - d0)) * 0.5;
-      doc.setDrawColor(...mk.color);
-      doc.setLineWidth(0.4);
-      doc.line(x, top - 1, x, y);
-      doc.setFontSize(7);
-      doc.setTextColor(...mk.color);
-      doc.text(s(mk.label), x, y + 3, { align: 'center' });
-    }
-    y += 8;
+    y += drawMarkers() + 6;
   }
 
   for (const ch of model.charts ?? []) {
@@ -212,8 +483,10 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     y += 4;
   }
 
-  for (const t of model.tables) {
-    if (y > H - 30) {
+  const roads = model.stepRoads;
+  for (const [ti, t] of model.tables.entries()) {
+    if (roads && ti === roads.afterTables) drawStepRoads(roads);
+    if (y > H - 40) {
       doc.addPage();
       drawHeader();
       y = headerH + 4;
@@ -233,12 +506,22 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       columnStyles: Object.fromEntries(t.columns.map((c, i) => [i, { halign: c.align ?? 'left' }])),
       didParseCell: (cell) => {
         if (cell.section === 'head') cell.cell.styles.halign = t.columns[cell.column.index]?.align ?? 'left';
+        const tone = cell.section === 'body' ? t.rowTones?.[cell.row.index] : null;
+        if (tone && ROW_TONE[tone]) {
+          cell.cell.styles.fillColor = ROW_TONE[tone]!;
+          if (cell.column.index === t.columns.length - 1) {
+            cell.cell.styles.textColor = TONE[tone].ink;
+            cell.cell.styles.fontStyle = 'bold';
+          }
+        }
       },
       margin: { left: M, right: M, top: headerH + 2, bottom: 16 },
       didDrawPage: drawHeader,
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
   }
+
+  if (roads && roads.afterTables >= model.tables.length) drawStepRoads(roads);
 
   if (model.notes.length) {
     doc.setFont('helvetica', 'normal');

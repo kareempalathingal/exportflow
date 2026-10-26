@@ -16,6 +16,54 @@ export interface DocTable {
   columns: { label: string; align?: 'left' | 'right' }[];
   rows: string[][];
   empty: string;
+  /** Optional row shading (same order as rows). */
+  rowTones?: (DocTone | null)[];
+}
+
+/** How a product / order stands against the internal deadline. */
+export type DocTone = 'ok' | 'tight' | 'late' | 'unknown' | 'done';
+
+/** The order's journey on one line: received → plan → production → internal deadline → delivery. */
+export interface DocRoadStop {
+  label: string;
+  date: string;
+  note: string;
+  kind: 'done' | 'now' | 'next' | 'deadline' | 'delivery';
+  /** "we are here" */
+  here?: boolean;
+}
+export interface DocRoadMap {
+  title: string;
+  stops: DocRoadStop[];
+  /** Index of the stop the order has reached (the line is drawn solid up to it). */
+  reached: number;
+  summary: string;
+}
+
+/** One product's steps as landmarks, ending in "Ready". */
+export interface DocStepNode {
+  label: string;
+  sub: string; // e.g. "for Coir yarn" (a made sub-product's step)
+  dates: string;
+  state: 'done' | 'now' | 'late' | 'planned' | 'approx' | 'unknown';
+}
+export interface DocStepRoad {
+  name: string;
+  sub: string;
+  badge: { text: string; tone: DocTone };
+  nodes: DocStepNode[];
+  ready: { text: string; tone: DocTone };
+  dashed: boolean;
+  /** Shown instead of the steps when there are none. */
+  empty?: string;
+}
+export interface DocStepRoads {
+  title: string;
+  /** Drawn after this many tables (0 = before the first table). */
+  afterTables: number;
+  counts: { text: string; tone: DocTone }[];
+  items: DocStepRoad[];
+  note: string;
 }
 
 /** A simple grouped bar chart (e.g. allowed vs actual days per order). */
@@ -50,6 +98,8 @@ export interface DocModel {
   meta: [string, string][];
   charts?: DocChart[];
   timeline?: DocTimeline;
+  roadMap?: DocRoadMap;
+  stepRoads?: DocStepRoads;
   /** "Prepared by" and an empty "Reviewed / approved by" block at the end. */
   signature?: DocSignature;
   tables: DocTable[];
@@ -378,6 +428,200 @@ export interface PlanDocInput {
   variant?: 'submit' | 'working';
 }
 
+/** Two days or less before the internal deadline counts as "tight". */
+export const TIGHT_DAYS = 2;
+
+const shortDay = (d: string) => formatDay(d).replace(/ \d{4}$/, '');
+function dayRange(a: string | null, b: string | null): string {
+  if (!a || !b) return a ? `${shortDay(a)} - ?` : 'to be confirmed';
+  if (a === b) return shortDay(a);
+  return a.slice(0, 7) === b.slice(0, 7) ? `${a.slice(8, 10)} - ${shortDay(b)}` : `${shortDay(a)} - ${shortDay(b)}`;
+}
+const plural = (n: number, w: string) => `${formatQty(n)} ${w}${n === 1 ? '' : 's'}`;
+
+interface OverviewInput {
+  order: JobOrder;
+  lines: { line: ReturnType<typeof planLines>[number]; lp: ReturnType<typeof lineProgress>; sched: ReturnType<typeof lineSchedule> }[];
+  md: MasterData;
+  cal: WorkCalendar;
+  today: string;
+  draft: boolean;
+  track: ReturnType<typeof orderTrack> | null;
+  expected: string | null;
+  spare: number | null;
+}
+
+/**
+ * The clean plan's overview (confirmed 26 Oct 2026): the order's road map with a
+ * one-line summary, a product table (start, ready, days before the internal
+ * deadline) and each product's steps as landmarks ending in "Ready".
+ */
+export function planOverview(o: OverviewInput): { roadMap: DocRoadMap; table: DocTable; stepRoads: DocStepRoads } {
+  const { order, md, cal, today, draft } = o;
+  const deadline = order.deadline.internalDeadline;
+  const items = o.lines.map(({ line, lp, sched }) => {
+    const supply = effectiveSupply(line, md.products.get(line.productId));
+    const prod = sched.filter((st) => st.view.step.key !== PLANNING_KEY);
+    const known = lp !== null && prod.length > 0;
+    const doneAll = known && prod.every((st) => st.view.state === 'DONE');
+    const unknownStep = prod.find((st) => !st.finish);
+    const ready = known && !unknownStep ? prod[prod.length - 1]!.finish : null;
+    const start = known ? prod[0]!.start : null;
+    let tone: DocTone;
+    let badge: string;
+    let cell: string;
+    let spareDays: number | null = null;
+    if (!known) {
+      tone = 'unknown';
+      badge = 'steps to be confirmed';
+      cell = 'to be confirmed';
+    } else if (doneAll) {
+      tone = 'done';
+      badge = `done ${shortDay(ready!)}`;
+      cell = 'done';
+    } else if (!ready) {
+      tone = 'unknown';
+      badge = unknownStep!.view.step.processId === null ? 'supplier dates to be confirmed' : 'dates to be confirmed';
+      cell = 'to be confirmed';
+    } else if (ready > deadline) {
+      const late = workingDaysBetween(deadline, ready, cal) ?? 0;
+      tone = 'late';
+      badge = `${plural(late, 'day')} late`;
+      cell = `${plural(late, 'day')} late`;
+    } else {
+      spareDays = workingDaysBetween(ready, deadline, cal) ?? 0;
+      tone = spareDays <= TIGHT_DAYS ? 'tight' : 'ok';
+      badge = spareDays === 0 ? 'ready on the deadline' : tone === 'tight' ? `only ${plural(spareDays, 'day')} spare` : `${plural(spareDays, 'day')} spare`;
+      cell = tone === 'tight' ? `${plural(spareDays, 'day')} - tight` : plural(spareDays, 'day');
+    }
+    const nodes: DocStepNode[] = prod.map((st) => {
+      const s = st.view.step;
+      const v = st.view;
+      const late = v.state !== 'DONE' && ((v.overrunDays ?? 0) > 0 || (st.finish !== null && st.finish > deadline));
+      const state: DocStepNode['state'] =
+        v.state === 'DONE' ? 'done' : !st.finish && v.state !== 'NOW' ? 'unknown' : late ? 'late' : v.state === 'NOW' ? 'now' : s.estimated ? 'approx' : 'planned';
+      const dates =
+        state === 'done'
+          ? `done ${st.finish ? shortDay(st.finish) : ''}`.trim()
+          : v.state === 'NOW'
+            ? st.finish ? `now - to ${shortDay(st.finish)}` : 'now'
+            : state === 'unknown'
+              ? st.start ? `${shortDay(st.start)} - ?` : 'to be confirmed'
+              : `${dayRange(st.start, st.finish)}${s.estimated ? ' - approx.' : ''}`;
+      return { label: s.label, sub: s.forProduct !== line.productName ? `for ${s.forProduct}` : '', dates, state };
+    });
+    const what = supply === 'MAKE' ? 'made in house' : supply === 'BUY' ? 'bought' : 'make or buy to be decided';
+    return {
+      line,
+      supply,
+      start,
+      ready,
+      doneAll,
+      tone,
+      cell,
+      spareDays,
+      road: {
+        name: line.productName,
+        sub: `${qty(line.qty, line.unit)} · ${what}`,
+        badge: { text: badge, tone },
+        nodes,
+        ready: doneAll ? { text: `Done ${shortDay(ready!)}`, tone: 'done' as DocTone } : ready ? { text: `Ready ${shortDay(ready)}`, tone } : { text: 'Ready ?', tone: 'unknown' as DocTone },
+        dashed: tone === 'unknown',
+        ...(known ? {} : { empty: 'Production steps to be confirmed with production' }),
+      } satisfies DocStepRoad,
+    };
+  });
+
+  // Road map.
+  const starts = items.map((i) => i.start).filter((d): d is string => !!d).sort();
+  const readies = items.map((i) => i.ready).filter((d): d is string => !!d).sort();
+  const allKnown = items.length > 0 && items.every((i) => i.ready);
+  const allDone = items.length > 0 && items.every((i) => i.doneAll);
+  const prodFrom = starts[0] ?? null;
+  const prodTo = allKnown ? (o.expected ?? readies.at(-1) ?? null) : null;
+  const spare = o.spare;
+  const prodStop: DocRoadStop = {
+    label: 'Production',
+    date: prodFrom ? (prodTo ? dayRange(prodFrom, prodTo) : `${shortDay(prodFrom)} - ?`) : 'to be confirmed',
+    note: !draft && o.track && o.track.actual !== null && !allDone ? `${o.track.actual}% complete` : '',
+    kind: draft ? 'next' : allDone ? 'done' : 'now',
+    ...(!draft && !allDone ? { here: true } : {}),
+  };
+  const stops: DocRoadStop[] = [
+    { label: 'Order received', date: shortDay(order.receivedDate), note: '', kind: 'done' },
+    draft
+      ? { label: 'Plan approval', date: `today, ${shortDay(today)}`, note: '', kind: 'now', here: true }
+      : { label: 'Plan confirmed', date: order.confirmedOn ? shortDay(order.confirmedOn) : '-', note: '', kind: 'done' },
+    prodStop,
+    {
+      label: 'Internal deadline',
+      date: shortDay(deadline),
+      note: allKnown && spare !== null ? (spare >= 0 ? `${plural(spare, 'day')} spare` : `${plural(-spare, 'day')} late`) : '',
+      kind: 'deadline',
+    },
+    {
+      label: 'Customer delivery',
+      date: shortDay(order.deliveryDate),
+      note: order.deliveryDateType === 'UNCONFIRMED' ? 'basis to be confirmed' : (DELIVERY_DATE_TYPES.find((x) => x.id === order.deliveryDateType)?.label ?? ''),
+      kind: 'delivery',
+    },
+  ];
+  const pending = items.filter((i) => !i.ready).map((i) => i.line.productName);
+  const lastKnown = readies.at(-1) ?? null;
+  const vsDeadline = (d: string) => {
+    if (d > deadline) {
+      const n = workingDaysBetween(deadline, d, cal) ?? 0;
+      return `${plural(n, 'working day')} AFTER the internal deadline - action needed`;
+    }
+    return `${plural(workingDaysBetween(d, deadline, cal) ?? 0, 'working day')} before the internal deadline`;
+  };
+  const summary = allDone
+    ? `All products done (last on ${shortDay(readies.at(-1)!)}).`
+    : allKnown && prodTo
+      ? `All products ready by ${shortDay(prodTo)}, ${vsDeadline(prodTo)}.`
+      : lastKnown
+        ? `Products with known times ready by ${shortDay(lastKnown)} (${vsDeadline(lastKnown)}). Still to be confirmed: ${pending.join(', ')}.`
+        : 'Dates to be confirmed - see the open points.';
+
+  const table: DocTable = {
+    title: 'Products',
+    columns: [{ label: '#' }, { label: 'Product' }, { label: 'Quantity', align: 'right' }, { label: 'Start' }, { label: 'Ready' }, { label: 'Before deadline' }],
+    rows: items.map((i, n) => [
+      String(n + 1),
+      `${i.line.productName}${i.supply === 'BUY' ? ' (bought)' : ''}`,
+      qty(i.line.qty, i.line.unit),
+      i.start ? (i.supply === 'BUY' && !i.doneAll ? `ordered ${shortDay(i.start)}` : shortDay(i.start)) : 'to be confirmed',
+      i.ready ? (i.doneAll ? `done ${shortDay(i.ready)}` : shortDay(i.ready)) : 'to be confirmed',
+      i.cell,
+    ]),
+    rowTones: items.map((i) => (i.tone === 'ok' || i.tone === 'done' ? null : i.tone)),
+    empty: 'No products on this order.',
+  };
+
+  const count = (t: DocTone) => items.filter((i) => i.tone === t).length;
+  const counts: { text: string; tone: DocTone }[] = [
+    { text: `${count('done')} done`, tone: 'done' as DocTone, n: count('done') },
+    { text: `${count('ok')} with time to spare`, tone: 'ok' as DocTone, n: count('ok') },
+    { text: `${count('tight')} tight`, tone: 'tight' as DocTone, n: count('tight') },
+    { text: `${count('late')} late`, tone: 'late' as DocTone, n: count('late') },
+    { text: `${count('unknown')} waiting for dates`, tone: 'unknown' as DocTone, n: count('unknown') },
+  ]
+    .filter((c) => c.n > 0)
+    .map(({ text, tone }) => ({ text, tone }));
+
+  return {
+    roadMap: { title: 'The order at a glance', stops, reached: stops.findIndex((s) => s.here) >= 0 ? stops.findIndex((s) => s.here) : allDone ? 2 : 1, summary },
+    table,
+    stepRoads: {
+      title: 'Steps for each product',
+      afterTables: 1,
+      counts,
+      items: items.map((i) => i.road),
+      note: `Dashed = date approximate or to be confirmed. Days spare = working days before the internal deadline (${shortDay(deadline)}).`,
+    },
+  };
+}
+
 export function productionPlanDoc(input: PlanDocInput): DocModel {
   const { jo, md, ctx, today } = input;
   const cal = ctx.cal;
@@ -571,6 +815,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   );
 
   const uniq = [...new Set(provisional)];
+  const overview = clean ? planOverview({ order, lines, md, cal, today, draft, track, expected, spare }) : null;
   return {
     title: clean ? (draft ? 'Proposed Plan' : 'Production Plan') : draft ? 'Working Plan (proposed)' : 'Working Plan',
     reference: order.joNumber,
@@ -581,7 +826,8 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
         : `PRODUCTION PLAN - status as of ${formatDay(today)}`
       : 'WORKING PLAN - internal details (benchmarks and calculations), not for submission',
     meta,
-    timeline: {
+    ...(overview ? { roadMap: overview.roadMap, stepRoads: overview.stepRoads } : {}),
+    timeline: overview ? undefined : {
       title: 'Timeline (working days; Sundays and company holidays are not worked)',
       from: order.receivedDate,
       to: addDays(lastDate, 1)!,
@@ -592,7 +838,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       ],
       rows: rowsTl,
     },
-    tables,
+    tables: overview ? [overview.table, ...tables.slice(lines.length)] : tables,
     notes: clean
       ? ['Dates are in working days; Sundays and company holidays are not worked.', `Prepared from the information available on ${formatDay(today)}.`]
       : [

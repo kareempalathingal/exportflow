@@ -148,11 +148,21 @@ describe('clean plan to submit', () => {
     expect(m.title).toBe('Proposed Plan');
     expect(m.banner).toBe('PROPOSED PLAN - for review and approval');
     expect(m.provisional).toBe(false);
-    const all = JSON.stringify([m.banner, m.meta, m.tables, m.notes, m.timeline]); // the printed text
+    const all = JSON.stringify([m.banner, m.meta, m.tables, m.notes, m.timeline, m.roadMap, m.stepRoads]); // the printed text
     expect(all).not.toMatch(/benchmark|÷|\/day|user-provided|PROVISIONAL|time pending/i);
     expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('Started 18 Oct 2026 - this plan');
-    expect(m.tables[0]!.columns.map((c) => c.label)).toEqual(['Step', 'Quantity', 'Start', 'Finish', 'Status']);
-    expect(m.tables[0]!.rows[1]).toEqual(['Weaving (sample)', '500 pcs', expect.any(String), expect.any(String), 'Planned']);
+    // Overview (confirmed 26 Oct 2026): road map, product table, steps as landmarks; no Gantt chart.
+    expect(m.timeline).toBeUndefined();
+    expect(m.roadMap!.stops.map((x) => x.label)).toEqual(['Order received', 'Plan approval', 'Production', 'Internal deadline', 'Customer delivery']);
+    expect(m.roadMap!.stops[1]).toMatchObject({ here: true, date: 'today, 20 Oct' });
+    expect(m.tables[0]!.columns.map((c) => c.label)).toEqual(['#', 'Product', 'Quantity', 'Start', 'Ready', 'Before deadline']);
+    expect(m.tables[0]!.rows[0]!.slice(0, 3)).toEqual(['1', 'Rubber-backed mat 50×80 (sample)', '500 pcs']);
+    expect(m.stepRoads!.afterTables).toBe(1);
+    expect(m.stepRoads!.items[0]!.nodes.map((n) => [n.label, n.state])).toEqual([
+      ['Weaving (sample)', 'planned'],
+      ['Packing (sample)', 'planned'],
+    ]);
+    expect(m.stepRoads!.items[0]!.ready.text).toMatch(/^Ready \d{2} [A-Z][a-z]+$/);
     expect(m.tables.at(-1)!.title).toBe('Open points');
     expect(m.tables.at(-1)!.rows.map((r) => r[0])).toEqual([
       'Plan confirmation pending - production can start once this plan is approved',
@@ -169,7 +179,29 @@ describe('clean plan to submit', () => {
     expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('10 Oct 2026 to 14 Oct 2026');
     expect(m.meta.find(([k]) => k === 'Internal deadline')![1]).toBe('19 Nov 2026');
     expect(m.meta.find(([k]) => k === 'Progress')![1]).toMatch(/^\d+% complete \(planned \d+% by today\)$/);
-    expect(m.tables[0]!.rows[0]).toEqual(['Planning (whole order)', '—', '10 Oct 2026', '14 Oct 2026', 'Done']);
+    expect(m.roadMap!.stops[1]).toEqual({ label: 'Plan confirmed', date: '14 Oct', note: '', kind: 'done' });
+    expect(m.roadMap!.stops[2]).toMatchObject({ kind: 'now', here: true, note: expect.stringMatching(/% complete$/) });
+    expect(m.stepRoads!.items[0]!.nodes[0]).toMatchObject({ state: 'now', sub: 'for Coir yarn (sample)' });
+  });
+});
+
+describe('plan overview: road map and steps as landmarks (confirmed 26 Oct 2026)', () => {
+  const processes = new Map(writes.filter((w) => w.collection === 'processes').map((w) => [w.docId, w.data as unknown as import('../../src/lib/masters').Process]));
+  it('marks tight, late and unknown products and says what is still to be confirmed', async () => {
+    const { productionPlanDoc, TIGHT_DAYS } = await import('../../src/lib/docs/model');
+    const m = productionPlanDoc({ jo: { ...finalJo.get('sample_jo_105')!, rev: 1 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' } });
+    const door = m.stepRoads!.items.find((i) => i.name.startsWith('Printed door mat'))!;
+    expect(door).toMatchObject({ dashed: true, badge: { tone: 'unknown', text: 'supplier dates to be confirmed' }, ready: { text: 'Ready ?' } });
+    expect(m.roadMap!.summary).toMatch(/Still to be confirmed: Printed door mat 45×75 \(sample\)\.$/);
+    expect(m.stepRoads!.counts.map((c) => c.text)).toContain('1 waiting for dates');
+    const rows = m.tables[0]!.rows;
+    m.tables[0]!.rowTones!.forEach((tone, i) => {
+      const cell = rows[i]![5]!;
+      if (tone === 'unknown') expect(cell).toBe('to be confirmed');
+      if (tone === 'tight') expect(Number(cell.split(' ')[0])).toBeLessThanOrEqual(TIGHT_DAYS);
+      if (tone === 'late') expect(cell).toMatch(/late$/);
+      if (tone === null) expect(cell).toMatch(/^\d+ days?$|^done$/);
+    });
   });
 });
 

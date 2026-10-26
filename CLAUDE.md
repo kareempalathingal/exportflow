@@ -460,10 +460,24 @@ report the discrepancy and ask; do not silently choose.
     no benchmarks, rates, calculation details, PROVISIONAL band or
     technical notes; missing data appears as plain-language open points
     such as "time for Latex backing to be confirmed with production";
-    schedule columns Step / Quantity / Start / Finish / Status; "To be
-    confirmed" for unknown dates) and "working" (all details, for the
+    layout below; "to be confirmed" for unknown dates) and "working" (all details, for the
     user only, banner "WORKING PLAN - internal details, not for
     submission"). `productionPlanDoc({ ..., variant })`.
+-   Plan "to submit" layout (confirmed 26 Oct 2026, `planOverview()` in
+    `src/lib/docs/model.ts`, drawn in `pdf.ts`; mockup canvas "Plan PDF
+    timeline options", B + "D polished"): key facts; "The order at a
+    glance" road map (Order received → Plan approval / confirmed →
+    Production → Internal deadline → Customer delivery, "we are here",
+    spare / late days) with an "In short" sentence; a Products table (#,
+    product, quantity, start, ready, days before the internal deadline;
+    tight = 2 working days or less (`TIGHT_DAYS`), late, to be confirmed
+    shaded); then "Steps for each product": one card per product with its
+    steps as numbered landmarks (dates; done / now / late / approx. /
+    to be confirmed) ending in a "Ready <date>" pill, small products in
+    pairs; then materials, open points, notes, signatures. No Gantt chart
+    and no per-step tables in this version. The working plan keeps the
+    Gantt (today / deadline / delivery lines on every page) and the
+    detailed step tables.
 -   Later (after real processes are known): an Analysis tab for the
     whole factory — department load from all orders, smooth capacity,
     bottlenecks, and scheduling orders against shared capacity.
