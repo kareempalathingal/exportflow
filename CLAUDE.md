@@ -402,6 +402,24 @@ report the discrepancy and ask; do not silently choose.
 -   After joining: department KPIs the user defines (monthly figures),
     approvals register, meeting notes (checklist item "other-departments").
 
+## Factory documentation (noted 27 Oct 2026; build AFTER joining)
+
+-   The user will be answerable for factory records being complete and on
+    time (all activities, e.g. even a parcel received), not only Job
+    Orders. Idea discussed, not approved: a document register (document
+    types master with trigger, owner, due rule, filing place; records
+    raised by app events, schedules or quick entries such as "parcel
+    received"; status Pending / Prepared / Checked / Filed / Missing /
+    Not needed with reason; alerts, documentation status PDF, KPI).
+    Wait for the real document list and practice (checklist item
+    "documentation"); never invent the company's document list.
+-   ERP data from the company's ERP developer may be imported (company
+    permission confirmed by the user, 26 Oct 2026): Excel / CSV files →
+    checked and converted to an `exportflow-backup/v1` file → Settings →
+    Restore with preview. Imported figures get status USER_PROVIDED
+    ("Known"). No ERP logins, payroll / personal records, accounts or
+    prices.
+
 ## Capacity planning (decided 25 Oct 2026; build AFTER joining)
 
 -   Wait until the company's real capacity practice is known (checklist
