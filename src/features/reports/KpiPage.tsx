@@ -232,7 +232,7 @@ export function KpiPage() {
   );
 }
 
-/** Home: four key figures for the last 30 days; tap for the full KPI page. */
+/** Home: four key figures for the last 30 days; tap for the full KPI page. Always shown (a note when there is no data yet). */
 export function KpiStrip() {
   const { workspaceId } = useApp();
   const today = istDateKey(new Date());
@@ -243,7 +243,7 @@ export function KpiStrip() {
   }, [today]);
   const { report: r } = useKpis(from, today, false);
   const { targets } = useKpiTargets(workspaceId);
-  if (!r || (r.steps === 0 && r.factory.completed === 0)) return null;
+  const empty = !r || (r.steps === 0 && r.factory.completed === 0);
   const tile = (label: string, value: string, tone: ReturnType<typeof toneFor>) => (
     <Link to="/reports/kpi" className={`kpi-mini ${tone ? `tone-${tone}` : ''}`}>
       <strong className={tone ? TONE_CLS[tone] : ''}>{value}</strong>
@@ -258,12 +258,16 @@ export function KpiStrip() {
           All KPIs ›
         </Link>
       </div>
-      <div className="kpi-mini-row">
-        {tile('On-time delivery', fmtPct(r.factory.onTimeDeliveryPct), toneFor(r.factory.onTimeDeliveryPct, targets.onTimeDeliveryPct, true))}
-        {tile('Steps on time', fmtPct(r.factory.onTimeStepPct), toneFor(r.factory.onTimeStepPct, targets.onTimeStepPct, true))}
-        {tile('Efficiency', fmtPct(r.factory.efficiencyPct), toneFor(r.factory.efficiencyPct, targets.efficiencyPct, true))}
-        {tile('Needs attention', r.worstGroup ?? 'None', r.worstGroup ? 'warn' : null)}
-      </div>
+      {empty || !r ? (
+        <p className="muted small">{r ? 'No steps finished in the last 30 days yet — KPIs appear as orders move.' : 'Loading…'}</p>
+      ) : (
+        <div className="kpi-mini-row">
+          {tile('On-time delivery', fmtPct(r.factory.onTimeDeliveryPct), toneFor(r.factory.onTimeDeliveryPct, targets.onTimeDeliveryPct, true))}
+          {tile('Steps on time', fmtPct(r.factory.onTimeStepPct), toneFor(r.factory.onTimeStepPct, targets.onTimeStepPct, true))}
+          {tile('Efficiency', fmtPct(r.factory.efficiencyPct), toneFor(r.factory.efficiencyPct, targets.efficiencyPct, true))}
+          {tile('Needs attention', r.worstGroup ?? 'None', r.worstGroup ? 'warn' : null)}
+        </div>
+      )}
     </section>
   );
 }

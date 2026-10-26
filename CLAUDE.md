@@ -349,7 +349,8 @@ report the discrepancy and ask; do not silently choose.
 -   Targets: Settings → KPI targets (doc `settings/kpiTargets`, per
     workspace), user's own; empty = no colour. Met / within 10% (warn) /
     below. Home strip: last 30 days (on-time delivery, steps on time,
-    efficiency, department needing most attention), hidden without data.
+    efficiency, department needing most attention), always shown (a note
+    when there is no data yet).
 -   Benchmark suggestions (performance report) now use working time when
     the start was recorded. Daily department output vs target needs a
     production record — decide after joining.
