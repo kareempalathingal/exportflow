@@ -502,3 +502,13 @@ label.inline { display: flex; align-items: center; gap: 0.5rem; }
 /* Published rules older than the app */
 .rules-banner { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--ink); border-bottom: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); font-size: 0.85rem; padding: 0.55rem 16px; line-height: 1.4; }
 .rules-banner a { color: var(--danger); font-weight: 600; }
+
+/* Look ahead heat table (27 Oct 2026) */
+.table-scroll { overflow-x: auto; margin: 8px 0; }
+.heat-table { border-collapse: collapse; width: 100%; min-width: 320px; }
+.heat-table th, .heat-table td { padding: 6px 6px; border: 2px solid var(--surface); text-align: center; white-space: nowrap; }
+.heat-table thead th { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.heat-table tbody th { text-align: left; font-weight: 600; background: var(--track); white-space: normal; }
+.heat-table td.heat-1 { background: #dce6f2; color: #17202b; }
+.heat-table td.heat-2 { background: #a9bbd3; color: #17202b; }
+.heat-table td.heat-3 { background: #1f3a5f; color: #ffffff; }

@@ -22,6 +22,12 @@ const TONE: Record<DocTone, { bg: RGB; ink: RGB; pill: RGB; pillInk: RGB }> = {
   unknown: { bg: [236, 239, 243], ink: [74, 82, 96], pill: WHITE, pillInk: [74, 82, 96] },
   done: { bg: [232, 238, 246], ink: NAVY, pill: NAVY, pillInk: WHITE },
 };
+/** Heat levels (light → dark navy) for load tables. */
+const HEAT: RGB[] = [
+  [220, 230, 242],
+  [169, 187, 211],
+  [74, 106, 150],
+];
 const ROW_TONE: Partial<Record<DocTone, RGB>> = { tight: [255, 246, 224], late: [252, 232, 230], unknown: SOFT };
 const M = 14; // page margin, mm
 const dayNum = (d: string) => Math.round(Date.parse(`${d}T00:00:00Z`) / 86_400_000);
@@ -506,7 +512,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     doc.text(s(t.title), M, y + 3);
     autoTable(doc, {
       startY: y + 5,
-      head: [t.columns.map((c) => s(c.label))],
+      head: t.noHead ? [] : [t.columns.map((c) => s(c.label))],
       body: t.rows.length ? t.rows.map((r) => r.map((c) => c.split('\n').map(s).join('\n'))) : [[{ content: s(t.empty), colSpan: t.columns.length, styles: { textColor: MUTED, fontStyle: 'italic' } }]],
       theme: 'grid',
       headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 },
@@ -523,6 +529,12 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       ),
       didParseCell: (cell) => {
         if (cell.section === 'head') cell.cell.styles.halign = t.columns[cell.column.index]?.align ?? 'left';
+        const level = cell.section === 'body' ? (t.cellLevels?.[cell.row.index]?.[cell.column.index] ?? 0) : 0;
+        if (level > 0) {
+          cell.cell.styles.fillColor = HEAT[Math.min(3, level) - 1]!;
+          if (level >= 3) cell.cell.styles.textColor = WHITE;
+          cell.cell.styles.halign = 'center';
+        }
         const tone = cell.section === 'body' ? t.rowTones?.[cell.row.index] : null;
         if (tone && ROW_TONE[tone]) {
           cell.cell.styles.fillColor = ROW_TONE[tone]!;

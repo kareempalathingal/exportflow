@@ -434,7 +434,7 @@ report the discrepancy and ask; do not silently choose.
     ("Known"). No ERP logins, payroll / personal records, accounts or
     prices.
 
-## Weekly report to management (noted 27 Oct 2026; build AFTER the 3-month learning period)
+## Weekly report to management (noted 27 Oct 2026; built the same day as "My report", see below)
 
 -   After the learning period the user must give management a weekly
     report of what he did that week: a normal weekly report that also
@@ -447,6 +447,37 @@ report the discrepancy and ask; do not silently choose.
     the user edits. Outcomes over activity counts; nothing inflated or
     invented — every figure must be checkable. Encourage a one-line note
     when a task is marked Done.
+
+## My report and Look ahead (confirmed 27 Oct 2026)
+
+-   Reports → "My report" (`src/lib/myReport.ts`, PDF `myReportDoc` in
+    `src/lib/docs/reportsDocs.ts`), weekly or monthly (Last / This week,
+    Last / This month, custom), for the user's superior; built now (usable
+    in the learning period too). Contents: Highlights (suggested from the
+    records, edited by the user in a text box, kept on the phone per
+    period), at a glance (orders confirmed + planning days, steps finished
+    / on time, orders completed, follow-ups closed / resolved /
+    escalated), orders (progress at the start → end of the period via
+    `asOf()`, what happened, vs internal deadline), delays found (steps
+    over their benchmark and how the order stands now), follow-ups closed
+    with how they ended, open escalations, KPIs vs the previous period and
+    targets, the coming week / month (from Look ahead), signatures. No
+    audit history loaded (plan-change counts not shown).
+-   Reports → "Look ahead" (`src/lib/lookAhead.ts`, PDF `lookAheadDoc`):
+    next 7 days / 4 weeks / 3 months / custom; CONFIRMED orders only
+    (drafts are left out on purpose). Department heat table per week
+    (months when the range is over 6 weeks): orders with a step there,
+    jobs (one product step each) running at the same time on average and
+    at peak; shading compares departments with each other; "quieter
+    (leave)" = no work or under a third of that department's busiest
+    period. Quantity per process per week (spread evenly over the step's
+    planned working days; one unit per row, never summed). Key dates
+    (internal deadlines, deliveries, company holidays), Work tasks due
+    incl. each coming repeat, materials needed by the start of the first
+    step of the product that uses them (only products not started yet),
+    bought items, steps without a time ("not placed"). Relative only until
+    capacity exists; then the same report uses the shared queue (see
+    Capacity planning). Always "as of today": recomputed each time.
 
 ## Capacity planning (decided 25 Oct 2026; build AFTER joining)
 

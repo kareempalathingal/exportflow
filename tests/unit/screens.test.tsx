@@ -293,6 +293,11 @@ describe('Reports', () => {
     expect(html).toContain('Job Order performance');
     expect(html).toContain('To buy — all confirmed orders (PDF)');
     expect(html).toContain('href="/history"');
+    // My report and Look ahead (27 Oct 2026)
+    expect(html).toContain('My report');
+    expect(html).toContain('Weekly report (PDF)');
+    expect(html).toContain('Look ahead');
+    expect(html).toContain('Look ahead (PDF)');
   });
   it('performance report has period choices, summary and processes', () => {
     const html = render('/reports/performance', '/reports/performance', <PerformancePage />);

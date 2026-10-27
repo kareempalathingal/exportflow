@@ -18,6 +18,10 @@ export interface DocTable {
   empty: string;
   /** Optional row shading (same order as rows). */
   rowTones?: (DocTone | null)[];
+  /** Optional heat shading per cell, 1 (light) – 3 (dark); null / 0 = none. */
+  cellLevels?: (number | null)[][];
+  /** No header row (e.g. a list of highlights). */
+  noHead?: boolean;
 }
 
 /** How a product / order stands against the internal deadline. */

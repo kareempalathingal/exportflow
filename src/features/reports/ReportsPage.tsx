@@ -20,6 +20,8 @@ import { useProfile } from '../settings/useProfile';
 import { TodayCard } from './TodayCard';
 import { SettingSection } from '../settings/SettingSection';
 import { DeliverySection, FollowUpSection, RiskSection, StockSection, SummarySection, WorkSection } from './ManagerReports';
+import { LookAheadSection, MyReportSection } from './MyReports';
+import { useKpiTargets } from './KpiPage';
 
 /** Reports, summaries and printable lists in one place (History lives here too). */
 export function ReportsPage() {
@@ -46,6 +48,8 @@ export function ReportsPage() {
   const generatedAt = () => `${formatDateTime(new Date())} IST`;
   const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
   const processMap = useMemo(() => new Map(processes.items.map((p) => [p.id, p])), [processes.items]);
+  const processNames = useMemo(() => new Map(processes.items.map((p) => [p.id, p.name])), [processes.items]);
+  const { targets: kpiTargets } = useKpiTargets(workspaceId);
   const [planJo, setPlanJo] = useState('');
   const planChoices = useMemo(
     () => jos.items.filter((j) => j.status !== 'CANCELLED').sort((a, b) => (a.status === 'COMPLETED' ? 1 : 0) - (b.status === 'COMPLETED' ? 1 : 0) || b.receivedDate.localeCompare(a.receivedDate)),
@@ -78,6 +82,21 @@ export function ReportsPage() {
               <DocButtons label="Daily summary (PDF)" build={() => todayDoc(summary, { company, generatedAt: generatedAt() })} />
             </div>
           </SettingSection>
+
+          <MyReportSection
+            jos={jos.items}
+            ctx={ctx}
+            today={today}
+            company={company}
+            generatedAt={generatedAt}
+            departments={departments.items}
+            processNames={processNames}
+            tasks={tasks.items}
+            deptName={deptName}
+            targets={kpiTargets}
+            preparedBy={{ name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' }}
+          />
+          <LookAheadSection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} departments={departments.items} processNames={processNames} tasks={tasks.items} deptName={deptName} />
 
           <RiskSection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} redAt={redAt} />
           <DeliverySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} />

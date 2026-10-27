@@ -63,7 +63,7 @@ function ShareTextButton({ title, text }: { title: string; text: () => string })
   );
 }
 
-function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
+export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
   return (
     <div className="segmented wrap" role="radiogroup" aria-label={label}>
       {options.map(([id, text]) => (
@@ -75,7 +75,7 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
   );
 }
 
-function DateRange({ value, onChange }: { value: { from: string; to: string }; onChange: (v: { from: string; to: string }) => void }) {
+export function DateRange({ value, onChange }: { value: { from: string; to: string }; onChange: (v: { from: string; to: string }) => void }) {
   return (
     <div className="grid2">
       <label>
