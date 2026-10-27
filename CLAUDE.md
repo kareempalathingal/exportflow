@@ -433,6 +433,16 @@ report the discrepancy and ask; do not silently choose.
     Restore with preview. Imported figures get status USER_PROVIDED
     ("Known"). No ERP logins, payroll / personal records, accounts or
     prices.
+-   Free-plan reads (noted 27 Oct 2026; do BEFORE importing ERP data):
+    storage and writes are far within the Spark limits, but every list is
+    read whole (`useCollection`), and after the cache goes stale (~30 min)
+    a re-open re-reads it; ~5,000 docs × ~10 opens a day reaches the
+    50,000 reads/day limit, and tasks / completed orders keep growing
+    (never deleted). Before the import: (1) load only what is needed —
+    open tasks + done in the last 30 days, completed orders older than a
+    few months only on "Show older"; (2) System health: approximate reads
+    today (docs served from the server), not only quota hits. Blaze (with
+    a budget alert) only if reads still approach the limit.
 
 ## Weekly report to management (noted 27 Oct 2026; built the same day as "My report", see below)
 
