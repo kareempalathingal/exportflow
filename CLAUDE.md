@@ -433,6 +433,18 @@ report the discrepancy and ask; do not silently choose.
     Restore with preview. Imported figures get status USER_PROVIDED
     ("Known"). No ERP logins, payroll / personal records, accounts or
     prices.
+-   Scan any document (idea 27 Oct 2026; build AFTER joining, together
+    with JO import): nearly all factory documents are printed. Photo /
+    PDF / "Share → ExportFlow" → text read on the phone (pdf.js for text
+    PDFs, on-device OCR for photos; the user can correct it) → find with
+    fixed rules (JO / PO / invoice numbers, dates, quantities, names of
+    customers, suppliers, products, departments, people) the related open
+    tasks and orders, with the reason shown → link it to a task / JO,
+    create a prefilled follow-up the user edits, or file it in the
+    document register. Images stay on the phone; only key fields are kept
+    (no prices). "Explain an unknown document" needs AI: only after a
+    Blaze-plan decision and company permission to send documents to an
+    AI service.
 -   Free-plan reads (noted 27 Oct 2026; do BEFORE importing ERP data):
     storage and writes are far within the Spark limits, but every list is
     read whole (`useCollection`), and after the cache goes stale (~30 min)
