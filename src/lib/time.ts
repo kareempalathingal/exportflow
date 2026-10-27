@@ -26,3 +26,18 @@ export function istDateKey(d: Date): string {
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
+
+/** Clock time (HH:MM, 24-hour) of an instant, as seen in IST. */
+export function istTimeKey(d: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: APP_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  return `${get('hour')}:${get('minute')}`;
+}
+
+/** "3:30 PM" from "15:30". */
+export function formatClock(hhmm: string | null | undefined): string {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm ?? '');
+  if (!m) return '';
+  const h = Number(m[1]);
+  return `${h % 12 === 0 ? 12 : h % 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+}

@@ -399,6 +399,20 @@ report the discrepancy and ask; do not silently choose.
     tasks; "Add new sample records" adds only missing sample records.
     DEMO-105 (confirmed the day the samples are added, 7 products incl. a
     bought one, one without BOM and yarn in kg) shows a larger plan.
+-   Time and outcome (confirmed 27 Oct 2026): optional due time
+    (`dueTime` HH:MM, IST; needs a date; past time today = Overdue; same-day
+    tasks by time; repeats keep it; shown in Today / summary). Done asks
+    "How did it end?": Resolved / Not resolved + optional note (never
+    required, also for repeating tasks). Not resolved → next step: Escalate
+    (any department from a dropdown, then optionally a person of it — not
+    only upwards; parallel departments too), Follow up again (same person),
+    or Close anyway; escalation / follow-up = a new task ("Escalated: …" is
+    High) linked both ways (`fromTaskId` / `nextTaskId`, `nextStep`).
+    Dropped keeps its name and asks an optional reason (`outcomeNote`). Done
+    list shows ✓ / ✗ and the outcome; follow-up text / PDF add "Open
+    escalations and follow-ups" and "Done in the last 7 days - how it
+    ended". No phone-calendar button (declined). Rules validate the new
+    fields; older tasks without them stay valid.
 -   After joining: department KPIs the user defines (monthly figures),
     approvals register, meeting notes (checklist item "other-departments").
 

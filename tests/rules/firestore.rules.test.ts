@@ -337,6 +337,15 @@ describe('versioned records with audit', () => {
     await assertFails(write('t3', 1, 'k4', { ...task, repeat: { kind: 'MONTHLY', day: 40 } }));
     await assertFails(write('t4', 1, 'k5', { ...task, dueDate: null })); // a repeat needs a first date
     await assertFails(write('t5', 1, 'k6', { ...task, status: 'MAYBE' }));
+    // Time, how it ended and links (27 Oct 2026); tasks saved before keep working without them.
+    const more = { dueTime: '15:30', outcome: null, outcomeNote: '', nextStep: null, nextTaskId: null, fromTaskId: null };
+    await assertSucceeds(write('t6', 1, 'k7', { ...task, ...more }));
+    await assertSucceeds(write('t6', 2, 'k8', { ...task, ...more, status: 'DONE', doneOn: '2026-11-09', outcome: 'NOT_RESOLVED', outcomeNote: 'No reply', nextStep: 'ESCALATE', nextTaskId: 't7' }));
+    await assertSucceeds(write('t7', 1, 'k9', { ...task, ...more, repeat: null, title: 'Escalated: GST filing status', priority: 'HIGH', fromTaskId: 't6' }));
+    await assertFails(write('t8', 1, 'k10', { ...task, ...more, dueTime: '25:00' }));
+    await assertFails(write('t9', 1, 'k11', { ...task, ...more, repeat: null, dueDate: null })); // a time needs a date
+    await assertFails(write('t10', 1, 'k12', { ...task, ...more, outcome: 'MAYBE' }));
+    await assertFails(write('t11', 1, 'k13', { ...task, ...more, nextStep: 'IGNORE' }));
     const { deleteDoc } = await import('firebase/firestore');
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/tasks/t1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/tasks/t1`)));

@@ -8,6 +8,7 @@ import { addDays, daysBetween, formatDay, type JobOrder } from './jobOrders';
 import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route';
 import { formatQty, unitLabel } from './units';
 import { isActive, type Task } from './tasks';
+import { formatClock } from './time';
 
 export const SOON_WORKING_DAYS = 2;
 
@@ -103,7 +104,8 @@ export function buildToday(args: {
     if (!w) continue;
     const who = [t.departmentId && args.deptName ? args.deptName(t.departmentId) : '', t.person].filter(Boolean).join(' · ');
     const lateBy = w === 'OVERDUE' ? ` - due ${formatDay(t.dueDate)}` : w === 'SOON' ? ` - ${day(t.dueDate)}` : '';
-    items.push({ when: w, date: t.dueDate, text: `Task${t.priority === 'HIGH' ? ' [High]' : ''}: ${t.title}${who ? ` (${who})` : ''}${t.status === 'WAITING' ? ' · waiting' : ''}${lateBy}`, link: `/work/${t.id}` });
+    const at = t.dueTime ? ` at ${formatClock(t.dueTime)}` : '';
+    items.push({ when: w, date: t.dueDate, text: `Task${t.priority === 'HIGH' ? ' [High]' : ''}: ${t.title}${who ? ` (${who})` : ''}${t.status === 'WAITING' ? ' · waiting' : ''}${lateBy}${at}`, link: `/work/${t.id}` });
   }
 
   if (args.backupDue) {

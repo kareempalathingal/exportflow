@@ -156,7 +156,15 @@ service cloud.firestore {
         && (d.dueDate == null || isDate(d.dueDate))
         && (d.doneOn == null || isDate(d.doneOn))
         && validRepeat(d.repeat)
-        && (d.repeat == null || isDate(d.dueDate));
+        && (d.repeat == null || isDate(d.dueDate))
+        // Time, how it ended and follow-up links (27 Oct 2026); older tasks may not have them.
+        && (d.get('dueTime', null) == null
+          || (d.dueTime is string && d.dueTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') && isDate(d.dueDate)))
+        && (d.get('outcome', null) == null || d.outcome in ['RESOLVED', 'NOT_RESOLVED'])
+        && (d.get('outcomeNote', '') is string && d.get('outcomeNote', '').size() <= 500)
+        && (d.get('nextStep', null) == null || d.nextStep in ['ESCALATE', 'FOLLOW_UP', 'CLOSE'])
+        && (d.get('nextTaskId', null) == null || (d.nextTaskId is string && d.nextTaskId.size() <= 100))
+        && (d.get('fromTaskId', null) == null || (d.fromTaskId is string && d.fromTaskId.size() <= 100));
     }
 
     match /workspaces/{wsId} {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { tasksDoc } from '../../src/lib/docs/tasksDoc';
 import { checkIntegrity } from '../../src/lib/integrity';
 import { buildSampleData } from '../../src/lib/sampleData';
-import { completeTask, emptyTask, groupOf, groupTasks, monthDay, nextDue, tasksText, validateTask, type Task } from '../../src/lib/tasks';
+import { completeTask, dueText, emptyTask, followUpTask, groupOf, groupTasks, monthDay, nextDue, outcomeText, tasksText, validateTask, type Task } from '../../src/lib/tasks';
 import { buildToday } from '../../src/lib/today';
 import { DEFAULT_CALENDAR } from '../../src/lib/calendar';
 
@@ -63,11 +63,13 @@ describe('groups and lists', () => {
     ]);
     expect(s.items[2]!.text).toMatch(/^Task \[High\]: today/);
   });
-  it('text and PDF leave out done tasks', () => {
+  it('text and PDF keep done tasks apart, with how they ended', () => {
     const text = tasksText(list, { company: 'Co', today: TODAY, title: 'Follow-ups', deptName: () => 'General' });
     expect(text).toMatch(/Overdue:\n• late - 6 days overdue/);
-    expect(text).not.toMatch(/done/);
-    expect(tasksDoc(list, { company: 'Co', today: TODAY, generatedAt: 'now', deptName: () => '' }).tables.map((t) => t.title)).not.toContain('Done (last 7 days)');
+    const open = text.split('Done (last 7 days):')[0]!;
+    expect(open).not.toMatch(/\bdone\b/);
+    const titles = tasksDoc(list, { company: 'Co', today: TODAY, generatedAt: 'now', deptName: () => '' }).tables.map((t) => t.title);
+    expect(titles).not.toContain('Done (last 7 days)');
   });
 });
 
@@ -84,5 +86,37 @@ describe('sample tasks', () => {
     expect(issues.filter((i) => i.text.startsWith('Task'))).toEqual([]);
     const broken = checkIntegrity({ md: { products: new Map(), rawMaterials: new Map(), boms: new Map() }, jobOrders: [], customers: [], processes: [], suppliers: [], departments: [], tasks });
     expect(broken.some((i) => /department is missing/.test(i.text))).toBe(true);
+  });
+});
+
+describe('time, how it ended, escalation (confirmed 27 Oct 2026)', () => {
+  it('a time makes a task overdue once it has passed today, and needs a date', () => {
+    const t = task({ title: 'Call', dueDate: TODAY, dueTime: '11:00' });
+    expect(groupOf(t, TODAY, '10:59')).toBe('TODAY');
+    expect(groupOf(t, TODAY, '11:01')).toBe('OVERDUE');
+    expect(groupOf(t, TODAY)).toBe('TODAY');
+    expect(dueText(t, TODAY)).toBe('today 11:00 AM');
+    expect(validateTask({ ...t, dueDate: null })).toMatch(/date/);
+    expect(validateTask({ ...t, dueTime: '24:10' })).toMatch(/time/);
+    // same day: earlier time first
+    const g = groupTasks([task({ title: 'B', dueDate: TODAY, dueTime: '16:00' }), task({ title: 'A', dueDate: TODAY, dueTime: '09:30' })], TODAY, '08:00');
+    expect(g[0]!.tasks.map((x) => x.title)).toEqual(['A', 'B']);
+  });
+  it('done records the outcome; the next repeat starts clean and keeps its time', () => {
+    const t = task({ title: 'Weekly review', dueDate: '2026-10-26', dueTime: '17:00', repeat: { kind: 'WEEKLY', weekday: 1 } });
+    const { done, next } = completeTask(t, TODAY, { outcome: 'NOT_RESOLVED', note: 'Finance absent', nextStep: 'FOLLOW_UP' });
+    expect(done).toMatchObject({ status: 'DONE', outcome: 'NOT_RESOLVED', outcomeNote: 'Finance absent', nextStep: 'FOLLOW_UP' });
+    expect(outcomeText(done)).toBe('Not resolved · followed up again - Finance absent');
+    expect(next).toMatchObject({ dueTime: '17:00', outcome: null, outcomeNote: '', nextStep: null });
+    expect(outcomeText(completeTask(t, TODAY, { outcome: 'RESOLVED', note: '' }).done)).toBe('Resolved');
+  });
+  it('an escalation goes to any department, is High and links back', () => {
+    const from = task({ title: 'Artwork approval', departmentId: 'design', person: 'Asha', priority: 'NORMAL', joNumber: 'JO-1', outcomeNote: 'Buyer silent' });
+    const e = followUpTask(from, 'x1', 'ESCALATE', { departmentId: 'mgmt', person: 'GM', dueDate: '2026-10-28', dueTime: '10:00' });
+    expect(e).toMatchObject({ title: 'Escalated: Artwork approval', departmentId: 'mgmt', person: 'GM', priority: 'HIGH', fromTaskId: 'x1', joNumber: 'JO-1', dueTime: '10:00', notes: 'Earlier: Buyer silent' });
+    const f = followUpTask(e, 'x2', 'FOLLOW_UP', { departmentId: 'other', person: 'x', dueDate: '2026-10-30', dueTime: null });
+    expect(f).toMatchObject({ title: 'Follow-up: Artwork approval', departmentId: 'mgmt', person: 'GM' });
+    const doc = tasksDoc([e], { company: 'Co', today: TODAY, generatedAt: 'now', deptName: () => '' });
+    expect(doc.tables[0]!.title).toBe('Open escalations and follow-ups');
   });
 });

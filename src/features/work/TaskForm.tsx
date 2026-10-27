@@ -4,12 +4,12 @@ import { useApp } from '../../AppContext';
 import { WEEKDAY_NAMES } from '../../lib/calendar';
 import { COLLECTION_JOB_ORDERS, type JobOrder } from '../../lib/jobOrders';
 import { COLLECTIONS, type Department } from '../../lib/masters';
-import { COLLECTION_TASKS, emptyTask, isActive, repeatLabel, STATUS_LABEL, taskMessage, validateTask, weekdayOf, type Repeat, type Task, type TaskStatus } from '../../lib/tasks';
+import { COLLECTION_TASKS, emptyTask, isActive, outcomeText, repeatLabel, STATUS_LABEL, taskMessage, validateTask, weekdayOf, withTaskDefaults, type Repeat, type Task, type TaskStatus } from '../../lib/tasks';
 import { istDateKey } from '../../lib/time';
 import { StepContacts } from '../masters/ContactButtons';
 import { newId, useCollection, useDocument } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
-import { markDone, strip } from './WorkPage';
+import { CloseTask, markDone, strip } from './WorkPage';
 
 type RepeatKind = 'NONE' | Repeat['kind'];
 
@@ -28,7 +28,9 @@ export function TaskForm() {
   const [kind, setKind] = useState<RepeatKind>(() => item?.repeat?.kind ?? 'NONE');
   const [nText, setNText] = useState(() => (item?.repeat?.kind === 'EVERY_N_DAYS' ? String(item.repeat.days) : '7'));
   const [error, setError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const loaded = useRef<string | null>(null);
+  const tasks = useCollection<Task>(workspaceId, COLLECTION_TASKS);
 
   useEffect(() => {
     if (!item) return;
@@ -61,10 +63,9 @@ export function TaskForm() {
     const err = validateTask(data);
     if (err) return setError(err);
     setError(null);
-    // Done chosen in the status list: same as the Done button (a repeat adds the next one).
+    // Done chosen in the status list: same as the Done button — ask how it ended first.
     if (!isNew && item && isActive(item) && data.status === 'DONE') {
-      markDone(workspaceId, { ...item, ...data, status: item.status } as typeof item, today);
-      navigate('/work', { replace: true });
+      setClosing(true);
       return;
     }
     if (data.status === 'DONE' && !data.doneOn) data.doneOn = today;
@@ -120,8 +121,14 @@ export function TaskForm() {
         <div className="grid2">
           <label>
             Due date
-            <input type="date" value={t.dueDate ?? ''} onChange={(e) => set('dueDate', e.target.value || null)} />
+            <input type="date" value={t.dueDate ?? ''} onChange={(e) => setT((x) => ({ ...x, dueDate: e.target.value || null, dueTime: e.target.value ? x.dueTime : null }))} />
           </label>
+          <label>
+            Time (optional)
+            <input type="time" value={t.dueTime ?? ''} disabled={!t.dueDate} onChange={(e) => set('dueTime', e.target.value || null)} />
+          </label>
+        </div>
+        <div className="grid2">
           <label>
             Priority
             <select value={t.priority} onChange={(e) => set('priority', e.target.value as Task['priority'])}>
@@ -145,6 +152,12 @@ export function TaskForm() {
             <label>
               Waiting on
               <input value={t.waitingOn} maxLength={120} onChange={(e) => set('waitingOn', e.target.value)} placeholder="e.g. buyer's reply" />
+            </label>
+          )}
+          {t.status === 'DROPPED' && (
+            <label>
+              Why not needed (optional)
+              <input value={t.outcomeNote} maxLength={500} onChange={(e) => set('outcomeNote', e.target.value)} placeholder="e.g. Buyer cancelled the change" />
             </label>
           )}
         </div>
@@ -193,25 +206,60 @@ export function TaskForm() {
           Notes
           <textarea value={t.notes} maxLength={2000} rows={3} onChange={(e) => set('notes', e.target.value)} />
         </label>
+        {!isNew && item && !isActive(item) && t.status === 'DONE' && outcomeText(withTaskDefaults(item)) && (
+          <p className={`small ${withTaskDefaults(item).outcome === 'NOT_RESOLVED' ? 'warn' : 'muted'}`}>How it ended: {outcomeText(withTaskDefaults(item))}</p>
+        )}
+        {!isNew && item && !isActive(item) && t.status === 'DONE' && (
+          <label>
+            Note on how it ended
+            <input value={t.outcomeNote} maxLength={500} onChange={(e) => set('outcomeNote', e.target.value)} />
+          </label>
+        )}
+        {(() => {
+          const from = t.fromTaskId ? tasks.items.find((x) => x.id === t.fromTaskId) : undefined;
+          const next = t.nextTaskId ? tasks.items.find((x) => x.id === t.nextTaskId) : undefined;
+          return (
+            <>
+              {from && (
+                <p className="small">
+                  {t.title.startsWith('Escalated') ? 'Escalated from' : 'Follow-up of'}: <Link to={`/work/${from.id}`}>{from.title}</Link>
+                </p>
+              )}
+              {next && (
+                <p className="small">
+                  {next.title.startsWith('Escalated') ? 'Escalated to' : 'Followed up in'}: <Link to={`/work/${next.id}`}>{next.title}</Link>
+                </p>
+              )}
+            </>
+          );
+        })()}
         {error && <p className="error small">{error}</p>}
-        <div className="row gap wrap">
-          <button type="button" className="primary" onClick={() => save()}>
-            Save
-          </button>
-          {!isNew && item && isActive(item) && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => {
-                if (!workspaceId) return;
-                markDone(workspaceId, { ...item, ...t, repeat: repeatFrom() } as typeof item, today);
-                navigate('/work', { replace: true });
-              }}
-            >
-              ✓ Done{repeat ? ' (adds the next one)' : ''}
+        {closing && item && workspaceId ? (
+          <CloseTask
+            t={{ ...withTaskDefaults(item), ...t, repeat: repeatFrom() }}
+            today={today}
+            departments={departments.items.filter((d) => d.active !== false).sort((a, b) => a.name.localeCompare(b.name))}
+            onCancel={() => {
+              setClosing(false);
+              if (t.status === 'DONE') set('status', item.status);
+            }}
+            onSave={(end) => {
+              markDone(workspaceId, { ...item, ...t, status: item.status, repeat: repeatFrom() } as typeof item, today, end);
+              navigate('/work', { replace: true });
+            }}
+          />
+        ) : (
+          <div className="row gap wrap">
+            <button type="button" className="primary" onClick={() => save()}>
+              Save
             </button>
-          )}
-        </div>
+            {!isNew && item && isActive(item) && (
+              <button type="button" className="secondary" onClick={() => setClosing(true)}>
+                ✓ Done{repeat ? ' (adds the next one)' : ''}
+              </button>
+            )}
+          </div>
+        )}
         {!isNew && item?.joId && (
           <p className="small">
             <Link to={`/orders/${item.joId}`}>Open {item.joNumber || 'the Job Order'} →</Link>
