@@ -539,6 +539,12 @@ report the discrepancy and ask; do not silently choose.
 -   Step cards show progress (confirmed 27 Oct 2026): the line between
     landmarks is dark up to the step reached (`DocStepRoad.reached`: last
     done step, or the running one; the "Ready" pill when all are done).
+    Red (confirmed 27 Oct 2026) = the step took / is taking more working
+    days than its benchmark (`overDays`, "N days over"); the line into it
+    and its landmark are red. A step that only ends late because earlier
+    steps were late stays dark (not schedule-based: no baseline of planned
+    dates is stored; a baseline may come later for KPIs). Steps without a
+    time are never marked late.
 -   Container loading (answers 27 Oct 2026, not built yet): one loading
     per order as far as known (may change); container booking always
     comes before it; the internal deadline covers production only —

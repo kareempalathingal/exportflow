@@ -263,12 +263,14 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
         dashed(r.dashed);
         if (chunk.length > 1) doc.line(cx(0), ly, cx(chunk.length - 1), ly);
         dashed(false);
-        // Progress (confirmed 27 Oct 2026): dark line up to the step reached.
+        // Progress (confirmed 27 Oct 2026): dark line up to the step reached; the part leading
+        // into a step that took longer than its benchmark is red.
         const upto = Math.min(r.reached, c * cols + chunk.length - 1) - c * cols;
-        if (upto > 0) {
-          doc.setDrawColor(...NAVY);
-          doc.setLineWidth(1);
-          doc.line(cx(0), ly, cx(upto), ly);
+        doc.setLineWidth(1);
+        for (let j = 1; j <= upto; j++) {
+          const into = r.nodes[c * cols + j];
+          doc.setDrawColor(...(into && into.overDays > 0 ? RED : NAVY));
+          doc.line(cx(j - 1), ly, cx(j), ly);
         }
         chunk.forEach((item, i) => {
           if (!item) {
@@ -276,11 +278,11 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
             return;
           }
           const { nd } = item;
-          const ring: RGB = nd.state === 'late' ? RED : nd.state === 'unknown' ? GREY : NAVY;
+          const ring: RGB = nd.state === 'late' || nd.overDays > 0 ? RED : nd.state === 'unknown' ? GREY : NAVY;
           doc.setDrawColor(...ring);
           doc.setLineWidth(nd.state === 'now' ? 0.9 : 0.5);
           dashed(nd.state === 'unknown' || nd.state === 'approx');
-          doc.setFillColor(...(nd.state === 'done' ? NAVY : WHITE));
+          doc.setFillColor(...(nd.state === 'done' ? ring : WHITE));
           doc.circle(cx(i), ly, 2.4, nd.state === 'done' ? 'F' : 'FD');
           dashed(false);
           doc.setFont('helvetica', 'bold');
@@ -303,7 +305,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
           }
           doc.setFont('helvetica', nd.state === 'now' ? 'bold' : 'normal');
           doc.setFontSize(7);
-          doc.setTextColor(...(nd.state === 'late' ? RED_INK : nd.state === 'now' ? NAVY : MUTED));
+          doc.setTextColor(...(nd.state === 'late' || nd.overDays > 0 ? RED_INK : nd.state === 'now' ? NAVY : MUTED));
           doc.text(doc.splitTextToSize(s(nd.dates), colW - 1.5) as string[], cx(i), ty, { align: 'center' });
         });
       }

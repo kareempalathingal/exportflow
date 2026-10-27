@@ -184,6 +184,9 @@ describe('clean plan to submit', () => {
     expect(m.roadMap!.stops[2]).toMatchObject({ kind: 'now', here: true, note: expect.stringMatching(/% complete$/) });
     expect(m.stepRoads!.items[0]!.nodes[0]).toMatchObject({ state: 'now', sub: 'for Coir yarn (sample)' });
     expect(m.stepRoads!.items[0]!.reached).toBe(0); // first step running: dark line starts at it
+    // Late = over the step's own benchmark, not "finishes after the deadline because earlier steps are late".
+    const todo = m.stepRoads!.items[0]!.nodes.filter((n) => n.state !== 'now' && n.state !== 'done');
+    expect(todo.every((n) => n.state !== 'late' && n.overDays === 0)).toBe(true);
   });
 });
 
@@ -204,6 +207,19 @@ describe('plan overview: road map and steps as landmarks (confirmed 26 Oct 2026)
       if (tone === 'late') expect(cell).toMatch(/late$/);
       if (tone === null) expect(cell).toMatch(/^\d+ days?$|^done$/);
     });
+  });
+});
+
+describe('step colours follow the benchmark (confirmed 27 Oct 2026)', () => {
+  const processes = new Map(writes.filter((w) => w.collection === 'processes').map((w) => [w.docId, w.data as unknown as import('../../src/lib/masters').Process]));
+  it('a step running or done over its planned days is red with "N days over"', async () => {
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    const m = productionPlanDoc({ jo: { ...finalJo.get('sample_jo_102')!, rev: 1 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' } });
+    const nodes = m.stepRoads!.items.flatMap((i) => i.nodes);
+    const over = nodes.filter((n) => n.overDays > 0);
+    expect(over.length).toBeGreaterThan(0);
+    for (const n of over) expect(n.dates).toMatch(/\d+ days? over$/);
+    for (const n of nodes.filter((x) => x.overDays === 0)) expect(n.dates).not.toMatch(/over$/);
   });
 });
 

@@ -45,7 +45,10 @@ export interface DocStepNode {
   label: string;
   sub: string; // e.g. "for Coir yarn" (a made sub-product's step)
   dates: string;
+  /** 'late' = running past its benchmark; a done step that took longer has overDays > 0. */
   state: 'done' | 'now' | 'late' | 'planned' | 'approx' | 'unknown';
+  /** Working days over the step's benchmark (done or running); 0 = on time or not known. */
+  overDays: number;
 }
 export interface DocStepRoad {
   name: string;
@@ -514,18 +517,21 @@ export function planOverview(o: OverviewInput): { roadMap: DocRoadMap; table: Do
     const nodes: DocStepNode[] = prod.map((st) => {
       const s = st.view.step;
       const v = st.view;
-      const late = v.state !== 'DONE' && ((v.overrunDays ?? 0) > 0 || (st.finish !== null && st.finish > deadline));
+      // Late = took (or is taking) more working days than its benchmark (confirmed 27 Oct 2026);
+      // a step that only finishes late because earlier steps were late stays on time.
+      const over = (v.state === 'DONE' || v.state === 'NOW') && s.plannedDays !== null && (v.overrunDays ?? 0) > 0 ? v.overrunDays! : 0;
       const state: DocStepNode['state'] =
-        v.state === 'DONE' ? 'done' : !st.finish && v.state !== 'NOW' ? 'unknown' : late ? 'late' : v.state === 'NOW' ? 'now' : s.estimated ? 'approx' : 'planned';
+        v.state === 'DONE' ? 'done' : !st.finish && v.state !== 'NOW' ? 'unknown' : over > 0 ? 'late' : v.state === 'NOW' ? 'now' : s.estimated ? 'approx' : 'planned';
+      const overText = over > 0 ? ` - ${plural(over, 'day')} over` : '';
       const dates =
         state === 'done'
-          ? `done ${st.finish ? shortDay(st.finish) : ''}`.trim()
+          ? `done ${st.finish ? shortDay(st.finish) : ''}${overText}`.trim()
           : v.state === 'NOW'
-            ? st.finish ? `now - to ${shortDay(st.finish)}` : 'now'
+            ? `${st.finish ? `now - to ${shortDay(st.finish)}` : 'now'}${overText}`
             : state === 'unknown'
               ? st.start ? `${shortDay(st.start)} - ?` : 'to be confirmed'
               : `${dayRange(st.start, st.finish)}${s.estimated ? ' - approx.' : ''}`;
-      return { label: s.label, sub: s.forProduct !== line.productName ? `for ${s.forProduct}` : '', dates, state };
+      return { label: s.label, sub: s.forProduct !== line.productName ? `for ${s.forProduct}` : '', dates, state, overDays: over };
     });
     const what = supply === 'MAKE' ? 'made in house' : supply === 'BUY' ? 'bought' : 'make or buy to be decided';
     return {
@@ -635,7 +641,7 @@ export function planOverview(o: OverviewInput): { roadMap: DocRoadMap; table: Do
       afterTables: 1,
       counts,
       items: items.map((i) => i.road),
-      note: `Dashed = date approximate or to be confirmed. Days spare = working days before the internal deadline (${shortDay(deadline)}).`,
+      note: `Red = the step took (or is taking) longer than planned. Dashed = date approximate or to be confirmed. Days spare = working days before the internal deadline (${shortDay(deadline)}).`,
     },
   };
 }
