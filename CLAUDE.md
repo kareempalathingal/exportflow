@@ -536,6 +536,15 @@ report the discrepancy and ask; do not silently choose.
     to submit). JO To produce / To buy PDFs get "Made from" / "For"; the
     Materials tab shows them plus "How it was worked out" per item.
     PDF tables: right-aligned (number) columns never wrap.
+-   Step cards show progress (confirmed 27 Oct 2026): the line between
+    landmarks is dark up to the step reached (`DocStepRoad.reached`: last
+    done step, or the running one; the "Ready" pill when all are done).
+-   Container loading (answers 27 Oct 2026, not built yet): one loading
+    per order as far as known (may change); container booking always
+    comes before it; the internal deadline covers production only —
+    loading is not part of it. Idea: order-level dispatch stages after
+    production (e.g. container booking → loading → dispatched) with done
+    dates and a user benchmark for loading days; never invented.
 -   Later (after real processes are known): an Analysis tab for the
     whole factory — department load from all orders, smooth capacity,
     bottlenecks, and scheduling orders against shared capacity.

@@ -53,6 +53,8 @@ export interface DocStepRoad {
   badge: { text: string; tone: DocTone };
   nodes: DocStepNode[];
   ready: { text: string; tone: DocTone };
+  /** Index of the furthest landmark reached (the "Ready" pill = nodes.length); the line is dark up to it; -1 = not started. */
+  reached: number;
   dashed: boolean;
   /** Shown instead of the steps when there are none. */
   empty?: string;
@@ -540,6 +542,7 @@ export function planOverview(o: OverviewInput): { roadMap: DocRoadMap; table: Do
         sub: `${qty(line.qty, line.unit)} · ${what}`,
         badge: { text: badge, tone },
         nodes,
+        reached: doneAll ? nodes.length : prod.some((st) => st.view.state === 'NOW') ? prod.filter((st) => st.view.state === 'DONE').length : prod.filter((st) => st.view.state === 'DONE').length - 1,
         ready: doneAll ? { text: `Done ${shortDay(ready!)}`, tone: 'done' as DocTone } : ready ? { text: `Ready ${shortDay(ready)}`, tone } : { text: 'Ready ?', tone: 'unknown' as DocTone },
         dashed: tone === 'unknown',
         ...(known ? {} : { empty: 'Production steps to be confirmed with production' }),

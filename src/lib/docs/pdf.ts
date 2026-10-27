@@ -263,6 +263,13 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
         dashed(r.dashed);
         if (chunk.length > 1) doc.line(cx(0), ly, cx(chunk.length - 1), ly);
         dashed(false);
+        // Progress (confirmed 27 Oct 2026): dark line up to the step reached.
+        const upto = Math.min(r.reached, c * cols + chunk.length - 1) - c * cols;
+        if (upto > 0) {
+          doc.setDrawColor(...NAVY);
+          doc.setLineWidth(1);
+          doc.line(cx(0), ly, cx(upto), ly);
+        }
         chunk.forEach((item, i) => {
           if (!item) {
             pill(r.ready.text, cx(i), 0, ly - 2.4, r.ready.tone, true);

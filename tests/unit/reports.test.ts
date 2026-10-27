@@ -163,6 +163,7 @@ describe('clean plan to submit', () => {
       ['Packing (sample)', 'planned'],
     ]);
     expect(m.stepRoads!.items[0]!.ready.text).toMatch(/^Ready \d{2} [A-Z][a-z]+$/);
+    expect(m.stepRoads!.items[0]!.reached).toBe(-1); // draft: nothing reached yet
     expect(m.tables.at(-1)!.title).toBe('Open points');
     expect(m.tables.at(-1)!.rows.map((r) => r[0])).toEqual([
       'Plan confirmation pending - production can start once this plan is approved',
@@ -182,6 +183,7 @@ describe('clean plan to submit', () => {
     expect(m.roadMap!.stops[1]).toEqual({ label: 'Plan confirmed', date: '14 Oct', note: '', kind: 'done' });
     expect(m.roadMap!.stops[2]).toMatchObject({ kind: 'now', here: true, note: expect.stringMatching(/% complete$/) });
     expect(m.stepRoads!.items[0]!.nodes[0]).toMatchObject({ state: 'now', sub: 'for Coir yarn (sample)' });
+    expect(m.stepRoads!.items[0]!.reached).toBe(0); // first step running: dark line starts at it
   });
 });
 
