@@ -510,6 +510,18 @@ report the discrepancy and ask; do not silently choose.
     and no per-step tables in this version. The working plan keeps the
     Gantt (today / deadline / delivery lines on every page) and the
     detailed step tables.
+-   Materials in the plan (confirmed 27 Oct 2026): `planMaterials()`
+    records every BOM step (`links`: made item, quantity to make,
+    component, per unit, wastage, needed) and per row `madeFrom`,
+    `usedFor` (ordered products, through any BOM depth), `via` (made
+    products in between) and `ordered`. Both plan versions show "Products
+    to make" (with "Made from", names only), "Raw materials to buy for
+    production" (with "For ... (via ...)" and suppliers) and, when any,
+    "Ready-made products to buy". Only the working plan adds "Material
+    calculation (BOM)" (per-unit figures are recipe data, not in the plan
+    to submit). JO To produce / To buy PDFs get "Made from" / "For"; the
+    Materials tab shows them plus "How it was worked out" per item.
+    PDF tables: right-aligned (number) columns never wrap.
 -   Later (after real processes are known): an Analysis tab for the
     whole factory — department load from all orders, smooth capacity,
     bottlenecks, and scheduling orders against shared capacity.

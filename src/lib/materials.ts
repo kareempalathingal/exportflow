@@ -58,11 +58,38 @@ export interface PlanRow {
   fromStock: number; // set aside (as confirmed)
   net: number; // still to make / buy, never negative
   provisional: boolean;
+  /** Direct components of a made product (names, from its BOM). */
+  madeFrom: string[];
+  /** Ordered products this item is needed for (through any number of BOM levels). */
+  usedFor: string[];
+  /** Made products in between (e.g. "Coir yarn" for coir fibre). */
+  via: string[];
+  /** The item is itself a line of the order. */
+  ordered: boolean;
+}
+
+/** One step of the BOM calculation: a made product needs this much of a component. */
+export interface MaterialLink {
+  parentKey: string;
+  parentName: string;
+  parentUnit: string;
+  /** Quantity of the parent still to make (stock set aside already deducted). */
+  parentQty: number;
+  childKey: string;
+  childName: string;
+  childUnit: string;
+  /** Component per one base unit of the parent, before wastage. */
+  perUnit: number;
+  wastagePct: number;
+  qty: number;
+  provisional: boolean;
 }
 
 export interface MaterialPlan {
   toProduce: PlanRow[]; // made products, including the ordered ones
   toBuy: PlanRow[]; // raw materials and bought products
+  /** How each component quantity was worked out (parents before children). */
+  links: MaterialLink[];
   errors: string[]; // missing data that stops part of the calculation
   notes: string[]; // things worth knowing that do not stop it
   provisional: boolean;
@@ -90,6 +117,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
   const notes: string[] = [];
   let provisional = false;
   const needs = new Map<string, Need>();
+  const links: MaterialLink[] = [];
   const add = (n: Need) => {
     const k = itemKey(n.type, n.id);
     const prev = needs.get(k);
@@ -178,13 +206,21 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
           continue;
         }
         const wastage = Number.isFinite(bl.wastagePct) && bl.wastagePct > 0 ? bl.wastagePct : 0;
-        add({
-          type: c.type,
-          id: c.id,
-          name: comp.name,
-          unit: comp.ctx.baseUnit,
-          qty: net * per.value * (1 + wastage / 100),
-          provisional: (need?.provisional ?? false) || per.provisional || !FIRM.includes(bl.status),
+        const q = net * per.value * (1 + wastage / 100);
+        const prov = (need?.provisional ?? false) || per.provisional || !FIRM.includes(bl.status);
+        add({ type: c.type, id: c.id, name: comp.name, unit: comp.ctx.baseUnit, qty: q, provisional: prov });
+        links.push({
+          parentKey: key,
+          parentName: p.name,
+          parentUnit: p.baseUnit,
+          parentQty: net,
+          childKey: itemKey(c.type, c.id),
+          childName: comp.name,
+          childUnit: comp.ctx.baseUnit,
+          perUnit: per.value,
+          wastagePct: wastage,
+          qty: q,
+          provisional: prov,
         });
       }
     }
@@ -198,19 +234,55 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
     provisional = true;
   }
 
-  // 4. Rows.
+  // 4. Rows, with where each item comes from and what it is for.
+  const roots = new Set([...makeRoots, ...buyRoots].map((id) => itemKey('PRODUCT', id)));
+  const nameOfKey = new Map([...needs].map(([k, n]) => [k, n.name]));
+  const parentsOf = (k: string) => [...new Set(links.filter((l) => l.childKey === k).map((l) => l.parentKey))];
+  const ancestry = (k: string) => {
+    const usedFor = new Set<string>();
+    const via = new Set<string>();
+    const seen = new Set<string>();
+    const walk = (c: string) => {
+      for (const pk of parentsOf(c)) {
+        if (seen.has(pk)) continue;
+        seen.add(pk);
+        const name = nameOfKey.get(pk) ?? pk;
+        if (roots.has(pk)) usedFor.add(name);
+        if (parentsOf(pk).length) {
+          via.add(name);
+          walk(pk);
+        }
+      }
+    };
+    walk(k);
+    const sorted = (x: Set<string>) => [...x].sort((a, b) => a.localeCompare(b));
+    return { usedFor: sorted(usedFor), via: sorted(via) };
+  };
   const toProduce: PlanRow[] = [];
   const toBuy: PlanRow[] = [];
   for (const [key, n] of needs) {
     const fromStock = stock[key] ?? 0;
-    const row: PlanRow = { key, type: n.type, id: n.id, name: n.name, unit: n.unit, gross: n.qty, fromStock, net: Math.max(0, n.qty - fromStock), provisional: n.provisional };
+    const row: PlanRow = {
+      key,
+      type: n.type,
+      id: n.id,
+      name: n.name,
+      unit: n.unit,
+      gross: n.qty,
+      fromStock,
+      net: Math.max(0, n.qty - fromStock),
+      provisional: n.provisional,
+      madeFrom: [...new Set(links.filter((l) => l.parentKey === key).map((l) => l.childName))].sort((a, b) => a.localeCompare(b)),
+      ...ancestry(key),
+      ordered: roots.has(key),
+    };
     if (fromStock > n.qty + 1e-9) notes.push(`${n.name}: more stock set aside than this order needs`);
     (n.type === 'PRODUCT' && made.has(n.id) ? toProduce : toBuy).push(row);
   }
   for (const key of Object.keys(stock))
     if (!needs.has(key)) notes.push(`Stock is set aside for an item this order no longer needs (${liveMd.products.get(parseItemKey(key)?.id ?? '')?.name ?? liveMd.rawMaterials.get(parseItemKey(key)?.id ?? '')?.name ?? key})`);
   const byName = (a: PlanRow, b: PlanRow) => a.name.localeCompare(b.name);
-  return { toProduce: toProduce.sort(byName), toBuy: toBuy.sort(byName), errors, notes, provisional };
+  return { toProduce: toProduce.sort(byName), toBuy: toBuy.sort(byName), links, errors, notes, provisional };
 }
 
 // ---------------------------------------------------------------------------

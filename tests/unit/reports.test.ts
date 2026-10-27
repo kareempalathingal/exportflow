@@ -128,7 +128,7 @@ describe('plan document', () => {
     expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('Confirmed 14 Oct 2026 · 3 working days (benchmark 1)');
     expect(mat.rows.some((r) => r[5] === 'Planned' && r[3] !== '—' && r[4] !== '—')).toBe(true);
     expect(m.meta.find(([k]) => k === 'Expected finish')![1]).not.toBe('');
-    expect(m.tables.map((t) => t.title)).toEqual(expect.arrayContaining(['Materials - to produce', 'Materials - to buy', 'Open points and risks']));
+    expect(m.tables.map((t) => t.title)).toEqual(expect.arrayContaining(['Products to make', 'Raw materials to buy for production', 'Material calculation (BOM)', 'Open points and risks']));
   });
   it('drafts past the planning benchmark show in the daily summary', () => {
     const s = buildToday({ jobOrders: jos, ctx, today: TODAY });
@@ -202,6 +202,34 @@ describe('plan overview: road map and steps as landmarks (confirmed 26 Oct 2026)
       if (tone === 'late') expect(cell).toMatch(/late$/);
       if (tone === null) expect(cell).toMatch(/^\d+ days?$|^done$/);
     });
+  });
+});
+
+describe('materials: made from, needed for, calculation (confirmed 27 Oct 2026)', () => {
+  const processes = new Map(writes.filter((w) => w.collection === 'processes').map((w) => [w.docId, w.data as unknown as import('../../src/lib/masters').Process]));
+  it('links raw materials to the ordered products and splits ready-made purchases', async () => {
+    const { planMaterials } = await import('../../src/lib/materials');
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    const jo = finalJo.get('sample_jo_105')!;
+    const plan = planMaterials(jo, md);
+    const fibre = plan.toBuy.find((r) => r.name.startsWith('Coir fibre'))!;
+    expect(fibre.via).toEqual(['Coir yarn (sample)']);
+    expect(fibre.usedFor).toEqual(expect.arrayContaining(['Coir mat 40×60 (sample)', 'Coir rug 120×180 (sample)']));
+    const yarn = plan.toProduce.find((r) => r.name.startsWith('Coir yarn'))!;
+    expect(yarn.madeFrom).toEqual(['Coir fibre (sample)']);
+    // every component quantity is the sum of its calculation lines
+    for (const r of [...plan.toBuy, ...plan.toProduce]) {
+      const ls = plan.links.filter((l) => l.childKey === r.key);
+      if (ls.length && !r.ordered) expect(ls.reduce((a, l) => a + l.qty, 0)).toBeCloseTo(r.gross, 6);
+    }
+    const m = productionPlanDoc({ jo: { ...jo, rev: 1 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' }, supplierNames: () => [] });
+    const titles = m.tables.map((t) => t.title);
+    expect(titles).toEqual(expect.arrayContaining(['Products to make', 'Raw materials to buy for production', 'Ready-made products to buy']));
+    expect(titles).not.toContain('Material calculation (BOM)'); // no BOM figures in the plan to submit
+    const ready = m.tables.find((t) => t.title === 'Ready-made products to buy')!;
+    expect(ready.rows.map((r) => r[0])).toEqual(['Printed door mat 45×75 (sample)']);
+    const raw = m.tables.find((t) => t.title === 'Raw materials to buy for production')!;
+    expect(raw.rows.find((r) => r[0]!.startsWith('Coir fibre'))![4]).toMatch(/\(via Coir yarn \(sample\)\)$/);
   });
 });
 

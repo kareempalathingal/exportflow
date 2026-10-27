@@ -18,7 +18,7 @@ import type { WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { useCollection } from '../masters/useCollection';
 import { DocButtons } from '../docs/DocButtons';
-import { planDoc } from '../../lib/docs/model';
+import { madeFromText, planDoc, usedForText } from '../../lib/docs/model';
 
 interface EntryDraft {
   qtyText: string;
@@ -141,6 +141,11 @@ export function MaterialsTab(props: {
           {r.name}
           {r.provisional && <span className="pill warn inline-pill">provisional</span>}
         </legend>
+        {verb === 'To produce' ? (
+          r.madeFrom.length > 0 && <p className="muted small">Made from: {madeFromText(r)}</p>
+        ) : (
+          <p className="muted small">For: {usedForText(r)}</p>
+        )}
         <div className="mat-figures">
           <span>
             <span className="kicker">Needed</span>
@@ -161,6 +166,27 @@ export function MaterialsTab(props: {
           <UnitSelect label="Unit" value={d.unit} onChange={(unit) => setDraft(r.key, r.unit, { unit })} units={units.length ? units : [r.unit]} />
         </div>
         {preview.problems[r.key] && <p className="warn small">{preview.problems[r.key]}</p>}
+        {plan.links.some((l) => l.childKey === r.key) && (
+          <details>
+            <summary className="small">How it was worked out</summary>
+            <ul className="small plain-list">
+              {plan.links
+                .filter((l) => l.childKey === r.key)
+                .map((l, i) => (
+                  <li key={i}>
+                    {l.parentName}: {formatQty(l.parentQty)} {unitLabel(l.parentUnit)} × {formatQty(l.perUnit)} {unitLabel(l.childUnit)} per {unitLabel(l.parentUnit)}
+                    {l.wastagePct > 0 && ` + ${formatQty(l.wastagePct)}% wastage`} = <strong>{formatQty(l.qty)} {unitLabel(l.childUnit)}</strong>
+                    {l.provisional && <span className="pill warn inline-pill">estimate</span>}
+                  </li>
+                ))}
+            </ul>
+            {r.fromStock > 0 && (
+              <p className="muted small">
+                Less {formatQty(Math.min(r.fromStock, r.gross))} {unitLabel(r.unit)} from stock.
+              </p>
+            )}
+          </details>
+        )}
         <details>
           <summary className="small">Location / remarks</summary>
           <div className="grid2">

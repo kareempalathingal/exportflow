@@ -184,6 +184,19 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
 export type SupplierNames = (key: string) => string[];
 const supplierCell = (names: SupplierNames | undefined, key: string) => names?.(key).join(', ') || '—';
 
+/** "Coir yarn, Latex compound" — direct components of a made product (names only, no BOM figures). */
+export function madeFromText(r: Pick<PlanRow, 'madeFrom'>): string {
+  return r.madeFrom.join(', ') || '—';
+}
+
+/** "Coir mat, Coir rug (via Coir yarn)" — the ordered products an item is needed for. */
+export function usedForText(r: Pick<PlanRow, 'usedFor' | 'via' | 'ordered'>): string {
+  const parts: string[] = [];
+  if (r.usedFor.length) parts.push(`${r.usedFor.join(', ')}${r.via.length ? ` (via ${r.via.join(', ')})` : ''}`);
+  if (r.ordered) parts.push(r.usedFor.length ? 'also ordered as is' : 'ordered as is');
+  return parts.join('; ') || '—';
+}
+
 function planRows(rows: PlanRow[], withType: boolean, names?: SupplierNames): string[][] {
   return rows.map((r) => [
     `${r.name}${r.provisional ? ' *' : ''}`,
@@ -191,6 +204,7 @@ function planRows(rows: PlanRow[], withType: boolean, names?: SupplierNames): st
     qty(r.gross, r.unit),
     r.fromStock > 0 ? qty(Math.min(r.fromStock, r.gross), r.unit) : '—',
     qty(r.net, r.unit),
+    withType ? usedForText(r) : madeFromText(r),
     ...(withType ? [supplierCell(names, r.key)] : []),
   ]);
 }
@@ -229,6 +243,7 @@ export function planDoc(
           { label: 'Needed', align: 'right' as const },
           { label: 'From stock', align: 'right' as const },
           { label: produce ? 'To produce' : 'To buy', align: 'right' as const },
+          { label: produce ? 'Made from' : 'For' },
           ...(produce ? [] : [{ label: 'Suppliers' }]),
         ],
         rows: planRows(rows, !produce, opts.supplierNames),
@@ -786,26 +801,58 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     };
   });
 
-  const matRow = (r: PlanRow, suppliers: boolean) => [
+  // Materials (confirmed 27 Oct 2026): what to make (and from what), raw materials to buy for
+  // production (and for which ordered products), ready-made products to buy.
+  const matRow = (r: PlanRow, extra: string[]) => [
     `${r.name}${r.provisional && !clean ? ' *' : ''}`,
     qty(r.gross, r.unit),
     r.fromStock > 0 ? qty(r.fromStock, r.unit) : '—',
     qty(r.net, r.unit),
-    ...(suppliers ? [supplierCell(input.supplierNames, r.key)] : []),
+    ...extra,
   ];
+  const nums: DocTable['columns'] = [{ label: 'Needed', align: 'right' }, { label: 'From stock', align: 'right' }];
+  const forProduction = mat.toBuy.filter((r) => !r.ordered || r.usedFor.length > 0);
+  const readyMade = mat.toBuy.filter((r) => r.ordered && r.usedFor.length === 0);
   tables.push(
     {
-      title: 'Materials - to produce',
-      columns: [{ label: 'Item' }, { label: 'Needed', align: 'right' }, { label: 'From stock', align: 'right' }, { label: 'To produce', align: 'right' }],
-      rows: mat.toProduce.map((r) => matRow(r, false)),
-      empty: 'Nothing to produce.',
+      title: 'Products to make',
+      columns: [{ label: 'Item' }, ...nums, { label: 'To make', align: 'right' }, { label: 'Made from' }],
+      rows: mat.toProduce.map((r) => matRow(r, [madeFromText(r)])),
+      empty: 'Nothing to make.',
     },
     {
-      title: 'Materials - to buy',
-      columns: [{ label: 'Item' }, { label: 'Needed', align: 'right' }, { label: 'From stock', align: 'right' }, { label: 'To buy', align: 'right' }, { label: 'Suppliers' }],
-      rows: mat.toBuy.map((r) => matRow(r, true)),
-      empty: 'Nothing to buy.',
+      title: 'Raw materials to buy for production',
+      columns: [{ label: 'Item' }, ...nums, { label: 'To buy', align: 'right' }, { label: 'For' }, { label: 'Suppliers' }],
+      rows: forProduction.map((r) => matRow(r, [usedForText(r), supplierCell(input.supplierNames, r.key)])),
+      empty: 'Nothing to buy for production.',
     },
+    ...(readyMade.length
+      ? [
+          {
+            title: 'Ready-made products to buy',
+            columns: [{ label: 'Item' }, ...nums, { label: 'To buy', align: 'right' as const }, { label: 'Suppliers' }],
+            rows: readyMade.map((r) => matRow(r, [supplierCell(input.supplierNames, r.key)])),
+            empty: 'Nothing.',
+          },
+        ]
+      : []),
+    ...(!clean && mat.links.length
+      ? [
+          {
+            title: 'Material calculation (BOM)',
+            columns: [{ label: 'Made item' }, { label: 'To make', align: 'right' as const }, { label: 'Component' }, { label: 'Per unit', align: 'right' as const }, { label: 'Wastage', align: 'right' as const }, { label: 'Needed', align: 'right' as const }],
+            rows: mat.links.map((l) => [
+              l.parentName,
+              qty(l.parentQty, l.parentUnit),
+              `${l.childName}${l.provisional ? ' *' : ''}`,
+              `${formatQty(l.perUnit)} ${unitLabel(l.childUnit)} / ${unitLabel(l.parentUnit)}`,
+              l.wastagePct ? `${formatQty(l.wastagePct)}%` : '—',
+              qty(l.qty, l.childUnit),
+            ]),
+            empty: '',
+          },
+        ]
+      : []),
     {
       title: clean ? 'Open points' : 'Open points and risks',
       columns: [{ label: 'Point' }],

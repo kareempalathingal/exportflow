@@ -503,7 +503,15 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 },
       styles: { fontSize: 9.5, cellPadding: 2, textColor: INK, lineColor: [220, 216, 207], lineWidth: 0.2, overflow: 'linebreak' },
       alternateRowStyles: { fillColor: [247, 246, 242] },
-      columnStyles: Object.fromEntries(t.columns.map((c, i) => [i, { halign: c.align ?? 'left' }])),
+      // Numbers never wrap ("7,859 kg"); text columns take the rest of the width.
+      columnStyles: Object.fromEntries(
+        t.columns.map((c, i) => [
+          i,
+          c.align === 'right'
+            ? { halign: 'right' as const, cellWidth: 'wrap' as const }
+            : { halign: 'left' as const, ...(t.columns.filter((x) => x.align !== 'right').length * 30 <= 120 ? { minCellWidth: 30 } : {}) },
+        ]),
+      ),
       didParseCell: (cell) => {
         if (cell.section === 'head') cell.cell.styles.halign = t.columns[cell.column.index]?.align ?? 'left';
         const tone = cell.section === 'body' ? t.rowTones?.[cell.row.index] : null;
