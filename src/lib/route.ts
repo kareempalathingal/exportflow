@@ -445,3 +445,76 @@ export function lineSchedule(lp: LineProgress, today: string, cal: WorkCalendar)
     return { view: v, start, finish };
   });
 }
+
+/** What the Products tab shows as the expected date of one step (confirmed 28 Oct 2026). */
+export type StepDate =
+  | { kind: 'DONE' }
+  /** Running, within its plan: expected to finish on `finish`. */
+  | { kind: 'DUE'; finish: string; approx: boolean; earliest: boolean }
+  /** Running past its plan: the finish is not known (never guessed). */
+  | { kind: 'OVER'; overDays: number }
+  /** Still to do: from `start` to `finish`. */
+  | { kind: 'PLANNED'; start: string; finish: string; approx: boolean; earliest: boolean }
+  /** No date: this step (`noTime`) or an earlier one has no time yet. */
+  | { kind: 'UNKNOWN'; noTime: boolean };
+
+export interface ReadyDate {
+  /** null = not known yet (see `missing`). */
+  date: string | null;
+  /** Label of the first step without a time, when the date is not known. */
+  missing: string | null;
+  /** Depends on a step running past its plan (dates are "at the earliest"). */
+  earliest: boolean;
+  approx: boolean;
+  /** Working days before (+) or after (−) the internal deadline. */
+  spareDays: number | null;
+  tone: 'ok' | 'tight' | 'late' | 'unknown';
+}
+
+/** Days before the internal deadline at or under which "Ready" is tight (same as the plan PDF). */
+export const READY_TIGHT_DAYS = 2;
+
+/**
+ * Expected dates per step and the line's "Ready" date, from `lineSchedule()`
+ * (the same dates as the plan PDF). A step running past its plan has no
+ * expected finish; later steps are then "at the earliest" (counted as if it
+ * finished today). From the first step without a time onwards: unknown.
+ */
+export function stepDates(lp: LineProgress, today: string, cal: WorkCalendar, internalDeadline: string): { steps: StepDate[]; ready: ReadyDate | null } {
+  const sched = lineSchedule(lp, today, cal);
+  let earliest = false;
+  let approx = false;
+  let missing: string | null = null;
+  const steps = sched.map(({ view: v, start, finish }): StepDate => {
+    if (v.state === 'DONE') return { kind: 'DONE' };
+    if (missing !== null) return { kind: 'UNKNOWN', noTime: v.step.plannedDays === null };
+    if (v.step.plannedDays === null || !start || !finish) {
+      missing = v.step.label;
+      return { kind: 'UNKNOWN', noTime: v.step.plannedDays === null };
+    }
+    approx ||= !!v.step.estimated;
+    if (v.state === 'NOW') {
+      if (v.overrunDays !== null && v.overrunDays > 0) {
+        earliest = true;
+        return { kind: 'OVER', overDays: v.overrunDays };
+      }
+      return { kind: 'DUE', finish, approx: !!v.step.estimated, earliest };
+    }
+    return { kind: 'PLANNED', start, finish, approx: !!v.step.estimated, earliest };
+  });
+  if (lp.done) return { steps, ready: null };
+  const last = sched.at(-1)?.finish ?? null;
+  const date = missing === null ? last : null;
+  let spareDays: number | null = null;
+  let tone: ReadyDate['tone'] = 'unknown';
+  if (date) {
+    if (date > internalDeadline) {
+      spareDays = -(workingDaysBetween(internalDeadline, date, cal) ?? 0);
+      tone = 'late';
+    } else {
+      spareDays = workingDaysBetween(date, internalDeadline, cal) ?? 0;
+      tone = spareDays <= READY_TIGHT_DAYS ? 'tight' : 'ok';
+    }
+  }
+  return { steps, ready: { date, missing, earliest, approx, spareDays, tone } };
+}

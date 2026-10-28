@@ -6,7 +6,7 @@ import { COLLECTIONS, type Department, type MasterData, type Process } from '../
 import { departmentsFor, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { buildLineSteps, completeCurrent, lineProgress, lineSchedule, orderStart, orderStepProgress, planLines, routeFits, startCurrent, stepTime, undoLast, undoStart, withPlanning, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
+import { buildLineSteps, completeCurrent, lineProgress, lineSchedule, orderStart, orderStepProgress, planLines, routeFits, startCurrent, stepDates, stepTime, undoLast, undoStart, withPlanning, type PlanContext, type PlannedLine, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
@@ -79,7 +79,8 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
         <span>● now</span>
         <span>○ to do</span>
         <span className="warn">time pending = benchmark not known yet</span>
-        <span>days are working days (Sundays and company holidays left out)</span>
+        <span>days and dates are working days (Sundays and company holidays left out)</span>
+        <span>dates plan each order as if alone — waiting behind other orders in a department is not included yet</span>
       </p>
     </section>
   );
@@ -130,6 +131,7 @@ function LineCard(props: {
   // Who to ask: the department of the step running now and of the next one.
   const sched = new Map(lineSchedule(lp, today, cal).map((x) => [x.view.step.key, x.finish]));
   const nowIndex = lp.steps.findIndex((x) => x.state === 'NOW');
+  const dates = stepDates(lp, today, cal, jo.deadline.internalDeadline);
   const contactFor = (v: StepView) => {
     const idx = lp.steps.indexOf(v);
     if (nowIndex < 0 || (idx !== nowIndex && idx !== nowIndex + 1)) return undefined;
@@ -189,10 +191,11 @@ function LineCard(props: {
       )}
 
       <ol className="stepper">
-        {lp.steps.map((v) => (
-          <StepRow key={v.step.key} v={v} productName={line.productName} contacts={contactFor(v)} />
+        {lp.steps.map((v, i) => (
+          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} />
         ))}
       </ol>
+      {dates.ready && <ReadyRow ready={dates.ready} />}
 
       {editable && current && (
         <StepDate current={current} today={today} value={when} onChange={setWhen} />
@@ -264,7 +267,62 @@ function StepDate({ current, today, value, onChange }: { current: StepView; toda
   );
 }
 
-function StepRow({ v, productName, contacts }: { v: StepView; productName: string; contacts?: ReactNode }) {
+const plural = (n: number, w: string) => `${formatQty(n)} ${w}${n === 1 ? '' : 's'}`;
+
+/** Expected date of a step (confirmed 28 Oct 2026): same dates as the plan PDF. */
+function StepDateLine({ d }: { d: StepDate }) {
+  const tail = (approx: boolean, earliest: boolean) => (approx || earliest ? <span className="muted"> {[approx && '(approx.)', earliest && 'at the earliest'].filter(Boolean).join(' ')}</span> : null);
+  switch (d.kind) {
+    case 'DONE':
+      return null;
+    case 'DUE':
+      return (
+        <span className="small block">
+          Expected done <strong>{formatDay(d.finish)}</strong>
+          {tail(d.approx, d.earliest)}
+        </span>
+      );
+    case 'OVER':
+      return <span className="small block error">Over plan by {plural(d.overDays, 'day')} · expected done not known</span>;
+    case 'PLANNED':
+      return (
+        <span className="small block">
+          Expected{' '}
+          <strong>
+            {formatDay(d.start)} → {formatDay(d.finish)}
+          </strong>
+          {tail(d.approx, d.earliest)}
+        </span>
+      );
+    case 'UNKNOWN':
+      return <span className={`small block ${d.noTime ? 'warn' : 'muted'}`}>Date to be confirmed{d.noTime ? ' (no time yet)' : ''}</span>;
+  }
+}
+
+function ReadyRow({ ready: r }: { ready: ReadyDate }) {
+  const why =
+    r.date === null
+      ? `${r.missing ?? 'A step'} has no time yet`
+      : r.spareDays! < 0
+        ? `${plural(-r.spareDays!, 'working day')} after the internal deadline`
+        : r.spareDays === 0
+          ? 'on the internal deadline'
+          : `${plural(r.spareDays!, 'working day')} before the internal deadline`;
+  const extra = [r.approx && r.date && 'approx.', r.earliest && r.date && 'at the earliest'].filter(Boolean).join(' · ');
+  return (
+    <div className={`ready-row ${r.tone}`}>
+      <span className="ready-date">
+        Ready <strong>{r.date ? formatDay(r.date) : 'to be confirmed'}</strong>
+      </span>
+      <span className="small">
+        {why}
+        {extra && <span className="muted"> · {extra}</span>}
+      </span>
+    </div>
+  );
+}
+
+function StepRow({ v, date, productName, contacts }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode }) {
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
   const over = v.overrunDays !== null && v.overrunDays > 0;
@@ -304,6 +362,7 @@ function StepRow({ v, productName, contacts }: { v: StepView; productName: strin
           {v.state === 'NOW' && v.startedOn && `Started ${formatDay(v.startedOn)} · waited ${days(v.waitDays!)} · working ${days(v.workDays!)} so far`}
           {v.state === 'DONE' && v.startedOn && ` · waited ${days(v.waitDays!)}, worked ${days(v.workDays!)}`}
         </span>
+        <StepDateLine d={date} />
         {s.basis && <span className="muted small block">{s.basis}</span>}
         {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
         {contacts}

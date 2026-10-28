@@ -227,6 +227,10 @@ describe('Phase 4 process steps', () => {
     expect(html).toContain('Undo last');
     expect(html).toContain('100 pcs ÷ 50/day'); // 24 sq m of 40×60 cm mats = 100 pcs → 2 working days
     expect(html).toContain('working days');
+    // expected dates (28 Oct 2026): Bleaching has no time, so no date is guessed
+    expect(html).toContain('Date to be confirmed (no time yet)');
+    expect(html).toMatch(/Ready <strong>to be confirmed<\/strong>/);
+    expect(html).toContain('Bleaching has no time yet');
   });
   it('an order without steps offers to set them up from product routes', () => {
     const html = render('/orders/j1?tab=products', '/orders/:id', <JobOrderPage />);

@@ -191,6 +191,15 @@ report the discrepancy and ask; do not silently choose.
 -   JO page opens on a "Products" tab (mockup "JO detail · progress per
     product"); Home shows "Now: product · step" and step overruns in
     Needs attention.
+-   Expected dates per step (confirmed 28 Oct 2026, `stepDates()` in
+    `src/lib/route.ts`, same dates as the plan PDF): running step "Expected
+    done <date>"; to-do steps "Expected <start> → <finish>" ("approx." for
+    estimates); a step past its plan shows "Over plan by N days · expected
+    done not known" and later dates are "at the earliest"; from the first
+    step without a time onwards "Date to be confirmed". Below the steps a
+    "Ready <date>" row vs the internal deadline (tight = 2 working days or
+    less, late, or "to be confirmed" with the step missing a time). Each
+    order is planned as if alone (no shared capacity yet).
 
 ## Departments and contacts (skeleton, confirmed 21 Oct 2026)
 
