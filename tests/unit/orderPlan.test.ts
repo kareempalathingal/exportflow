@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CALENDAR } from '../../src/lib/calendar';
+import { DEFAULT_CALENDAR, workingDaysBetween } from '../../src/lib/calendar';
 import type { JoLine } from '../../src/lib/jobOrders';
 import type { MasterData, Process, Product, RouteStep } from '../../src/lib/masters';
 import { buildLineSteps, completeCurrent, orderPlan, processPlanRows, startCurrent } from '../../src/lib/route';
@@ -14,11 +14,15 @@ const product = (name: string, route: RouteStep[]): Product => ({
 const processes = new Map<string, Process>([
   ['tuft', { name: 'Tufting', active: true, notes: '' }],
   ['pack', { name: 'Packing', active: true, notes: '' }],
+  ['shear', { name: 'Shearing', active: true, notes: '' }],
 ]);
 const md: MasterData = {
   products: new Map([
     ['a', product('A', [step('tuft', 100), step('pack', 400)])],
     ['b', product('B', [step('tuft', 100), step('pack', 400)])],
+    ['c', product('C', [step('tuft', 400), step('shear', 100)])],
+    ['d', product('D', [step('tuft', 100), step('shear', 200)])],
+    ['e', product('E', [step('tuft', 400), { ...step('shear', 100), waitAll: true }])],
   ]),
   rawMaterials: new Map(),
   boms: new Map(),
@@ -67,5 +71,28 @@ describe('order plan: items share each process', () => {
   it('quantities are never added across units', () => {
     const p = orderPlan(order([line('1', 'a', 100)]), '2026-11-02', ctx());
     expect(processPlanRows(p)[0]!.qty).toBe('100 pcs');
+  });
+});
+
+describe('overlap within one item (like the company WO plan)', () => {
+  const at = (p: ReturnType<typeof orderPlan>, label: string) => p.lines[0]!.lp.schedule!.find((s) => s.view.step.label === label)!;
+  const days = (d: string | null) => workingDaysBetween('2026-11-02', d!, DEFAULT_CALENDAR);
+  it('a slower next step starts once one day of its work is ready', () => {
+    // 2000 pcs: tufting 5 days, shearing 20 days; shearing starts a quarter day in (shown on day 1).
+    const p = orderPlan(order([line('1', 'c', 2000)]), '2026-11-02', ctx());
+    expect(days(at(p, 'Shearing').start)).toBe(1);
+    expect(days(at(p, 'Shearing').finish)).toBe(21); // 20.25, not 25
+  });
+  it('a faster next step runs without stopping and ends one day after the previous one', () => {
+    // 2000 pcs: tufting 20 days, shearing 10 days: starts on day 11, ends on day 21.
+    const p = orderPlan(order([line('1', 'd', 2000)]), '2026-11-02', ctx());
+    expect(days(at(p, 'Tufting').finish)).toBe(20);
+    expect(days(at(p, 'Shearing').start)).toBe(11);
+    expect(days(at(p, 'Shearing').finish)).toBe(21);
+  });
+  it('"waits for the whole quantity" turns the overlap off', () => {
+    const p = orderPlan(order([line('1', 'e', 2000)]), '2026-11-02', ctx());
+    expect(days(at(p, 'Shearing').start)).toBe(5);
+    expect(days(at(p, 'Shearing').finish)).toBe(25);
   });
 });

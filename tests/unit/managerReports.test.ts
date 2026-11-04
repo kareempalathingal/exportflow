@@ -63,10 +63,11 @@ describe('delivery schedule', () => {
     expect(late.rows.map((r) => [r.joNumber, r.daysLeft < 0])).toEqual([
       ['DEMO-101', true],
       ['DEMO-102', true],
+      ['DEMO-103', false],
     ]);
     const doc = deliveryDoc(late, gen);
     expect(doc.tables[0]!.title).toMatch(/passed/);
-    expect(doc.tables[1]!.rows).toEqual([]);
+    expect(doc.tables[1]!.rows).toHaveLength(1);
   });
 });
 
@@ -81,7 +82,7 @@ describe('orders at risk', () => {
     // DEMO-102: the door mat's packing waits for the packing unit (busy with the mat) — queued, not over plan (5 Nov 2026).
     expect(risks.some((r) => r.joNumber === 'DEMO-102')).toBe(false);
     expect(risks[0]!.reasons.join(' ')).toMatch(/Internal deadline passed 1 day ago.*Packing.*over plan/);
-    expect(risks[1]!.reasons.join(' ')).toMatch(/after the internal deadline.*22% behind plan/);
+    expect(risks[1]!.reasons.join(' ')).toMatch(/after the internal deadline.*41% behind plan/);
     expect(risks[2]!.reasons[0]).toMatch(/Still in planning/);
   });
   it('the red threshold decides between at risk and watch', () => {

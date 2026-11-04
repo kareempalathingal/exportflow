@@ -155,7 +155,7 @@ export function buildSampleData(today: string): SampleWrite[] {
       lines: [jl('a', 'sample_p_mat', 1200, 'MAKE'), jl('b', 'sample_p_door', 300, 'BUY')], final: 'CONFIRMED', confirmed: -24, done: [[0, -21], [1, -20], [0, -17, -18], [1, -12], [0, -15, -16], [0, -13], [1, -1], [0, -1]],
       stock: { 'PRODUCT:sample_p_yarn': stock(300, 'kg', 20), 'RAW_MATERIAL:sample_rm_fibre': stock(400, 'kg', 20) },
     },
-    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 33, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -6 /* planning took longer than the benchmark */, started: [[0, -3]] /* spinning waited, then started */, stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
+    { id: 'sample_jo_103', no: 'DEMO-103', cust: 'sample_c_hansa', rec: -10, del: 20, type: 'PORT', lines: [jl('a', 'sample_p_mat', 2000, 'MAKE')], final: 'CONFIRMED', confirmed: -6 /* planning took longer than the benchmark */, started: [[0, -3]] /* spinning waited, then started */, stock: { 'RAW_MATERIAL:sample_rm_fibre': stock(500, 'kg', 8) } },
     {
       id: 'sample_jo_105', no: 'DEMO-105', cust: 'sample_c_hansa', rec: -3, del: 45, type: 'PORT', final: 'CONFIRMED', confirmed: 0 /* planning finished today */,
       lines: [

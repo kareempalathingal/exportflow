@@ -251,6 +251,16 @@ report the discrepancy and ask; do not silently choose.
     across units), output / day, units, work days, start → finish,
     department — a collapsed card on the Products tab and a table in both
     plan PDFs (the working plan adds rate, units and days).
+-   Overlap within one item (confirmed 5 Nov 2026, `overlapReady()`), like
+    the company WO plan: a step may start once the previous step has made
+    one day's worth of this step's output, runs without stopping and ends
+    no earlier than one day of its work after the previous step's finish.
+    No overlap for fixed-days-only or purchase steps, or when the route
+    step has "Waits for the whole quantity of the previous step"
+    (`waitAll`, copied to JO steps; outside work, drying, batches). A step
+    not started yet never starts before today. Tracking stays one step at
+    a time per item (the next step can be marked only after the current one
+    is done).
 -   Working days: Sunday is the weekly off (editable); company holidays
     are added on the dashboard calendar (large type; tap a day to add or
     remove). Doc `settings/calendar` {weeklyOff, holidays} lives in the
@@ -520,7 +530,8 @@ report the discrepancy and ask; do not silently choose.
     guessed; they come from the company.
 -   The company overlaps processes (the next process starts before the
     previous one has finished the whole quantity); the app's within-order
-    plan does not overlap yet (decision pending, 5 Nov 2026).
+    plan overlaps steps within one item since 5 Nov 2026 (see "Overlap
+    within one item").
 
 ## Factory documentation (noted 27 Oct 2026; build AFTER joining)
 

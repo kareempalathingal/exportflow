@@ -53,18 +53,20 @@ const pos = (n: number | null | undefined): number | null => (typeof n === 'numb
  * The benchmark of a route step when it may be used (confirmed, known or the
  * user's estimate), else nulls. Estimates carry `estimated: true`.
  */
-export function firmTime(s: Pick<RouteStep, 'perDay' | 'perDayUnit' | 'fixedDays' | 'status' | 'alsoForStock'>): {
+export function firmTime(s: Pick<RouteStep, 'perDay' | 'perDayUnit' | 'fixedDays' | 'status' | 'alsoForStock' | 'waitAll'>): {
   perDay: number | null;
   perDayUnit: string | null;
   fixedDays: number | null;
   alsoForStock: boolean;
+  waitAll?: boolean;
   estimated?: boolean;
 } {
   const alsoForStock = s.alsoForStock === true;
-  if (!USABLE.includes(s.status)) return { perDay: null, perDayUnit: null, fixedDays: null, alsoForStock };
+  const wait = s.waitAll === true ? { waitAll: true } : {};
+  if (!USABLE.includes(s.status)) return { perDay: null, perDayUnit: null, fixedDays: null, alsoForStock, ...wait };
   const perDay = pos(s.perDay);
   const fixedDays = pos(s.fixedDays);
-  const out = { perDay, perDayUnit: perDay !== null ? s.perDayUnit : null, fixedDays, alsoForStock };
+  const out = { perDay, perDayUnit: perDay !== null ? s.perDayUnit : null, fixedDays, alsoForStock, ...wait };
   return s.status === 'ESTIMATED' && (perDay !== null || fixedDays !== null) ? { ...out, estimated: true } : out;
 }
 
@@ -435,7 +437,27 @@ function earliestSlot(units: Slot[][], ready: number, len: number): [number, num
   return best;
 }
 
-type StepTimes = { start: number | null; finish: number | null; queued: boolean; startDate?: string; finishDate?: string };
+type StepTimes = { start: number | null; finish: number | null; queued: boolean; startDate?: string; finishDate?: string; workStart?: number };
+
+/**
+ * Overlap within one item (confirmed 5 Nov 2026, like the company WO plan): a step may
+ * start once the previous step has made one day's worth of this step's output (batches
+ * of one day of this step move on), and it runs without stopping, so it finishes no
+ * earlier than one day of its work after the previous step's finish. No overlap when either step has no output per day (fixed days,
+ * purchase), when the step is set to "wait for the whole quantity", or when the
+ * previous step is still waiting for a date. Returns the earliest start (offset).
+ */
+function overlapReady(prev: PlannedStep, pt: StepTimes, s: PlannedStep): number {
+  const pF = pt.finish!;
+  if (s.waitAll || pt.start === null || prev.perDay === null || s.perDay === null || !prev.processId || !s.processId) return pF;
+  const pD = prev.plannedDays ?? 0;
+  const sD = s.plannedDays ?? 0;
+  if (pD <= 0 || sD <= 0) return pF;
+  const pS = Math.max(pt.workStart ?? pt.start, pF - pD); // the previous step's own working time
+  const first = pS + Math.min(pD, pD / sD); // one day of this step's work is ready
+  const last = pF + Math.min(1, sD) - sD; // the last day's batch arrives at pF and still takes a day of this step
+  return Math.min(pF, Math.max(first, last));
+}
 
 /** The order-wide schedule in working-day offsets from the received date. `actuals` = use finished steps' real dates. */
 function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today: string, ctx: PlanContext, actuals: boolean): StepTimes[][] {
@@ -496,7 +518,7 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
     const finish = Math.max(prev + s.plannedDays, todayOff, start);
     if (s.processId) unitsOf(s.processId)[0]!.push({ s: start, e: finish });
     const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
-    res[li]![si] = { start: prev, finish, queued: false, ...(prevDate ? { startDate: prevDate } : {}) };
+    res[li]![si] = { start: prev, finish, queued: false, workStart: start, ...(prevDate ? { startDate: prevDate } : {}) };
   });
   // 3. Everything else, line by line (the order of the lines is the queue order).
   steps.forEach((ss, li) => {
@@ -507,8 +529,11 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
         continue;
       }
       const s = ss[si]!;
-      const ready = si === 0 ? 0 : res[li]![si - 1]!.finish;
-      if (ready === null || s.plannedDays === null) break; // unknown from here on
+      const after = si === 0 ? 0 : res[li]![si - 1]!.finish;
+      if (after === null || s.plannedDays === null) break; // unknown from here on
+      let ready = si === 0 ? 0 : overlapReady(ss[si - 1]!, res[li]![si - 1]!, s);
+      // A step that has not started cannot start in the past (the running step keeps its date).
+      if (actuals && si > first[li]! && ready < todayOff) ready = Math.min(after, todayOff);
       let start = ready;
       if (s.processId) {
         const units = unitsOf(s.processId);
@@ -520,7 +545,7 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
       const running = si === first[li] && actuals;
       if (running && start < todayOff && finish < todayOff) finish = todayOff; // running late: at the earliest today
       const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
-      res[li]![si] = { start, finish, queued: start > ready + 1e-9, ...(start <= ready + 1e-9 && prevDate ? { startDate: prevDate } : {}) };
+      res[li]![si] = { start, finish, queued: start > ready + 1e-9, ...(Math.abs(start - after) <= 1e-9 && prevDate ? { startDate: prevDate } : {}) };
     }
   });
   return res;

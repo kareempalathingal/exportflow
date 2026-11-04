@@ -37,7 +37,7 @@ export function familyMembers<T extends ItemExtras & { active?: boolean }>(items
 /** Same steps (process, times, flags) — order matters. */
 export function sameRoute(a: RouteStep[] | undefined, b: RouteStep[] | undefined): boolean {
   const key = (r: RouteStep[] | undefined) =>
-    JSON.stringify((r ?? []).map((s) => [s.processId, s.perDay ?? null, s.perDayUnit ?? '', s.fixedDays ?? null, s.alsoForStock === true, s.status]));
+    JSON.stringify((r ?? []).map((s) => [s.processId, s.perDay ?? null, s.perDayUnit ?? '', s.fixedDays ?? null, s.alsoForStock === true, s.waitAll === true, s.status]));
   return key(a) === key(b);
 }
 

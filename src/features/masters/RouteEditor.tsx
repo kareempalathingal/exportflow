@@ -13,6 +13,7 @@ export interface RouteDraft {
   perDayUnit: string;
   fixedText: string;
   alsoForStock: boolean;
+  waitAll?: boolean;
   status: DataStatus;
 }
 
@@ -23,6 +24,7 @@ export function draftsFromRoute(route: RouteStep[] | undefined, baseUnit: string
     perDayUnit: s.perDayUnit || baseUnit,
     fixedText: s.fixedDays === null || s.fixedDays === undefined ? '' : String(s.fixedDays),
     alsoForStock: s.alsoForStock === true,
+    waitAll: s.waitAll === true,
     status: s.status ?? 'PENDING_VERIFICATION',
   }));
 }
@@ -44,7 +46,7 @@ export function routeFromDrafts(rows: RouteDraft[]): RouteStep[] | string {
       : r.status === 'UNAVAILABLE' || r.status === 'PENDING_VERIFICATION'
         ? 'USER_PROVIDED'
         : r.status;
-    out.push({ processId: r.processId, perDay, perDayUnit: r.perDayUnit, fixedDays: fixed, ...(r.alsoForStock ? { alsoForStock: true } : {}), status, source: '' });
+    out.push({ processId: r.processId, perDay, perDayUnit: r.perDayUnit, fixedDays: fixed, ...(r.alsoForStock ? { alsoForStock: true } : {}), ...(r.waitAll ? { waitAll: true } : {}), status, source: '' });
   }
   return out;
 }
@@ -67,7 +69,7 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
     [next[i], next[j]] = [next[j]!, next[i]!];
     onChange(next);
   };
-  const add = (processId: string) => onChange([...rows, { processId, perDayText: '', perDayUnit: props.baseUnit, fixedText: '', alsoForStock: false, status: 'PENDING_VERIFICATION' }]);
+  const add = (processId: string) => onChange([...rows, { processId, perDayText: '', perDayUnit: props.baseUnit, fixedText: '', alsoForStock: false, waitAll: false, status: 'PENDING_VERIFICATION' }]);
 
   function createProcess() {
     const name = newName.trim().replace(/\s+/g, ' ');
@@ -142,6 +144,11 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
             <label className="check small">
               <input type="checkbox" checked={r.alsoForStock} onChange={(e) => set(i, { alsoForStock: e.target.checked })} /> Also for items taken from stock (e.g. packing)
             </label>
+            {i > 0 && (
+              <label className="check small">
+                <input type="checkbox" checked={r.waitAll === true} onChange={(e) => set(i, { waitAll: e.target.checked })} /> Waits for the whole quantity of the previous step (outside work, drying, batches)
+              </label>
+            )}
           </li>
         ))}
       </ol>

@@ -157,6 +157,8 @@ export interface JoStep {
   fixedDays: number | null;
   /** Copied from the route: the step also handles stock set aside for the order. */
   alsoForStock?: boolean;
+  /** Copied from the route: waits for the whole quantity of the previous step (no overlap). */
+  waitAll?: boolean;
   /** The time is the user's estimate (route status "My estimate"): used, but marked. */
   estimated?: boolean;
   /** Optional: when work on the step actually started (ISO). Separates waiting from working time (KPIs). */

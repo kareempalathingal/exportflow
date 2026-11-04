@@ -138,6 +138,8 @@ export interface RouteStep {
   fixedDays: number | null;
   /** Also count stock set aside for the order (e.g. packing, labelling); default: only what is made. */
   alsoForStock?: boolean;
+  /** Starts only when the previous step has finished the whole quantity (outside work, drying, batches); default: overlaps (5 Nov 2026). */
+  waitAll?: boolean;
   status: DataStatus;
   source: string;
 }
