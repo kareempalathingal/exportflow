@@ -545,3 +545,8 @@ label.inline { display: flex; align-items: center; gap: 0.5rem; }
 .long-list-group > summary { cursor: pointer; }
 .long-list-group > .plain-list, .long-list-group > .chips, .long-list-group > span { display: block; margin: 4px 0 6px 12px; }
 .long-list-items > li { padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+
+/* Plan by process (Products tab) */
+table.proc-plan { width: 100%; border-collapse: collapse; }
+table.proc-plan th, table.proc-plan td { padding: 6px 4px; border-bottom: 1px solid var(--line, #e3e6ea); text-align: left; vertical-align: top; }
+table.proc-plan .num { text-align: right; }

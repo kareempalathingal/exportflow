@@ -41,8 +41,8 @@ import { MaterialsTab } from './MaterialsTab';
 import { ItemsCard } from './ItemsCard';
 import { ProgressCard } from './ProgressCard';
 import { ProductsTab } from './ProductsTab';
-import { buildLineSteps } from '../../lib/route';
-import type { Process } from '../../lib/masters';
+import { buildLineSteps, unitsMap } from '../../lib/route';
+import type { Department, Process } from '../../lib/masters';
 import { DocButtons } from '../docs/DocButtons';
 import { joSummaryDoc, productionPlanDoc } from '../../lib/docs/model';
 import { useProfile } from '../settings/useProfile';
@@ -100,6 +100,7 @@ export function JobOrderPage() {
   const [params, setParams] = useSearchParams();
   const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
+  const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const processMap = useMemo(() => new Map(processes.items.map((p) => [p.id, p])), [processes.items]);
   const requestedTab = params.get('tab');
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
@@ -335,7 +336,7 @@ export function JobOrderPage() {
             </div>
           </div>
 
-          <ItemsCard jo={item!} id={item!.id} md={md} ctx={{ md, cal, planningDays: profile?.planningDays }} today={today} />
+          <ItemsCard jo={item!} id={item!.id} md={md} ctx={{ md, cal, planningDays: profile?.planningDays, units: unitsMap(processMap) }} today={today} />
 
           {changed.length > 0 && (
             <div className="card subtle">
@@ -415,13 +416,14 @@ export function JobOrderPage() {
                   jo: item,
                   md,
                   processes: processMap,
-                  ctx: { md, cal, planningDays: profile?.planningDays },
+                  ctx: { md, cal, planningDays: profile?.planningDays, units: unitsMap(processMap) },
                   today,
                   company,
                   generatedAt: `${formatDateTime(new Date())} IST`,
                   preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
                   supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
                   variant,
+                  departments: departments.items,
                 })
               }
             />

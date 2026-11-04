@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useProcessUnits } from '../masters/useProcessUnits';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { productionPlanDoc, todayDoc, toBuyAllDoc } from '../../lib/docs/model';
@@ -38,7 +39,8 @@ export function ReportsPage() {
   const { cal } = useWorkCalendar();
   const today = istDateKey(new Date());
   const planningDays = profile?.planningDays;
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
+  const units = useProcessUnits();
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
   const tasks = useCollection<Task>(workspaceId, COLLECTION_TASKS);
   const deptName = useMemo(() => {
     const m = new Map(departments.items.map((d) => [d.id, d.name]));
@@ -136,6 +138,7 @@ export function ReportsPage() {
                         preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
                         supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
                         variant,
+                        departments: departments.items,
                       })
                     }
                   />

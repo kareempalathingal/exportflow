@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useProcessUnits } from '../masters/useProcessUnits';
 import { Link } from 'react-router-dom';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -85,7 +86,8 @@ export function PerformancePage() {
   const range = preset === 'custom' ? custom : presetRange(preset, today)!;
   const valid = range.from <= range.to;
   const planningDays = profile?.planningDays;
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
+  const units = useProcessUnits();
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
   const report = useMemo(
     () => (valid ? buildPerformance({ jobOrders: jos.items, ctx, from: range.from, to: range.to, today, history: history.events }) : null),
     [valid, jos.items, ctx, range.from, range.to, today, history.events],

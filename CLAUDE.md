@@ -238,6 +238,19 @@ report the discrepancy and ask; do not silently choose.
     conversion shows "Conversion needed", never a guess.
 -   Shared department capacity across orders is NOT modelled yet (each
     order is planned as if alone); it comes with department capacities.
+-   Within one order (confirmed 5 Nov 2026, `orderPlan()` /
+    `scheduleOrder()` in `src/lib/route.ts`): the items of the order share
+    each process. A process has "Parallel units" (`parallelUnits`, default
+    1; output per day in routes is per unit). Items queue in the order the
+    lines are listed; a free gap is used. Finished steps keep their real
+    dates and free the unit then; a started step holds its unit. A running
+    step still waiting for a unit is "next" (`queued`, "Waiting: X is busy
+    with other items of this order"), never counted as over plan. Planned %
+    uses the planned span of the whole order. "Plan by process"
+    (`processPlanRows()`): process, items, quantity per unit (never added
+    across units), output / day, units, work days, start → finish,
+    department — a collapsed card on the Products tab and a table in both
+    plan PDFs (the working plan adds rate, units and days).
 -   Working days: Sunday is the weekly off (editable); company holidays
     are added on the dashboard calendar (large type; tap a day to add or
     remove). Doc `settings/calendar` {weeklyOff, holidays} lives in the

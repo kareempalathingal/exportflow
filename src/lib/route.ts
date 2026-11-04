@@ -16,7 +16,7 @@
  */
 import { addWorkingDays, DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from './calendar';
 import { effectiveSupply, resolveLine, type JobOrder, type JoLine, type JoStep } from './jobOrders';
-import { lineComponent, needsBom, productContext, type MasterData, type Process, type Product, type RouteStep } from './masters';
+import { lineComponent, needsBom, processUnits, productContext, type MasterData, type Process, type Product, type RouteStep } from './masters';
 import { planMaterials } from './materials';
 import { istDateKey } from './time';
 import { trackOf, type Track } from './progress';
@@ -33,6 +33,14 @@ export interface PlanContext {
   cal: WorkCalendar;
   /** Planning benchmark in working days (received → confirmed); undefined = default, null = not known. */
   planningDays?: number | null;
+  /** Parallel units per process id (default 1 when missing). Items of an order queue for a process. */
+  units?: Map<string, number>;
+}
+
+/** Parallel units per process for a plan context (from the Processes master). */
+export function unitsMap(processes: Map<string, Process> | (Process & { id: string })[]): Map<string, number> {
+  const entries: [string, Process][] = processes instanceof Map ? [...processes] : processes.map((p) => [p.id, p]);
+  return new Map(entries.map(([id, p]) => [id, processUnits(p)]));
 }
 
 /** The order clock starts when the JO is received; planning (received → confirmed) is its first stage. */
@@ -222,6 +230,8 @@ export interface StepView {
   waitDays: number | null;
   /** Working days of actual work: started → done (or → today while running). */
   workDays: number | null;
+  /** Next in line but the process is still busy with other items of the order (startOn = expected start). */
+  queued?: boolean;
 }
 
 export interface LineProgress {
@@ -234,6 +244,8 @@ export interface LineProgress {
   /** Expected finish (working days, from the step running now); null when some time is unknown. */
   expectedFinish: string | null;
   done: boolean;
+  /** Dates of every step from the whole-order plan (set by lineProgresses / orderPlan). */
+  schedule?: ScheduledStep[];
 }
 
 const dayOf = (iso: string) => istDateKey(new Date(iso));
@@ -374,12 +386,210 @@ export function withPlanning(steps: PlannedStep[] | undefined, jo: Pick<JobOrder
 
 type StepOrder = Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate' | 'status' | 'bomSnapshot' | 'stock'>;
 
-/** Progress of every line that has steps (lines without steps are skipped). */
+/**
+ * Progress of every line that has steps (lines without steps are skipped),
+ * planned for the whole order at once (confirmed 5 Nov 2026): the items of an
+ * order share each process. A process works on as many items at a time as it
+ * has parallel units (default 1); the others wait, in the order of the lines.
+ * Finished steps use their real dates (in the order they were finished), so a
+ * step that waited for the process to be free is not counted as late.
+ */
 export function lineProgresses(jo: StepOrder, today: string, ctx: PlanContext): { line: PlannedLine; lp: LineProgress }[] {
-  const start = orderStart(jo);
-  return planLines(jo, ctx.md)
-    .map((line) => ({ line, lp: lineProgress(withPlanning(line.steps, jo, ctx), start, today, ctx.cal) }))
-    .filter((x): x is { line: PlannedLine; lp: LineProgress } => x.lp !== null);
+  return orderPlan(jo, today, ctx).lines;
+}
+
+/** One process in the order plan (the company's "WO planning" view). */
+export interface ProcessPlan {
+  processId: string;
+  units: number;
+  /** Steps of this process in the order (finished ones too). */
+  steps: { lineId: string; product: string; qty: number | null; qtyUnit: string | null; perDay: number | null; perDayUnit: string | null; days: number | null; start: string | null; finish: string | null; done: boolean }[];
+  /** First start and last finish (null when some step has no time). */
+  start: string | null;
+  finish: string | null;
+}
+
+export interface OrderPlan {
+  lines: { line: PlannedLine; lp: LineProgress }[];
+  processes: ProcessPlan[];
+}
+
+interface Slot {
+  s: number;
+  e: number;
+}
+
+/** Earliest start ≥ ready where [start, start + len] fits in one unit's free time; returns [unit, start]. */
+function earliestSlot(units: Slot[][], ready: number, len: number): [number, number] {
+  let best: [number, number] = [0, Infinity];
+  units.forEach((slots, u) => {
+    let t = ready;
+    for (const sl of [...slots].sort((a, b) => a.s - b.s)) {
+      if (sl.e <= t + 1e-9) continue;
+      if (sl.s >= t + len - 1e-9 && len > 0) break;
+      if (len === 0 && sl.s >= t - 1e-9) break;
+      t = Math.max(t, sl.e);
+    }
+    if (t < best[1]) best = [u, t];
+  });
+  return best;
+}
+
+type StepTimes = { start: number | null; finish: number | null; queued: boolean; startDate?: string; finishDate?: string };
+
+/** The order-wide schedule in working-day offsets from the received date. `actuals` = use finished steps' real dates. */
+function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today: string, ctx: PlanContext, actuals: boolean): StepTimes[][] {
+  const cal = ctx.cal;
+  const off = (d: string) => workingDaysBetween(base, d, cal) ?? 0;
+  const todayOff = off(today);
+  const busy = new Map<string, Slot[][]>();
+  const unitsOf = (pid: string) => {
+    let u = busy.get(pid);
+    if (!u) {
+      u = Array.from({ length: Math.max(1, Math.floor(ctx.units?.get(pid) ?? 1)) }, () => []);
+      busy.set(pid, u);
+    }
+    return u;
+  };
+  const res: StepTimes[][] = steps.map((ss) => (ss ?? []).map(() => ({ start: null, finish: null, queued: false })));
+  const isDone = (s: PlannedStep) => actuals && !!s.doneAt;
+  // 1. Finished steps, in the order they were finished.
+  const done: { li: number; si: number; at: number }[] = [];
+  steps.forEach((ss, li) => (ss ?? []).forEach((s, si) => isDone(s) && done.push({ li, si, at: off(dayOf(s.doneAt!)) })));
+  done.sort((a, b) => a.at - b.at || a.si - b.si || a.li - b.li);
+  // Real dates are kept for finished steps (a step may finish on a day off).
+  const freeDate = new Map<Slot[], string>();
+  for (const { li, si, at } of done) {
+    const s = steps[li]![si]!;
+    const doneDate = dayOf(s.doneAt!);
+    const prevT = si === 0 ? null : res[li]![si - 1]!;
+    const prevDate = prevT?.finishDate ?? base;
+    let startDate = prevDate < doneDate ? prevDate : doneDate;
+    if (s.processId) {
+      const units = unitsOf(s.processId);
+      let u = 0;
+      units.forEach((sl, i) => {
+        if ((freeDate.get(sl) ?? '') < (freeDate.get(units[u]!) ?? '')) u = i;
+      });
+      const free = freeDate.get(units[u]!) ?? '';
+      const ready = prevDate > free ? prevDate : free;
+      startDate = ready < doneDate ? ready : doneDate;
+      units[u]!.push({ s: off(startDate), e: at });
+      freeDate.set(units[u]!, doneDate);
+    }
+    res[li]![si] = { start: off(startDate), finish: at, queued: false, startDate, finishDate: doneDate };
+  }
+  // 2. Steps already started hold their unit.
+  const first = steps.map((ss) => (ss ?? []).findIndex((s) => !isDone(s)));
+  steps.forEach((ss, li) => {
+    const si = first[li]!;
+    if (si < 0) return;
+    const s = ss![si]!;
+    if (!actuals || !s.startedAt) return;
+    const prev = si === 0 ? 0 : (res[li]![si - 1]!.finish ?? 0);
+    const start = Math.max(prev, Math.min(off(dayOf(s.startedAt)), todayOff));
+    if (s.plannedDays === null) {
+      res[li]![si] = { start: prev, finish: null, queued: false };
+      return;
+    }
+    // As before: the step's time counts from the previous step's finish (waiting included).
+    const finish = Math.max(prev + s.plannedDays, todayOff, start);
+    if (s.processId) unitsOf(s.processId)[0]!.push({ s: start, e: finish });
+    const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
+    res[li]![si] = { start: prev, finish, queued: false, ...(prevDate ? { startDate: prevDate } : {}) };
+  });
+  // 3. Everything else, line by line (the order of the lines is the queue order).
+  steps.forEach((ss, li) => {
+    if (!ss) return;
+    for (let si = Math.max(0, first[li]!); si < ss.length; si++) {
+      if (res[li]![si]!.finish !== null || (si === first[li] && actuals && ss[si]!.startedAt)) {
+        if (res[li]![si]!.finish === null) break;
+        continue;
+      }
+      const s = ss[si]!;
+      const ready = si === 0 ? 0 : res[li]![si - 1]!.finish;
+      if (ready === null || s.plannedDays === null) break; // unknown from here on
+      let start = ready;
+      if (s.processId) {
+        const units = unitsOf(s.processId);
+        const [u, t] = earliestSlot(units, ready, s.plannedDays);
+        start = t;
+        units[u]!.push({ s: start, e: start + s.plannedDays });
+      }
+      let finish = start + s.plannedDays;
+      const running = si === first[li] && actuals;
+      if (running && start < todayOff && finish < todayOff) finish = todayOff; // running late: at the earliest today
+      const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
+      res[li]![si] = { start, finish, queued: start > ready + 1e-9, ...(start <= ready + 1e-9 && prevDate ? { startDate: prevDate } : {}) };
+    }
+  });
+  return res;
+}
+
+/** Whole-order plan: every line's progress and dates, and the plan per process. */
+export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): OrderPlan {
+  const cal = ctx.cal;
+  const base = orderStart(jo);
+  const planned = planLines(jo, ctx.md);
+  const steps = planned.map((line) => withPlanning(line.steps, jo, ctx));
+  const at = (o: number) => (o <= 0 ? base : addWorkingDays(base, o, cal)!);
+  const real = scheduleOrder(steps, base, today, ctx, true);
+  const plan = scheduleOrder(steps, base, today, ctx, false);
+  const todayOff = workingDaysBetween(base, today, cal) ?? 0;
+  const lines: { line: PlannedLine; lp: LineProgress }[] = [];
+  planned.forEach((line, li) => {
+    const ss = steps[li];
+    if (!ss || !ss.length) return;
+    const lp = lineProgress(ss, base, today, cal)!;
+    const times = real[li]!;
+    const startOf = (i: number) => times[i]!.startDate ?? (times[i]!.start !== null ? at(times[i]!.start!) : null);
+    lp.steps = lp.steps.map((v, i) => {
+      if (v.state === 'DONE') {
+        const startOn = startOf(i) ?? v.startOn!;
+        const actualDays = Math.max(0, workingDaysBetween(startOn, v.doneOn!, cal) ?? 0);
+        return { ...v, startOn, actualDays, overrunDays: v.step.plannedDays !== null ? actualDays - v.step.plannedDays : null, ...splitWait(startOn, v.step.startedAt, v.doneOn!, cal) };
+      }
+      if (v.state === 'NOW') {
+        const startOn = startOf(i) ?? v.startOn!;
+        if (startOn > today) return { ...v, startOn, actualDays: 0, overrunDays: null, queued: true };
+        const actualDays = Math.max(0, workingDaysBetween(startOn, today, cal) ?? 0);
+        return { ...v, startOn, actualDays, overrunDays: v.step.plannedDays !== null ? actualDays - v.step.plannedDays : null, ...splitWait(startOn, v.step.startedAt, today, cal) };
+      }
+      return v;
+    });
+    lp.current = lp.steps.find((v) => v.state === 'NOW') ?? null;
+    lp.schedule = lp.steps.map((v, i) => ({
+      view: v,
+      start: v.state === 'DONE' ? v.startOn : startOf(i),
+      finish: v.state === 'DONE' ? v.doneOn : times[i]!.finish !== null ? at(times[i]!.finish!) : null,
+    }));
+    const last = lp.schedule.at(-1)!;
+    lp.expectedFinish = lp.done ? last.finish : last.finish;
+    const span = plan[li]!.at(-1)?.finish ?? null;
+    lp.plannedTotalDays = span;
+    lp.plannedPct = span === null ? null : span > 0 ? Math.min(100, Math.round((Math.max(0, todayOff) / span) * 100)) : 100;
+    lines.push({ line, lp });
+  });
+  // Per process (the "WO planning" view).
+  const byProc = new Map<string, ProcessPlan>();
+  lines.forEach(({ line, lp }) => {
+    for (const st of lp.schedule!) {
+      const s = st.view.step;
+      if (!s.processId) continue;
+      let pp = byProc.get(s.processId);
+      if (!pp) {
+        pp = { processId: s.processId, units: Math.max(1, Math.floor(ctx.units?.get(s.processId) ?? 1)), steps: [], start: null, finish: null };
+        byProc.set(s.processId, pp);
+      }
+      pp.steps.push({ lineId: line.id, product: s.forProduct, qty: s.qty, qtyUnit: s.qtyUnit, perDay: s.perDay, perDayUnit: s.perDayUnit, days: s.plannedDays, start: st.start, finish: st.finish, done: st.view.state === 'DONE' });
+    }
+  });
+  const processes = [...byProc.values()].map((pp) => {
+    const known = pp.steps.every((x) => x.start && x.finish);
+    return { ...pp, start: known ? pp.steps.map((x) => x.start!).sort()[0]! : null, finish: known ? pp.steps.map((x) => x.finish!).sort().at(-1)! : null };
+  });
+  processes.sort((a, b) => (a.start ?? '9999').localeCompare(b.start ?? '9999'));
+  return { lines, processes };
 }
 
 /**
@@ -429,6 +639,7 @@ export interface ScheduledStep {
  * days). Unknown from the first step without a time onwards.
  */
 export function lineSchedule(lp: LineProgress, today: string, cal: WorkCalendar): ScheduledStep[] {
+  if (lp.schedule) return lp.schedule;
   let prev: string | null = null;
   return lp.steps.map((v) => {
     if (v.state === 'DONE') {
@@ -517,4 +728,42 @@ export function stepDates(lp: LineProgress, today: string, cal: WorkCalendar, in
     }
   }
   return { steps, ready: { date, missing, earliest, approx, spareDays, tone } };
+}
+
+/** One row of the "plan by process" table (the company's WO planning view, 5 Nov 2026). */
+export interface ProcessPlanRow {
+  processId: string;
+  /** Total quantity per unit of measure ("6561 pcs"; never added across units). */
+  qty: string;
+  /** Output per working day per unit, e.g. "1650 / 1300 pcs" when products differ. */
+  rate: string;
+  units: number;
+  /** Working days of work (sum of the steps ÷ parallel units); null when a time is missing. */
+  days: number | null;
+  start: string | null;
+  finish: string | null;
+  items: number;
+  done: boolean;
+}
+
+export function processPlanRows(plan: OrderPlan): ProcessPlanRow[] {
+  return plan.processes.map((p) => {
+    const byUnit = new Map<string, number>();
+    for (const s of p.steps) if (s.qty !== null && s.qtyUnit) byUnit.set(s.qtyUnit, (byUnit.get(s.qtyUnit) ?? 0) + s.qty);
+    const rateBy = new Map<string, Set<string>>();
+    for (const s of p.steps) if (s.perDay !== null) rateBy.set(s.perDayUnit ?? '', (rateBy.get(s.perDayUnit ?? '') ?? new Set()).add(formatQty(s.perDay)));
+    const rates = [...rateBy].map(([u, v]) => `${[...v].join(' / ')} ${unitLabel(u)}`);
+    const known = p.steps.every((s) => s.days !== null);
+    return {
+      processId: p.processId,
+      qty: [...byUnit].map(([u, q]) => `${formatQty(q)} ${unitLabel(u)}`).join(' + ') || '—',
+      rate: rates.join(', ') || (known ? 'fixed days' : 'time pending'),
+      units: p.units,
+      days: known ? roundUpHalf(p.steps.reduce((a, s) => a + s.days!, 0) / p.units) : null,
+      start: p.start,
+      finish: p.finish,
+      items: p.steps.length,
+      done: p.steps.every((s) => s.done),
+    };
+  });
 }

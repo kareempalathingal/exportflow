@@ -6,7 +6,7 @@ import { COLLECTIONS, type Department, type MasterData, type Process } from '../
 import { departmentsFor, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { buildLineSteps, completeCurrent, lineProgress, lineSchedule, orderStart, orderStepProgress, planLines, routeFits, startCurrent, stepDates, stepTime, undoLast, undoStart, withPlanning, type PlanContext, type PlannedLine, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
+import { buildLineSteps, completeCurrent, lineSchedule, orderPlan, processPlanRows, orderStart, orderStepProgress, planLines, routeFits, startCurrent, stepDates, stepTime, undoLast, undoStart, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
@@ -24,7 +24,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const editable = jo.status === 'CONFIRMED';
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
-  const ctx = { md, cal, planningDays: profile?.planningDays };
+  const ctx: PlanContext = { md, cal, planningDays: profile?.planningDays, units: unitsMap(processes) };
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const [params] = useSearchParams();
   const focusLine = params.get('line');
@@ -36,6 +36,9 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   }, [focusLine]);
   const missing = jo.lines.filter((l) => !l.steps || l.steps.length === 0);
   const planned = planLines(jo, md);
+  // Whole-order plan: the items share each process (5 Nov 2026).
+  const oplan = jo.status === 'DRAFT' ? null : orderPlan(jo, today, ctx);
+  const lpByLine = new Map((oplan?.lines ?? []).map((x) => [x.line.id, x.lp]));
 
   function saveLines(lines: JoLine[], what: string) {
     if (!workspaceId) return;
@@ -70,19 +73,73 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
           </li>
         ))}
       </ul>
+      {oplan && <ProcessPlanCard rows={processPlanRows(oplan)} processes={processes} departments={departments.items} />}
       <p className="muted small legend">
         <span>✓ done (actual / planned days)</span>
         <span>● now</span>
         <span>○ to do</span>
         <span className="warn">time pending = benchmark not known yet</span>
         <span>days and dates are working days (Sundays and company holidays left out)</span>
-        <span>dates plan each order as if alone — waiting behind other orders in a department is not included yet</span>
+        <span>items of this order wait for each other at a shared process (in the order listed); waiting behind other orders is not included yet</span>
       </p>
     </section>
+  );
+}
+
+/** The company's WO planning view: each process with the items of this order it handles (5 Nov 2026). */
+function ProcessPlanCard({ rows, processes, departments }: { rows: ReturnType<typeof processPlanRows>; processes: Map<string, Process>; departments: Department[] }) {
+  if (!rows.length) return null;
+  return (
+    <details className="card">
+      <summary>
+        <strong>Plan by process</strong> <span className="muted small">{rows.length} processes · tap to show</span>
+      </summary>
+      <div className="table-scroll">
+        <table className="small proc-plan">
+          <thead>
+            <tr>
+              <th>Process</th>
+              <th className="num">Quantity</th>
+              <th>Output / day</th>
+              <th className="num">Days</th>
+              <th>Start → finish</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const dept = departmentsFor(r.processId, departments).map((d) => d.name).join(', ');
+              return (
+                <tr key={r.processId}>
+                  <td>
+                    {processes.get(r.processId)?.name ?? 'Process'}
+                    {r.done && ' ✓'}
+                    <span className="muted block">
+                      {r.items} item{r.items === 1 ? '' : 's'}
+                      {dept && ` · ${dept}`}
+                    </span>
+                  </td>
+                  <td className="num">{r.qty}</td>
+                  <td>
+                    {r.rate}
+                    {r.units > 1 && <span className="muted block">× {r.units} units</span>}
+                  </td>
+                  <td className="num">{r.days === null ? <span className="warn">pending</span> : formatQty(r.days)}</td>
+                  <td>{r.start && r.finish ? `${formatDay(r.start)} → ${formatDay(r.finish)}` : <span className="warn">to be confirmed</span>}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted small">
+        Days = work at the planned output, on the process's parallel units (Masters → Processes). Items queue in the order they are listed; quantities are never added across
+        units.
+      </p>
+    </details>
   );
 }
 
@@ -90,6 +147,7 @@ function LineCard(props: {
   jo: JobOrder;
   raw: JoLine;
   line: PlannedLine;
+  lp: LineProgress | null;
   ctx: PlanContext;
   today: string;
   editable: boolean;
@@ -102,7 +160,7 @@ function LineCard(props: {
   const [editing, setEditing] = useState(false);
   const [when, setWhen] = useState(today);
   const start = orderStart(jo);
-  const lp = lineProgress(withPlanning(line.steps, jo, ctx), start, today, cal);
+  const lp = props.lp;
   const supply = line.supply === 'BUY' ? 'Buy' : 'Make';
   const head = (
     <div className="row between">
@@ -352,13 +410,14 @@ function StepRow({ v, date, productName, contacts }: { v: StepView; date: StepDa
       <span className="step-body">
         <span className="step-name">
           {s.label}
-          {v.state === 'NOW' && ' · now'}
+          {v.state === 'NOW' && (v.queued ? ' · next' : ' · now')}
           {s.estimated && s.plannedDays !== null && v.state !== 'DONE' && <span className="pill warn"> estimate</span>}
           <span className="muted small">{sub}</span>
         </span>
         <span className="muted small block">
           {v.state === 'DONE' && v.doneOn && `Done ${formatDay(v.doneOn)}`}
-          {v.state === 'NOW' && v.startOn && !v.startedOn && `Since ${formatDay(v.startOn)} · ${formatQty(v.actualDays!)} working day${v.actualDays === 1 ? '' : 's'} so far`}
+          {v.state === 'NOW' && v.queued && v.startOn && `Waiting: ${s.label} is busy with other items of this order · can start ${formatDay(v.startOn)}`}
+          {v.state === 'NOW' && !v.queued && v.startOn && !v.startedOn && `Since ${formatDay(v.startOn)} · ${formatQty(v.actualDays!)} working day${v.actualDays === 1 ? '' : 's'} so far`}
           {v.state === 'NOW' && v.startedOn && `Started ${formatDay(v.startedOn)} · waited ${days(v.waitDays!)} · working ${days(v.workDays!)} so far`}
           {v.state === 'DONE' && v.startedOn && ` · waited ${days(v.waitDays!)}, worked ${days(v.workDays!)}`}
         </span>

@@ -93,7 +93,20 @@ export interface Product extends MasterBase, ItemExtras {
 }
 
 /** A process or treatment (weaving, bleaching, packing…), shared by many products. */
-export type Process = MasterBase;
+export interface Process extends MasterBase {
+  /**
+   * How many items this process can work on at the same time (machines /
+   * lines / printing units); default 1. The output per day of a route step is
+   * per unit (confirmed 5 Nov 2026). Items of an order queue for it.
+   */
+  parallelUnits?: number;
+}
+
+/** Units of a process (at least 1). */
+export function processUnits(p: Pick<Process, 'parallelUnits'> | undefined): number {
+  const n = p?.parallelUnits;
+  return typeof n === 'number' && Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
 
 /** A person to contact in a department (work contact only). */
 export interface Person {

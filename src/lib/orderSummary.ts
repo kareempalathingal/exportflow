@@ -6,7 +6,7 @@
  */
 import { effectiveSupply, resolveLine, type JobOrder } from './jobOrders';
 import type { MasterData } from './masters';
-import { lineProgress, orderStart, planLines, withPlanning, type PlanContext } from './route';
+import { lineProgresses, type PlanContext } from './route';
 import { formatQty, unitLabel } from './units';
 
 export interface LineSummary {
@@ -24,12 +24,11 @@ export interface LineSummary {
 }
 
 export function lineSummaries(jo: JobOrder, md: MasterData, today: string, ctx: PlanContext): LineSummary[] {
-  const planned = jo.status === 'DRAFT' ? null : planLines(jo, md);
-  const start = orderStart(jo);
-  return jo.lines.map((l, i) => {
+  const lps = jo.status === 'DRAFT' ? null : new Map(lineProgresses(jo, today, ctx).map((x) => [x.line.id, x.lp]));
+  return jo.lines.map((l) => {
     const r = resolveLine(l, md);
     const baseText = r.baseQty !== null && r.baseUnit && r.baseUnit !== l.unit ? `= ${formatQty(r.baseQty)} ${unitLabel(r.baseUnit)}` : null;
-    const lp = planned ? lineProgress(withPlanning(planned[i]?.steps, jo, ctx), start, today, ctx.cal) : null;
+    const lp = lps?.get(l.id) ?? null;
     return {
       id: l.id,
       productName: l.productName || md.products.get(l.productId)?.name || 'Product',

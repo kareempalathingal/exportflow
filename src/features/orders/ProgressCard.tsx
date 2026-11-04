@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useProcessUnits } from '../masters/useProcessUnits';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder } from '../../lib/jobOrders';
 import { appendProgress, gapColor, trackLabel, trackOf } from '../../lib/progress';
@@ -21,7 +22,8 @@ export function ProgressCard({ jo, md }: { jo: WithMeta<JobOrder>; md: MasterDat
   const [saved, setSaved] = useState(false);
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
-  const fromSteps = orderStepProgress(jo, today, { md, cal, planningDays: profile?.planningDays });
+  const units = useProcessUnits();
+  const fromSteps = orderStepProgress(jo, today, { md, cal, planningDays: profile?.planningDays, units });
   const track = trackOf(jo, today, fromSteps, cal);
   const color = gapColor(track, readRedAt());
   const editable = jo.status === 'CONFIRMED' && !fromSteps;

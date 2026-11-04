@@ -4,8 +4,9 @@
  */
 import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from '../calendar';
-import { buildLineSteps, DEFAULT_PLANNING_DAYS, lineProgress, lineSchedule, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, withPlanning, type PlanContext } from '../route';
-import type { MasterData, Process } from '../masters';
+import { buildLineSteps, DEFAULT_PLANNING_DAYS, lineProgress, lineSchedule, orderPlan, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, processPlanRows, type PlanContext } from '../route';
+import type { Department, MasterData, Process } from '../masters';
+import { departmentsFor } from '../contacts';
 import { planMaterials, type BuyTotal, type MaterialPlan, type PlanRow } from '../materials';
 import { formatQty, unitLabel } from '../units';
 import type { PerformanceReport } from '../performance';
@@ -460,6 +461,8 @@ export interface PlanDocInput {
   supplierNames?: SupplierNames;
   /** 'submit' = clean plan for superiors (no benchmarks or calculation details); 'working' = full details. */
   variant?: 'submit' | 'working';
+  /** For the department column of "Plan by process". */
+  departments?: Department[];
 }
 
 /** Two days or less before the internal deadline counts as "tight". */
@@ -671,8 +674,11 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   const order: JobOrder = draft ? { ...jo, lines: jo.lines.map((l) => (l.steps?.length ? l : { ...l, steps: buildLineSteps(l, md, input.processes) })) } : jo;
   const start = orderStart(order);
   const planned = planLines(order, md);
+  // Whole-order plan: the items share each process (5 Nov 2026).
+  const oplan = orderPlan(order, today, ctx);
+  const lpOf = new Map(oplan.lines.map((x) => [x.line.id, x.lp]));
   const lines = planned.map((line) => {
-    const lp = lineProgress(withPlanning(line.steps, order, ctx), start, today, cal);
+    const lp = lpOf.get(line.id) ?? null;
     return { line, lp, sched: lp ? lineSchedule(lp, today, cal) : [] };
   });
   const risks: string[] = [];
@@ -824,6 +830,28 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     };
   });
 
+  // Plan by process (5 Nov 2026): the company's WO planning view - each process with the
+  // items of this order it handles, one after another on its units.
+  const procRows = processPlanRows(oplan);
+  const procName = (id: string) => input.processes.get(id)?.name ?? 'Process';
+  const deptOf = (id: string) => departmentsFor(id, input.departments ?? []).map((d) => d.name).join(', ') || '—';
+  const procTable: DocTable = {
+    title: 'Plan by process (items of this order share each process)',
+    columns: clean
+      ? [{ label: 'Process' }, { label: 'Department' }, { label: 'Items', align: 'right' }, { label: 'Quantity', align: 'right' }, { label: 'Start' }, { label: 'Finish' }]
+      : [{ label: 'Process' }, { label: 'Department' }, { label: 'Items', align: 'right' }, { label: 'Quantity', align: 'right' }, { label: 'Output / day' }, { label: 'Units', align: 'right' }, { label: 'Work days', align: 'right' }, { label: 'Start' }, { label: 'Finish' }],
+    rows: procRows.map((r) => {
+      const name = `${procName(r.processId)}${r.done ? ' (done)' : ''}`;
+      const from = r.start ? formatDay(r.start) : clean ? 'To be confirmed' : '—';
+      const to = r.finish ? formatDay(r.finish) : clean ? 'To be confirmed' : '—';
+      return clean
+        ? [name, deptOf(r.processId), String(r.items), r.qty, from, to]
+        : [name, deptOf(r.processId), String(r.items), r.qty, r.rate, String(r.units), r.days === null ? 'pending' : formatQty(r.days), from, to];
+    }),
+    empty: 'No process steps yet.',
+  };
+  if (procRows.length) tables.push(procTable);
+
   // Materials (confirmed 27 Oct 2026): what to make (and from what), raw materials to buy for
   // production (and for which ordered products), ready-made products to buy.
   const matRow = (r: PlanRow, extra: string[]) => [
@@ -913,7 +941,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       ? ['Dates are in working days; Sundays and company holidays are not worked.', `Prepared from the information available on ${formatDay(today)}.`]
       : [
       'Day counts are working days. Each step starts on the day the previous one finishes; planned days = quantity / output per day + fixed days, rounded up to half a day.',
-      'Each order is planned as if it had the departments to itself; other orders in the same department may delay it (capacity across orders is not planned yet).',
+      'Items of this order queue for each process in the order they are listed (a process with several units works on that many items at once). Other orders in the same department are not counted yet (capacity across orders is not planned).',
       'Times and quantities come from the benchmarks and BOMs entered in ExportFlow. Times marked "my estimate" are approximate; items marked * use estimated or unconfirmed data.',
       `Prepared from the data available on ${formatDay(today)}.`,
     ],

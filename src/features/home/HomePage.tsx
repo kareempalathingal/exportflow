@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useProcessUnits } from '../masters/useProcessUnits';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { useProfile } from '../settings/useProfile';
@@ -69,7 +70,8 @@ export function HomePage() {
   const redAt = readRedAt();
   const { cal } = useWorkCalendar();
   const planningDays = profile?.planningDays;
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
+  const units = useProcessUnits();
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
 
   const open = useMemo(() => {
     return jos.items

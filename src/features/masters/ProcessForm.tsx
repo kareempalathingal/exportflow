@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { LongList } from '../../components/LongList';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { COLLECTIONS, findDuplicate, type Department, type Process } from '../../lib/masters';
+import { COLLECTIONS, findDuplicate, processUnits, type Department, type Process } from '../../lib/masters';
 import { departmentsFor } from '../../lib/contacts';
 import { saveRecord } from '../sync/records';
 import { FormShell } from './FormShell';
@@ -26,6 +26,7 @@ export function ProcessForm() {
   const master = useMasterData(workspaceId);
   const [d, setD] = useState<Process>(EMPTY);
   const [error, setError] = useState<string | null>(null);
+  const [unitsText, setUnitsText] = useState('1');
   const loaded = useRef<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export function ProcessForm() {
     if (loaded.current === key) return;
     loaded.current = key;
     setD({ ...EMPTY, ...item });
+    setUnitsText(String(processUnits(item)));
   }, [item]);
 
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
@@ -49,7 +51,16 @@ export function ProcessForm() {
     if (!d.name.trim()) return setError('Name is required'), false;
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTIONS.processes) : id;
-    const data: Process = { name: d.name.trim(), active: isNew ? true : d.active, notes: d.notes.trim() };
+    const units = Math.floor(Number(unitsText));
+    if (!Number.isFinite(units) || units < 1 || units > 99) return setError('Parallel units must be a whole number from 1 to 99'), false;
+    const extra = d as Process & { importSource?: string };
+    const data: Process & { importSource?: string } = {
+      name: d.name.trim(),
+      active: isNew ? true : d.active,
+      notes: d.notes.trim(),
+      ...(units > 1 ? { parallelUnits: units } : {}),
+      ...(extra.importSource ? { importSource: extra.importSource } : {}),
+    };
     saveRecord({ workspaceId, collectionName: COLLECTIONS.processes, docId, entity: `Process: ${data.name}`, before: isNew ? null : item, data: { ...data }, reason });
     if (isNew) navigate(returnTo ?? `/masters/processes/${docId}`, { replace: true });
     return true;
@@ -70,7 +81,14 @@ export function ProcessForm() {
     >
       <TextField label="Name" required value={d.name} onChange={(name) => setD((x) => ({ ...x, name }))} placeholder="e.g. Weaving, Bleaching, Packing" />
       <TextField label="Notes" multiline value={d.notes} onChange={(notes) => setD((x) => ({ ...x, notes }))} />
-      <p className="muted small">Department and standard times are added later, when known. Planned days are set per product in its process route.</p>
+      <label>
+        Parallel units
+        <input inputMode="numeric" value={unitsText} onChange={(e) => setUnitsText(e.target.value)} style={{ maxWidth: 90 }} />
+        <span className="muted small block">
+          How many items this process can work on at the same time (machines, lines, printing units). The output per day in each product's steps is per unit. Items of an order wait for a free unit.
+        </span>
+      </label>
+      <p className="muted small">Planned days are set per product in its process route.</p>
       {!isNew && (
         <div className="small">
           Used by:{' '}

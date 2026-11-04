@@ -77,8 +77,9 @@ describe('orders at risk', () => {
       ['DEMO-101', 'LATE'],
       ['DEMO-103', 'HIGH'],
       ['DEMO-104', 'HIGH'],
-      ['DEMO-102', 'WATCH'],
     ]);
+    // DEMO-102: the door mat's packing waits for the packing unit (busy with the mat) — queued, not over plan (5 Nov 2026).
+    expect(risks.some((r) => r.joNumber === 'DEMO-102')).toBe(false);
     expect(risks[0]!.reasons.join(' ')).toMatch(/Internal deadline passed 1 day ago.*Packing.*over plan/);
     expect(risks[1]!.reasons.join(' ')).toMatch(/after the internal deadline.*22% behind plan/);
     expect(risks[2]!.reasons[0]).toMatch(/Still in planning/);
@@ -87,7 +88,7 @@ describe('orders at risk', () => {
     const lax = atRiskOrders({ jobOrders: jos.filter((j) => j.joNumber === 'DEMO-103'), ctx, today: TODAY, redAt: 50 });
     expect(lax[0]!.level).toBe('HIGH'); // still: expected finish is after the deadline
     expect(riskText(risks, 'Co', TODAY)).toMatch(/^Orders at risk · Co/);
-    expect(riskDoc(risks, gen).tables[0]!.rows).toHaveLength(4);
+    expect(riskDoc(risks, gen).tables[0]!.rows).toHaveLength(3);
   });
 });
 

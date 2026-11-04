@@ -178,7 +178,7 @@ describe('clean plan to submit', () => {
     const m = await build('sample_jo_103');
     expect(m.title).toBe('Production Plan');
     expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('10 Oct 2026 to 14 Oct 2026');
-    expect(m.meta.find(([k]) => k === 'Internal deadline')![1]).toBe('19 Nov 2026');
+    expect(m.meta.find(([k]) => k === 'Internal deadline')![1]).toBe('18 Nov 2026');
     expect(m.meta.find(([k]) => k === 'Progress')![1]).toMatch(/^\d+% complete \(planned \d+% by today\)$/);
     expect(m.roadMap!.stops[1]).toEqual({ label: 'Plan confirmed', date: '14 Oct', note: '', kind: 'done' });
     expect(m.roadMap!.stops[2]).toMatchObject({ kind: 'now', here: true, note: expect.stringMatching(/% complete$/) });

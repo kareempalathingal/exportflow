@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useProcessUnits } from '../masters/useProcessUnits';
 import { useApp } from '../../AppContext';
 import type { PlanContext } from '../../lib/route';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
@@ -12,7 +13,8 @@ export function usePlanContext(): { ctx: PlanContext; master: ReturnType<typeof 
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
   const planningDays = profile?.planningDays;
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays }), [master.md, cal, planningDays]);
+  const units = useProcessUnits();
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
   return {
     ctx,
     master,
