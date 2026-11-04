@@ -96,3 +96,14 @@ describe('overlap within one item (like the company WO plan)', () => {
     expect(days(at(p, 'Shearing').finish)).toBe(25);
   });
 });
+
+describe('exact times in the queue (5 Nov 2026)', () => {
+  it('rounding is for display only: seven items of 1.1 days take 7.7 days, not 10.5', () => {
+    const lines = Array.from({ length: 7 }, (_, i) => line(String(i + 1), i % 2 ? 'b' : 'a', 110));
+    const p = orderPlan(order(lines), '2026-11-02', ctx());
+    const tuftRow = processPlanRows(p)[0]!;
+    expect(tuftRow.days).toBe(8); // 7.7 rounded up to half a day
+    expect(p.lines[0]!.lp.schedule!.find((s) => s.view.step.label === 'Tufting')!.view.step.plannedDays).toBe(1.5); // shown per item
+    expect(workingDaysBetween('2026-11-02', tuftRow.finish!, DEFAULT_CALENDAR)).toBe(8);
+  });
+});

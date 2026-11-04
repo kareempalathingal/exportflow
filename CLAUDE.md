@@ -224,7 +224,9 @@ report the discrepancy and ask; do not silently choose.
 
 -   Step time depends on quantity: planned days = quantity ÷ output per
     working day + fixed days (quantity-independent: drying, curing,
-    batches), rounded UP to half a day. Hour-level planning later.
+    batches), rounded UP to half a day for display; schedules use the
+    unrounded time (`workDays`, changed 5 Nov 2026: rounding every item
+    added up across an order). Hour-level planning later.
     Benchmarks are copied to JO steps at confirmation (confirmed, known or
     estimated values; estimates carry `estimated: true`, see below);
     planned days are worked out on display from the order as it is now
@@ -241,8 +243,9 @@ report the discrepancy and ask; do not silently choose.
 -   Within one order (confirmed 5 Nov 2026, `orderPlan()` /
     `scheduleOrder()` in `src/lib/route.ts`): the items of the order share
     each process. A process has "Parallel units" (`parallelUnits`, default
-    1; output per day in routes is per unit). Items queue in the order the
-    lines are listed; a free gap is used. Finished steps keep their real
+    1; output per day in routes is per unit). First come, first served
+    (changed 5 Nov 2026): the step that can start earliest is placed next,
+    ties in the order the lines are listed; a free gap is used. Finished steps keep their real
     dates and free the unit then; a started step holds its unit. A running
     step still waiting for a unit is "next" (`queued`, "Waiting: X is busy
     with other items of this order"), never counted as over plan. Planned %
@@ -250,7 +253,15 @@ report the discrepancy and ask; do not silently choose.
     (`processPlanRows()`): process, items, quantity per unit (never added
     across units), output / day, units, work days, start → finish,
     department — a collapsed card on the Products tab and a table in both
-    plan PDFs (the working plan adds rate, units and days).
+    plan PDFs (the working plan adds rate, units and days). Items without
+    dates yet are counted ("+ N items not dated yet", finish at the
+    earliest).
+-   Checked against WO 95 (5 Nov 2026): with the recorded tufting the app
+    gives printing 17 → 26 Sep (company plan 17 → 26 Sep), shearing,
+    trimming, embossing and shape cutting within 1–2 days of the company
+    dates. Remaining gaps need data after joining: the production start
+    date (materials), dispatch / landing for outside work, and the bought
+    item's lead time (packing dates).
 -   Overlap within one item (confirmed 5 Nov 2026, `overlapReady()`), like
     the company WO plan: a step may start once the previous step has made
     one day's worth of this step's output, runs without stopping and ends

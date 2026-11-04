@@ -84,7 +84,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
         <span>○ to do</span>
         <span className="warn">time pending = benchmark not known yet</span>
         <span>days and dates are working days (Sundays and company holidays left out)</span>
-        <span>items of this order wait for each other at a shared process (in the order listed); waiting behind other orders is not included yet</span>
+        <span>items of this order share each process (first come, first served); a step can start once the previous one has a day of its work ready; waiting behind other orders is not included yet</span>
       </p>
     </section>
   );
@@ -128,7 +128,14 @@ function ProcessPlanCard({ rows, processes, departments }: { rows: ReturnType<ty
                     {r.units > 1 && <span className="muted block">× {r.units} units</span>}
                   </td>
                   <td className="num">{r.days === null ? <span className="warn">pending</span> : formatQty(r.days)}</td>
-                  <td>{r.start && r.finish ? `${formatDay(r.start)} → ${formatDay(r.finish)}` : <span className="warn">to be confirmed</span>}</td>
+                  <td>
+                    {r.start && r.finish ? `${formatDay(r.start)} → ${formatDay(r.finish)}` : <span className="warn">to be confirmed</span>}
+                    {r.undated > 0 && r.start && (
+                      <span className="warn block">
+                        + {r.undated} item{r.undated === 1 ? '' : 's'} not dated yet (finish at the earliest)
+                      </span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -136,7 +143,7 @@ function ProcessPlanCard({ rows, processes, departments }: { rows: ReturnType<ty
         </table>
       </div>
       <p className="muted small">
-        Days = work at the planned output, on the process's parallel units (Masters → Processes). Items queue in the order they are listed; quantities are never added across
+        Days = work at the planned output, on the process's parallel units (Masters → Processes). A step starts once the previous step has one day of its work ready; items are taken first come, first served (ties: in the order listed). Quantities are never added across
         units.
       </p>
     </details>

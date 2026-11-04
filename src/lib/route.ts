@@ -148,8 +148,10 @@ export function lineQuantities(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnaps
 }
 
 export interface PlannedStep extends JoStep {
-  /** Working days planned for this step on this order; null = time pending. */
+  /** Working days planned for this step on this order (rounded up to half a day, as shown); null = time pending. */
   plannedDays: number | null;
+  /** The same time unrounded: used to schedule (rounding every item added up, 5 Nov 2026). */
+  workDays?: number;
   /** Quantity this step handles, in the benchmark's unit (when there is one). */
   qty: number | null;
   qtyUnit: string | null;
@@ -178,7 +180,7 @@ function planStepTime(step: JoStep, made: StepQty | undefined, product: Product 
   const fixed = pos(step.fixedDays);
   if (perDay === null && fixed === null) return base; // time pending
   if (!q) {
-    if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), basis: `${formatQty(fixed!)} fixed days` };
+    if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), workDays: fixed!, basis: `${formatQty(fixed!)} fixed days` };
     return { ...base, note: 'Quantity cannot be worked out (check the BOM and conversions)' };
   }
   const unit = unitLabel(q.unit);
@@ -187,7 +189,7 @@ function planStepTime(step: JoStep, made: StepQty | undefined, product: Product 
   }
   const stockNote =
     q.fromStock > 1e-9 ? `${formatQty(q.fromStock)} ${unit} from stock` : step.alsoForStock && made && made.fromStock > 1e-9 ? `Includes ${formatQty(made.fromStock)} ${unit} from stock` : null;
-  if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), qty: q.qty, qtyUnit: q.unit, basis: `${formatQty(fixed!)} fixed days`, note: stockNote };
+  if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), workDays: fixed!, qty: q.qty, qtyUnit: q.unit, basis: `${formatQty(fixed!)} fixed days`, note: stockNote };
   const to = step.perDayUnit ?? q.unit;
   const c = product ? convert(q.qty, q.unit, to, productContext(product)) : null;
   if (!c || !c.ok) return { ...base, note: `Conversion needed (${unit} → ${unitLabel(to)})` };
@@ -195,6 +197,7 @@ function planStepTime(step: JoStep, made: StepQty | undefined, product: Product 
   return {
     ...base,
     plannedDays: roundUpHalf(days),
+    workDays: days,
     qty: c.value,
     qtyUnit: to,
     basis: `${formatQty(c.value)} ${unitLabel(to)} ÷ ${formatQty(perDay)}/day${fixed !== null ? ` + ${formatQty(fixed)} fixed` : ''}${c.provisional ? ' (estimated conversion)' : ''}`,
@@ -406,9 +409,11 @@ export interface ProcessPlan {
   units: number;
   /** Steps of this process in the order (finished ones too). */
   steps: { lineId: string; product: string; qty: number | null; qtyUnit: string | null; perDay: number | null; perDayUnit: string | null; days: number | null; start: string | null; finish: string | null; done: boolean }[];
-  /** First start and last finish (null when some step has no time). */
+  /** First start and last finish of the steps that have dates. */
   start: string | null;
   finish: string | null;
+  /** Steps without dates yet (their time or an earlier step's is not known): the finish may move. */
+  undated: number;
 }
 
 export interface OrderPlan {
@@ -437,6 +442,9 @@ function earliestSlot(units: Slot[][], ready: number, len: number): [number, num
   return best;
 }
 
+/** Time used to schedule a step: unrounded when known. */
+const work = (s: PlannedStep): number | null => (s.plannedDays === null ? null : (s.workDays ?? s.plannedDays));
+
 type StepTimes = { start: number | null; finish: number | null; queued: boolean; startDate?: string; finishDate?: string; workStart?: number };
 
 /**
@@ -450,8 +458,8 @@ type StepTimes = { start: number | null; finish: number | null; queued: boolean;
 function overlapReady(prev: PlannedStep, pt: StepTimes, s: PlannedStep): number {
   const pF = pt.finish!;
   if (s.waitAll || pt.start === null || prev.perDay === null || s.perDay === null || !prev.processId || !s.processId) return pF;
-  const pD = prev.plannedDays ?? 0;
-  const sD = s.plannedDays ?? 0;
+  const pD = work(prev) ?? 0;
+  const sD = work(s) ?? 0;
   if (pD <= 0 || sD <= 0) return pF;
   const pS = Math.max(pt.workStart ?? pt.start, pF - pD); // the previous step's own working time
   const first = pS + Math.min(pD, pD / sD); // one day of this step's work is ready
@@ -515,39 +523,57 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
       return;
     }
     // As before: the step's time counts from the previous step's finish (waiting included).
-    const finish = Math.max(prev + s.plannedDays, todayOff, start);
+    const finish = Math.max(prev + work(s)!, todayOff, start);
     if (s.processId) unitsOf(s.processId)[0]!.push({ s: start, e: finish });
     const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
     res[li]![si] = { start: prev, finish, queued: false, workStart: start, ...(prevDate ? { startDate: prevDate } : {}) };
   });
-  // 3. Everything else, line by line (the order of the lines is the queue order).
-  steps.forEach((ss, li) => {
-    if (!ss) return;
-    for (let si = Math.max(0, first[li]!); si < ss.length; si++) {
-      if (res[li]![si]!.finish !== null || (si === first[li] && actuals && ss[si]!.startedAt)) {
-        if (res[li]![si]!.finish === null) break;
-        continue;
+  // 3. Everything else, first come first served (5 Nov 2026): the step that can start
+  // earliest is placed next; on a tie, the line listed first goes first.
+  const ptr = steps.map((ss, li) => (ss ? Math.max(0, first[li]!) : 0));
+  const stopped = steps.map((ss) => !ss);
+  for (;;) {
+    let pick: { li: number; si: number; ready: number; after: number } | null = null;
+    steps.forEach((ss, li) => {
+      if (stopped[li] || !ss) return;
+      let si = ptr[li]!;
+      // Skip what is already placed (finished or started); a started step without a time stops the line.
+      while (si < ss.length && (res[li]![si]!.finish !== null || (si === first[li] && actuals && ss[si]!.startedAt))) {
+        if (res[li]![si]!.finish === null) {
+          si = ss.length;
+          break;
+        }
+        si++;
       }
+      ptr[li] = si;
+      if (si >= ss.length) return void (stopped[li] = true);
       const s = ss[si]!;
       const after = si === 0 ? 0 : res[li]![si - 1]!.finish;
-      if (after === null || s.plannedDays === null) break; // unknown from here on
+      if (after === null || s.plannedDays === null) return void (stopped[li] = true); // unknown from here on
       let ready = si === 0 ? 0 : overlapReady(ss[si - 1]!, res[li]![si - 1]!, s);
       // A step that has not started cannot start in the past (the running step keeps its date).
       if (actuals && si > first[li]! && ready < todayOff) ready = Math.min(after, todayOff);
-      let start = ready;
-      if (s.processId) {
-        const units = unitsOf(s.processId);
-        const [u, t] = earliestSlot(units, ready, s.plannedDays);
-        start = t;
-        units[u]!.push({ s: start, e: start + s.plannedDays });
-      }
-      let finish = start + s.plannedDays;
-      const running = si === first[li] && actuals;
-      if (running && start < todayOff && finish < todayOff) finish = todayOff; // running late: at the earliest today
-      const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
-      res[li]![si] = { start, finish, queued: start > ready + 1e-9, ...(Math.abs(start - after) <= 1e-9 && prevDate ? { startDate: prevDate } : {}) };
+      if (!pick || ready < pick.ready - 1e-9) pick = { li, si, ready, after };
+    });
+    if (!pick) break;
+    const { li, si, ready, after } = pick as { li: number; si: number; ready: number; after: number };
+    const ss = steps[li]!;
+    const s = ss[si]!;
+    const len = work(s)!;
+    let start = ready;
+    if (s.processId) {
+      const units = unitsOf(s.processId);
+      const [u, t] = earliestSlot(units, ready, len);
+      start = t;
+      units[u]!.push({ s: start, e: start + len });
     }
-  });
+    let finish = start + len;
+    const running = si === first[li] && actuals;
+    if (running && start < todayOff && finish < todayOff) finish = todayOff; // running late: at the earliest today
+    const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
+    res[li]![si] = { start, finish, queued: start > ready + 1e-9, ...(Math.abs(start - after) <= 1e-9 && prevDate ? { startDate: prevDate } : {}) };
+    ptr[li] = si + 1;
+  }
   return res;
 }
 
@@ -603,15 +629,15 @@ export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): Order
       if (!s.processId) continue;
       let pp = byProc.get(s.processId);
       if (!pp) {
-        pp = { processId: s.processId, units: Math.max(1, Math.floor(ctx.units?.get(s.processId) ?? 1)), steps: [], start: null, finish: null };
+        pp = { processId: s.processId, units: Math.max(1, Math.floor(ctx.units?.get(s.processId) ?? 1)), steps: [], start: null, finish: null, undated: 0 };
         byProc.set(s.processId, pp);
       }
-      pp.steps.push({ lineId: line.id, product: s.forProduct, qty: s.qty, qtyUnit: s.qtyUnit, perDay: s.perDay, perDayUnit: s.perDayUnit, days: s.plannedDays, start: st.start, finish: st.finish, done: st.view.state === 'DONE' });
+      pp.steps.push({ lineId: line.id, product: s.forProduct, qty: s.qty, qtyUnit: s.qtyUnit, perDay: s.perDay, perDayUnit: s.perDayUnit, days: work(s), start: st.start, finish: st.finish, done: st.view.state === 'DONE' });
     }
   });
   const processes = [...byProc.values()].map((pp) => {
-    const known = pp.steps.every((x) => x.start && x.finish);
-    return { ...pp, start: known ? pp.steps.map((x) => x.start!).sort()[0]! : null, finish: known ? pp.steps.map((x) => x.finish!).sort().at(-1)! : null };
+    const dated = pp.steps.filter((x) => x.start && x.finish);
+    return { ...pp, start: dated.map((x) => x.start!).sort()[0] ?? null, finish: dated.map((x) => x.finish!).sort().at(-1) ?? null, undated: pp.steps.length - dated.length };
   });
   processes.sort((a, b) => (a.start ?? '9999').localeCompare(b.start ?? '9999'));
   return { lines, processes };
@@ -768,6 +794,8 @@ export interface ProcessPlanRow {
   start: string | null;
   finish: string | null;
   items: number;
+  /** Items whose dates are not known yet (the finish is then "at the earliest"). */
+  undated: number;
   done: boolean;
 }
 
@@ -788,6 +816,7 @@ export function processPlanRows(plan: OrderPlan): ProcessPlanRow[] {
       start: p.start,
       finish: p.finish,
       items: p.steps.length,
+      undated: p.undated,
       done: p.steps.every((s) => s.done),
     };
   });

@@ -843,7 +843,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     rows: procRows.map((r) => {
       const name = `${procName(r.processId)}${r.done ? ' (done)' : ''}`;
       const from = r.start ? formatDay(r.start) : clean ? 'To be confirmed' : '—';
-      const to = r.finish ? formatDay(r.finish) : clean ? 'To be confirmed' : '—';
+      const to = r.finish ? `${formatDay(r.finish)}${r.undated ? ` (${r.undated} item${r.undated === 1 ? '' : 's'} to be confirmed)` : ''}` : clean ? 'To be confirmed' : '—';
       return clean
         ? [name, deptOf(r.processId), String(r.items), r.qty, from, to]
         : [name, deptOf(r.processId), String(r.items), r.qty, r.rate, String(r.units), r.days === null ? 'pending' : formatQty(r.days), from, to];
@@ -941,7 +941,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       ? ['Dates are in working days; Sundays and company holidays are not worked.', `Prepared from the information available on ${formatDay(today)}.`]
       : [
       'Day counts are working days. Each step starts on the day the previous one finishes; planned days = quantity / output per day + fixed days, rounded up to half a day.',
-      'Items of this order queue for each process in the order they are listed (a process with several units works on that many items at once). Other orders in the same department are not counted yet (capacity across orders is not planned).',
+      'Items of this order share each process, first come first served (a process with several units works on that many items at once). A step starts once the previous step has one day of its work ready, unless it waits for the whole quantity. Times are worked out exactly and shown rounded up to half a day. Other orders in the same department are not counted yet (capacity across orders is not planned).',
       'Times and quantities come from the benchmarks and BOMs entered in ExportFlow. Times marked "my estimate" are approximate; items marked * use estimated or unconfirmed data.',
       `Prepared from the data available on ${formatDay(today)}.`,
     ],
