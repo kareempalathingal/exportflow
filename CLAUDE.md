@@ -359,7 +359,9 @@ report the discrepancy and ask; do not silently choose.
     conversion table below already shows them. On the product's Conversion
     tab, in Calculator → By product and in the product summary line
     ("40 × 60 cm (15.75 × 23.62 in)"). Nothing shown without a full size;
-    never read from the name.
+    never read from the name. Sizes are shown and entered WIDTH first
+    (W × L), as the company writes them ("40 × 60" = width 40, length 60;
+    confirmed 4 Nov 2026 from a company work order).
 -   Long lists (confirmed 4 Nov 2026, `src/components/LongList.tsx`): more
     than 5 entries collapse into one row ("54 products", tap to show),
     grouped by family (biggest first, "Other" last), one entry per line.

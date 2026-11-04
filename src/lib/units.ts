@@ -215,7 +215,7 @@ export function formatQty(v: number): string {
 }
 
 export interface PieceSize {
-  /** Length × width in each length unit (cm, mm, inch, ft, m), the entered unit first. */
+  /** Width and length in each length unit (cm, mm, inch, ft, m), the entered unit first; shown W × L. */
   rows: { unit: string; length: number; width: number }[];
   estimate: boolean;
 }

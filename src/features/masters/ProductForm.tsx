@@ -110,7 +110,7 @@ export function ProductForm() {
     (len === null) !== (wid === null)
       ? 'Enter both length and width, or neither'
       : (len !== null && !(len > 0)) || (wid !== null && !(wid > 0))
-        ? 'Length and width must be positive numbers'
+        ? 'Width and length must be positive numbers'
         : null;
   const gsmP = trackedFromDraft(gsm, 'GSM');
   const thickP = trackedFromDraft(thick, 'Thickness');
@@ -214,13 +214,14 @@ export function ProductForm() {
         <fieldset className="tracked">
           <legend>Size of one piece</legend>
           <div className="grid3">
-            <label>
-              Length
-              <input inputMode="decimal" value={lenText} onChange={(e) => setLen(e.target.value)} />
-            </label>
+            {/* Width first, as the company writes sizes (W × L, e.g. 40 × 60 cm) — 4 Nov 2026 */}
             <label>
               Width
               <input inputMode="decimal" value={widText} onChange={(e) => setWid(e.target.value)} />
+            </label>
+            <label>
+              Length
+              <input inputMode="decimal" value={lenText} onChange={(e) => setLen(e.target.value)} />
             </label>
             <UnitSelect label="Unit" value={sizeUnit} onChange={setSizeUnit} units={LENGTH_UNITS.map((u) => u.id)} />
           </div>

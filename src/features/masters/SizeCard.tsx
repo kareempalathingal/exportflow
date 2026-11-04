@@ -18,7 +18,7 @@ export function SizeCard({ product }: { product: Pick<Product, 'size'> }) {
           <tr>
             <th scope="col"></th>
             <th scope="col" className="num">
-              Length × width
+              Width × length
             </th>
           </tr>
         </thead>
@@ -27,7 +27,7 @@ export function SizeCard({ product }: { product: Pick<Product, 'size'> }) {
             <tr key={r.unit}>
               <td>{unitLabel(r.unit)}</td>
               <td className="num">
-                {formatQty(r.length)} × {formatQty(r.width)}
+                {formatQty(r.width)} × {formatQty(r.length)}
               </td>
             </tr>
           ))}

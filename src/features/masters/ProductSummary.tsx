@@ -38,8 +38,8 @@ export function ProductSummary({ product, bomStatus, bomVersion }: { product: Pr
         {product.supplyType === 'BOTH' && product.usualSupply && ` (usually ${product.usualSupply === 'MAKE' ? 'made' : 'bought'})`} · base unit {unitLabel(product.baseUnit)}
         {product.code && ` · ${product.code}`}
         {product.active === false && ' · Inactive'}
-        {size && ` · ${formatQty(size.rows[0]!.length)} × ${formatQty(size.rows[0]!.width)} ${unitLabel(size.rows[0]!.unit)}`}
-        {size && size.rows[0]!.unit !== 'in' && ` (${size.rows.filter((r) => r.unit === 'in').map((r) => `${formatQty(r.length)} × ${formatQty(r.width)} in`)[0]})`}
+        {size && ` · ${formatQty(size.rows[0]!.width)} × ${formatQty(size.rows[0]!.length)} ${unitLabel(size.rows[0]!.unit)}`}
+        {size && size.rows[0]!.unit !== 'in' && ` (${size.rows.filter((r) => r.unit === 'in').map((r) => `${formatQty(r.width)} × ${formatQty(r.length)} in`)[0]})`}
       </p>
       <div className="summary-grid">
         <div>

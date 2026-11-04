@@ -10,7 +10,7 @@ import type { JobOrder } from '../../src/lib/jobOrders';
 
 const product: Product & { id: string; rev: number; pending: boolean } = {
   id: 'p1', rev: 3, pending: false, name: 'Mat A', code: '', active: true, notes: '', baseUnit: 'pcs', supplyType: 'MANUFACTURED', specifications: '',
-  size: { length: 40, width: 60, unit: 'cm', status: 'VERIFIED' },
+  size: { length: 60, width: 40, unit: 'cm', status: 'VERIFIED' },
   thicknessMm: { value: null, status: 'UNAVAILABLE', source: '' },
   gsm: { value: 1500, status: 'VERIFIED', source: '' },
   weightPerPieceKg: { value: null, status: 'UNAVAILABLE', source: '' },
@@ -128,7 +128,7 @@ describe('Phase 2 screens render', () => {
     expect(render('/masters/products/p1?tab=details', '/masters/products/:id', <ProductForm />)).toContain('Size of one piece');
     expect(render('/masters/products/p1?tab=conversion', '/masters/products/:id', <ProductForm />)).toContain('Conversion check');
     const conv = render('/masters/products/p1?tab=conversion', '/masters/products/:id', <ProductForm />);
-    expect(conv).toContain('40 × 60 cm (15.75 × 23.62 in)'); // summary line; the size table needs the form loaded (browser)
+    expect(conv).toContain('40 × 60 cm (15.75 × 23.62 in)'); // W × L like the company (width 40, length 60)
   });
   it('new product form renders', () => {
     expect(render('/masters/products/new', '/masters/products/:id', <ProductForm />)).toContain('New product');

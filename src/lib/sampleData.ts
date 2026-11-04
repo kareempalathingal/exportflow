@@ -86,24 +86,24 @@ export function buildSampleData(today: string): SampleWrite[] {
   const products: Record<string, Product> = {
     sample_p_yarn: product('Coir yarn', 'MANUFACTURED', 'kg', { route: [st('sample_pr_spin', 250, 'kg')] }),
     sample_p_mat: product('Coir mat 40×60', 'MANUFACTURED', 'pcs', {
-      size: { length: 40, width: 60, unit: 'cm', status: 'USER_PROVIDED' },
+      size: { length: 60, width: 40, unit: 'cm', status: 'USER_PROVIDED' },
       gsm: up(1500),
       route: [st('sample_pr_weave', 200, 'pcs'), st('sample_pr_bleach', 600, 'pcs', 1), st('sample_pr_dye', 500, 'pcs'), st('sample_pr_latex', null, 'pcs', 2), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }],
     }),
-    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 45, width: 75, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', null, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
-    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 150, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
+    sample_p_door: product('Printed door mat 45×75', 'TRADED', 'pcs', { size: { length: 75, width: 45, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_label', null, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
+    sample_p_rubber: product('Rubber-backed mat 50×80', 'BOTH', 'pcs', { usualSupply: 'MAKE', size: { length: 80, width: 50, unit: 'cm', status: 'USER_PROVIDED' }, route: [st('sample_pr_weave', 150, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }] }),
     // For the larger sample order (DEMO-105, 7 products).
     sample_p_runner: product('Coir runner 60×180', 'MANUFACTURED', 'pcs', {
-      size: { length: 60, width: 180, unit: 'cm', status: 'USER_PROVIDED' },
+      size: { length: 180, width: 60, unit: 'cm', status: 'USER_PROVIDED' },
       gsm: up(1500),
       route: [st('sample_pr_weave', 80, 'pcs'), st('sample_pr_bleach', 300, 'pcs', 1), st('sample_pr_latex', null, 'pcs', 2), { ...st('sample_pr_pack', 600, 'pcs'), alsoForStock: true }],
     }),
     sample_p_printed: product('Printed coir mat 50×80', 'MANUFACTURED', 'pcs', {
-      size: { length: 50, width: 80, unit: 'cm', status: 'USER_PROVIDED' },
+      size: { length: 80, width: 50, unit: 'cm', status: 'USER_PROVIDED' },
       route: [st('sample_pr_weave', 150, 'pcs'), st('sample_pr_dye', 400, 'pcs'), { ...st('sample_pr_pack', 800, 'pcs'), alsoForStock: true }],
     }),
     sample_p_rug: product('Coir rug 120×180', 'MANUFACTURED', 'pcs', {
-      size: { length: 120, width: 180, unit: 'cm', status: 'USER_PROVIDED' },
+      size: { length: 180, width: 120, unit: 'cm', status: 'USER_PROVIDED' },
       route: [st('sample_pr_weave', 40, 'pcs'), st('sample_pr_bleach', 200, 'pcs', 1), { ...st('sample_pr_latex', null, 'pcs', 2), status: 'ESTIMATED' }, { ...st('sample_pr_pack', 300, 'pcs'), alsoForStock: true }],
     }),
   };
