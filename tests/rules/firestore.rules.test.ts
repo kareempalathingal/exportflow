@@ -195,6 +195,38 @@ describe('versioned records with audit', () => {
     await assertFails(deleteDoc(doc(db, `workspaces/${ws}/products/p1`)));
     await assertFails(getDoc(doc(dbFor(BOB), `workspaces/${ws}/products/p1`)));
   });
+  it('a guessed base unit can change until it is confirmed (4 Nov 2026)', async () => {
+    const db = dbFor(ALICE);
+    const ws = await createWorkspace(db, ALICE, 'ACTUAL');
+    const write = (coll: string, id: string, rev: number, ev: string, data: Record<string, unknown>) => {
+      const b = writeBatch(db);
+      b.set(doc(db, `workspaces/${ws}/${coll}/${id}`), { ...data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
+      b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
+        entity: coll, entityPath: `workspaces/${ws}/${coll}/${id}`, entityId: id, action: rev === 1 ? 'CREATE' : 'UPDATE',
+        rev, changes: [], reason: null, actorUid: ALICE, at: serverTimestamp(),
+      });
+      return b.commit();
+    };
+    const rm = { name: 'Tape', active: true, baseUnit: 'pcs', baseUnitStatus: 'ESTIMATED', category: 'Packing Materials', erpCode: 'RM-1' };
+    await assertSucceeds(write('rawMaterials', 'r1', 1, 'g1', rm));
+    await assertSucceeds(write('rawMaterials', 'r1', 2, 'g2', { ...rm, baseUnit: 'm' })); // still a guess: may change
+    await assertSucceeds(write('rawMaterials', 'r1', 3, 'g3', { ...rm, baseUnit: 'kg', baseUnitStatus: 'USER_PROVIDED' })); // change + confirm together
+    await assertFails(write('rawMaterials', 'r1', 4, 'g4', { ...rm, baseUnit: 'pcs', baseUnitStatus: 'USER_PROVIDED' })); // confirmed: fixed
+    await assertFails(write('rawMaterials', 'r2', 1, 'g5', { ...rm, baseUnitStatus: 'SURE' }));
+    await assertFails(deleteDocLater(db, `workspaces/${ws}/rawMaterials/r1`)); // ACTUAL: never deleted
+  });
+  it('DEMO can be cleared; ACTUAL cannot; nobody else can clear it', async () => {
+    const db = dbFor(ALICE);
+    const actual = await createWorkspace(db, ALICE, 'ACTUAL');
+    const demo = await createWorkspace(db, ALICE, 'DEMO');
+    await saveBatch(db, ALICE, demo, 1, 'd1');
+    await saveBatch(db, ALICE, actual, 1, 'a1');
+    await assertFails(deleteDocLater(dbFor(BOB), `workspaces/${demo}/settings/profile`));
+    await assertSucceeds(deleteDocLater(db, `workspaces/${demo}/settings/profile`));
+    await assertSucceeds(deleteDocLater(db, `workspaces/${demo}/auditEvents/d1`));
+    await assertFails(deleteDocLater(db, `workspaces/${actual}/settings/profile`));
+    await assertFails(deleteDocLater(db, `workspaces/${actual}/auditEvents/a1`));
+  });
   it('job orders: draft first, allowed transitions, reasons, no delete', async () => {
     const db = dbFor(ALICE);
     const ws = await createWorkspace(db, ALICE, 'ACTUAL');

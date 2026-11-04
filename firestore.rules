@@ -87,9 +87,25 @@ service cloud.firestore {
     }
 
     // The BOM is written per base unit, so the base unit is fixed once created.
+    // The base unit is fixed, except while it is marked as a guess
+    // (baseUnitStatus ESTIMATED, e.g. from the ERP import, 4 Nov 2026).
     function baseUnitUnchanged(c) {
       return !(c in ['products', 'rawMaterials'])
-        || request.resource.data.baseUnit == resource.data.baseUnit;
+        || request.resource.data.baseUnit == resource.data.baseUnit
+        || resource.data.get('baseUnitStatus', '') == 'ESTIMATED';
+    }
+
+    function validBaseUnitStatus(c) {
+      let d = request.resource.data;
+      return !(c in ['products', 'rawMaterials'])
+        || d.get('baseUnitStatus', null) == null
+        || d.baseUnitStatus in ['VERIFIED', 'USER_PROVIDED', 'ESTIMATED', 'PENDING_VERIFICATION', 'UNAVAILABLE'];
+    }
+
+    // DEMO is a practice space: its records may be cleared ("Clear DEMO",
+    // 4 Nov 2026). ACTUAL records are never deleted.
+    function canClearDemo(wsId) {
+      return signedIn() && wsId == request.auth.uid + '_demo' && isMember(wsId);
     }
 
     // ---- Phase 3: Job Orders --------------------------------------------
@@ -188,7 +204,8 @@ service cloud.firestore {
           && request.resource.data.action in ['CREATE', 'UPDATE', 'RESOLVE_CONFLICT']
           && request.resource.data.rev is int
           && request.resource.data.changes is list;
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if canClearDemo(wsId);
       }
 
       // Work calendar (weekly off days + company holidays); other settings docs unchanged.
@@ -202,34 +219,35 @@ service cloud.firestore {
         allow read: if isMember(wsId);
         allow create: if validCreate(wsId, docId) && validSettings(docId, request.resource.data);
         allow update: if validUpdate(wsId, docId) && validSettings(docId, request.resource.data);
-        allow delete: if false;
+        allow delete: if canClearDemo(wsId);
       }
 
-      // Phase 2 masters. Records are never deleted; they are made inactive.
+      // Phase 2 masters. Records are never deleted in ACTUAL; they are made inactive.
       match /{masterCollection}/{docId} {
         allow read: if isMember(wsId) && isMaster(masterCollection);
-        allow create: if isMaster(masterCollection) && validCreate(wsId, docId) && validMaster(masterCollection, docId);
+        allow create: if isMaster(masterCollection) && validCreate(wsId, docId) && validMaster(masterCollection, docId)
+          && validBaseUnitStatus(masterCollection);
         allow update: if isMaster(masterCollection) && validUpdate(wsId, docId) && validMaster(masterCollection, docId)
-          && baseUnitUnchanged(masterCollection);
-        allow delete: if false;
+          && baseUnitUnchanged(masterCollection) && validBaseUnitStatus(masterCollection);
+        allow delete: if canClearDemo(wsId);
       }
 
       match /stockCounts/{docId} {
         allow read: if isMember(wsId);
         allow create: if validCreate(wsId, docId) && validStockCount(request.resource.data, docId);
         allow update: if validUpdate(wsId, docId) && validStockCount(request.resource.data, docId);
-        allow delete: if false;
+        allow delete: if canClearDemo(wsId);
       }
 
-      // Tasks: never deleted (Done or Dropped instead).
+      // Tasks: never deleted in ACTUAL (Done or Dropped instead).
       match /tasks/{docId} {
         allow read: if isMember(wsId);
         allow create: if validCreate(wsId, docId) && validTask(request.resource.data);
         allow update: if validUpdate(wsId, docId) && validTask(request.resource.data);
-        allow delete: if false;
+        allow delete: if canClearDemo(wsId);
       }
 
-      // Phase 3 Job Orders. Created as Draft; never deleted (cancel instead).
+      // Phase 3 Job Orders. Created as Draft; never deleted in ACTUAL (cancel instead).
       match /jobOrders/{docId} {
         allow read: if isMember(wsId);
         allow create: if validCreate(wsId, docId)
@@ -239,7 +257,7 @@ service cloud.firestore {
           && validJobOrder(request.resource.data)
           && allowedTransition(resource.data.status, request.resource.data.status)
           && (!needsReason(resource.data.status, request.resource.data.status) || reasonGiven(wsId));
-        allow delete: if false;
+        allow delete: if canClearDemo(wsId);
       }
     }
   }

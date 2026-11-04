@@ -136,8 +136,10 @@ export function planRestore(
   }
   if (file.mode === 'ACTUAL' && target.mode === 'DEMO') plan.warnings.push('This ACTUAL backup will be restored into DEMO (good for a practice run). ACTUAL is not touched.');
   const owner = (ws: string) => ws.replace(/_(actual|demo)$/, '');
-  if (owner(file.workspaceId) !== owner(target.workspaceId)) plan.warnings.push('This backup was made by another login (or before the account was re-created).');
-  const reason = `Restored from backup of ${file.exportedAt.slice(0, 16).replace('T', ' ')} UTC`;
+  const label = typeof file.label === 'string' && file.label.trim() ? file.label.trim().slice(0, 120) : null;
+  if (label) plan.warnings.push(`This file was made outside the app: ${label}.`);
+  else if (owner(file.workspaceId) !== owner(target.workspaceId)) plan.warnings.push('This backup was made by another login (or before the account was re-created).');
+  const reason = label ? `Imported: ${label}` : `Restored from backup of ${file.exportedAt.slice(0, 16).replace('T', ' ')} UTC`;
 
   for (const collection of RESTORE_COLLECTIONS) {
     const counts = zero();

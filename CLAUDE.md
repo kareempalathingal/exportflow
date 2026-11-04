@@ -425,6 +425,37 @@ report the discrepancy and ask; do not silently choose.
 -   After joining: department KPIs the user defines (monthly figures),
     approvals register, meeting notes (checklist item "other-departments").
 
+## ERP master import aids (confirmed 4 Nov 2026)
+
+-   The ERP (built by the user's friend, not live yet) gave draft master
+    data. It is converted OUTSIDE the repo (the repo is public: no company
+    data, names or converter in it) into an `exportflow-backup/v1` file with
+    `label` (history reason "Imported: <label>", no "another login"
+    warning) and mode ACTUAL, restored first into DEMO, later into ACTUAL.
+    Stable ids from the ERP code when unique, else from the name.
+-   Products and raw materials have optional `category`, `productType`,
+    `family` (Masters: grouped by category, filters, "N of M shown"),
+    hidden `erpCode` (form: collapsed "ERP reference"; NOT the product code;
+    a later "use ERP codes as product codes" action is possible) and
+    `importSource`. Forms carry these fields through every save.
+-   `baseUnitStatus` ESTIMATED = unit guessed (not in the source): tag "unit
+    guessed", filter "Only units guessed", the unit may be changed (rules
+    allow it only while the stored status is ESTIMATED) with a list of where
+    the item is used (`src/lib/itemUses.ts`); "Confirm unit" (also in bulk
+    for the filtered list) fixes it. Absent = fixed as before.
+-   "Steps for a family" (`/masters/family-steps`, `src/lib/itemGroups.ts`):
+    one route for all active products of a family, preview (changes / same /
+    kept, "only products without steps"), each product a normal history
+    entry; families without process data stay without steps until set.
+-   Clear DEMO (Settings → Sample data, type CLEAR DEMO): deletes every
+    record and audit event in the DEMO workspace; rules allow deletes only in
+    `<uid>_demo`. ACTUAL is never deleted.
+-   Import rules agreed: GSM written as 4 / 4.8 / 5 / 5.2 = kg per sq m
+    (× 1000); implausible values left empty "to be checked"; tools (moulds,
+    plates, guns) skipped; duplicate names kept once; families with the same
+    meaning but different names stay separate products; services other than
+    packing / tagging wait for dispatch stages.
+
 ## Factory documentation (noted 27 Oct 2026; build AFTER joining)
 
 -   The user will be answerable for factory records being complete and on

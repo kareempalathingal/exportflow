@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { COLLECTIONS, findDuplicate, rawMaterialContext, type RawMaterial } from '../../lib/masters';
+import { baseUnitGuessed, COLLECTIONS, findDuplicate, rawMaterialContext, type RawMaterial } from '../../lib/masters';
+import { ErpReference, GroupFields, groupDraftOf, groupFields, UnitGuess, type GroupDraft } from './ItemExtrasFields';
 import { saveRecord } from '../sync/records';
 import { FormShell } from './FormShell';
 import {
@@ -39,6 +40,9 @@ export function RawMaterialForm() {
   const [gsm, setGsm] = useState<TrackedNumberDraft>(draftFromTracked(undefined));
   const [units, setUnits] = useState<CustomUnitDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [group, setGroup] = useState<GroupDraft>(groupDraftOf(null));
+  const [erpCode, setErpCode] = useState('');
+  const [confirmUnit, setConfirmUnit] = useState(false);
   const loaded = useRef<string | null>(null);
 
   useEffect(() => {
@@ -52,12 +56,16 @@ export function RawMaterialForm() {
     setActive(item.active !== false);
     setGsm(draftFromTracked(item.gsm));
     setUnits(draftsFromCustomUnits(item.customUnits));
+    setGroup(groupDraftOf(item));
+    setErpCode(item.erpCode ?? '');
+    setConfirmUnit(false);
   }, [item]);
 
   if (!isNew && loading) return <p className="muted">{t('loading')}</p>;
   if (!isNew && !item) return <p className="error">Raw material not found.</p>;
 
   const dup = name.trim() ? findDuplicate(name, all.items, isNew ? undefined : id) : undefined;
+  const guessed = !isNew && baseUnitGuessed(item);
   const unitsParsed = customUnitsFromDrafts(units);
   const gsmParsed = trackedFromDraft(gsm, 'GSM');
 
@@ -66,13 +74,24 @@ export function RawMaterialForm() {
     if (!name.trim()) return setError('Name is required'), false;
     if (typeof unitsParsed === 'string') return setError(unitsParsed), false;
     if (typeof gsmParsed === 'string') return setError(gsmParsed), false;
-    if (!isNew && item && item.baseUnit !== baseUnit) {
+    if (!isNew && item && item.baseUnit !== baseUnit && !guessed) {
       // Changing the base unit silently re-scales every BOM that uses it.
       return setError('The base unit cannot be changed after creation. Create a new raw material instead.'), false;
     }
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTIONS.rawMaterials) : id;
-    const data: RawMaterial = { name: name.trim(), baseUnit, notes: notes.trim(), active: isNew ? true : active, gsm: gsmParsed, customUnits: unitsParsed };
+    const data: RawMaterial = {
+      name: name.trim(),
+      baseUnit,
+      notes: notes.trim(),
+      active: isNew ? true : active,
+      gsm: gsmParsed,
+      customUnits: unitsParsed,
+      ...groupFields(group),
+      ...(erpCode.trim() ? { erpCode: erpCode.trim() } : {}),
+      ...(item?.importSource ? { importSource: item.importSource } : {}),
+      ...(guessed ? { baseUnitStatus: confirmUnit ? 'USER_PROVIDED' : 'ESTIMATED' } : item?.baseUnitStatus ? { baseUnitStatus: item.baseUnitStatus } : {}),
+    };
     saveRecord({ workspaceId, collectionName: COLLECTIONS.rawMaterials, docId, entity: `Raw material: ${data.name}`, before: isNew ? null : item, data: { ...data }, reason });
     if (isNew) navigate(returnTo ? withAdded(returnTo, itemKey('RAW_MATERIAL', docId)) : `/masters/raw-materials/${docId}`, { replace: true });
     return true;
@@ -94,10 +113,13 @@ export function RawMaterialForm() {
       >
         <TextField label="Name" required value={name} onChange={setName} />
         <UnitSelect label="Base unit (how it is measured and bought)" value={baseUnit} onChange={setBaseUnit} />
-        {!isNew && <p className="muted small">The base unit is fixed after creation so existing BOMs stay correct.</p>}
+        {guessed && <UnitGuess type="RAW_MATERIAL" id={id} savedUnit={item?.baseUnit ?? null} unit={baseUnit} confirmed={confirmUnit} onConfirm={setConfirmUnit} />}
+        {!isNew && !guessed && <p className="muted small">The base unit is fixed after creation so existing BOMs stay correct.</p>}
+        <GroupFields value={group} onChange={setGroup} existing={all.items} />
         <TrackedNumberField label="GSM (only for sheet / fabric materials)" unit="g per sq m" draft={gsm} onChange={setGsm} />
         <CustomUnitsEditor baseUnit={baseUnit} rows={units} onChange={setUnits} />
         <TextField label="Notes" multiline value={notes} onChange={setNotes} />
+        {(!isNew || erpCode) && <ErpReference erpCode={erpCode} onChange={setErpCode} importSource={item?.importSource} />}
       </FormShell>
       {!isNew && item && <ItemSuppliers type="RAW_MATERIAL" id={id} name={item.name} here={`/masters/raw-materials/${id}`} />}
       {typeof unitsParsed !== 'string' && typeof gsmParsed !== 'string' && (

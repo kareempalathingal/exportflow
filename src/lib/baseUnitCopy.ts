@@ -55,8 +55,11 @@ export function planBaseUnitCopy(args: {
 
   // Own units: 1 <name> = f old base units = f / factor new base units.
   const customUnits: CustomUnit[] = (old.customUnits ?? []).map((u) => ({ ...u, factor: round(u.factor / factor), status: downgrade(u.status, provisional) }));
+  // The new base unit is chosen on purpose, so it is not a guess any more.
+  const { baseUnitStatus: _guess, ...rest } = old;
+  void _guess;
   const product: Product = {
-    ...old,
+    ...rest,
     name,
     code: '',
     baseUnit: newUnit,

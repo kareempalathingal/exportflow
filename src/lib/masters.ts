@@ -19,6 +19,46 @@ export interface MasterBase {
   notes: string;
 }
 
+/**
+ * Grouping, ERP reference and how sure the base unit is (confirmed 4 Nov
+ * 2026, for the ERP import). All optional; records made before have none.
+ */
+export interface ItemExtras {
+  /** e.g. Doormats, Raw Materials, Packing Materials. */
+  category?: string;
+  /** e.g. Tufted Doormats, Moulded Doormat. */
+  productType?: string;
+  /** The item family (the ERP "Product"), e.g. "Coir tufted on PVC Natural PRINTED". */
+  family?: string;
+  /** Code in the company ERP (not live yet); kept out of sight, not the product code. */
+  erpCode?: string;
+  /** Where the record came from, e.g. "ERP import (draft data), 4 Nov 2026". */
+  importSource?: string;
+  /**
+   * How sure the base unit is. ESTIMATED = guessed (e.g. from the item name):
+   * it may still be changed until it is confirmed. Absent = fixed as before.
+   */
+  baseUnitStatus?: DataStatus;
+}
+
+export const ITEM_EXTRA_KEYS = ['category', 'productType', 'family', 'erpCode', 'importSource', 'baseUnitStatus'] as const;
+
+/** The extras of a saved item, to carry them through a form save unchanged. */
+export function itemExtras(x: ItemExtras | null | undefined): ItemExtras {
+  const out: ItemExtras = {};
+  if (!x) return out;
+  for (const k of ITEM_EXTRA_KEYS) {
+    const v = x[k];
+    if (v !== undefined && v !== null && v !== '') (out as Record<string, unknown>)[k] = v;
+  }
+  return out;
+}
+
+/** The base unit may be changed only while it is a guess. */
+export function baseUnitGuessed(x: ItemExtras | null | undefined): boolean {
+  return x?.baseUnitStatus === 'ESTIMATED';
+}
+
 export interface Customer extends MasterBase {
   country: string;
   customerType: CustomerType;
@@ -34,7 +74,7 @@ export interface ProductSize {
   status: DataStatus;
 }
 
-export interface Product extends MasterBase {
+export interface Product extends MasterBase, ItemExtras {
   code: string;
   baseUnit: string;
   supplyType: SupplyType;
@@ -109,7 +149,7 @@ export function validGstin(s: string): boolean {
   return /^[0-9]{2}[A-Z0-9]{13}$/.test(s.trim().toUpperCase());
 }
 
-export interface RawMaterial extends MasterBase {
+export interface RawMaterial extends MasterBase, ItemExtras {
   baseUnit: string;
   gsm: Tracked<number>;
   customUnits: CustomUnit[];

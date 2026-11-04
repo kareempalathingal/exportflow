@@ -522,3 +522,17 @@ label.inline { display: flex; align-items: center; gap: 0.5rem; }
 .heat-table td.heat-1 { background: #dce6f2; color: #17202b; }
 .heat-table td.heat-2 { background: #a9bbd3; color: #17202b; }
 .heat-table td.heat-3 { background: #1f3a5f; color: #ffffff; }
+
+/* ERP import aids (4 Nov 2026): filters, category groups, guessed units, ERP reference, Clear DEMO */
+.item-filters { margin: 0.4rem 0 0.6rem; }
+.item-filters .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.item-filters .grid3 label { font-size: 0.8rem; margin: 0; }
+.item-filters select { width: 100%; min-width: 0; padding: 6px 4px; font-size: 0.85rem; }
+.group-row { list-style: none; }
+.group-row > details > summary { cursor: pointer; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+.group-row > details > .master-list { margin-top: 6px; }
+.unit-guess { border-left: 3px solid var(--warn); padding: 4px 8px; margin: 4px 0 8px; background: color-mix(in srgb, var(--warn) 8%, transparent); border-radius: 4px; }
+.erp-ref { margin-top: 8px; }
+.erp-ref > summary { cursor: pointer; }
+.clear-demo { margin-top: 10px; }
+.clear-demo > summary { cursor: pointer; color: var(--danger); }

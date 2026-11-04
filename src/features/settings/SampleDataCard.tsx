@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocsFromServer, writeBatch } from 'firebase/firestore';
+import { BACKUP_COLLECTIONS } from '../../lib/backup';
+import { logError } from '../../lib/errorLog';
 import { db } from '../../firebase';
 import { useApp } from '../../AppContext';
 import { modeOfWorkspace } from '../../lib/mode';
@@ -13,12 +15,14 @@ export function SampleDataCard() {
   const { workspaceId, mode } = useApp();
   const master = useMasterData(workspaceId);
   const [msg, setMsg] = useState<string | null>(null);
+  const [word, setWord] = useState('');
+  const [busy, setBusy] = useState(false);
   if (mode !== 'DEMO' || !workspaceId) return null;
   const loaded = master.md.products.has(SAMPLE_MARKER_ID);
 
   function load() {
     if (!workspaceId || modeOfWorkspace(workspaceId) !== 'DEMO') return; // never into ACTUAL
-    if (!window.confirm('Add sample products, BOMs, suppliers and 5 Job Orders to DEMO? They are marked "(sample)" and cannot be deleted (only set inactive or cancelled).')) return;
+    if (!window.confirm('Add sample products, BOMs, suppliers and 5 Job Orders to DEMO? They are marked "(sample)"; "Clear DEMO" below removes everything in DEMO.')) return;
     const writes = buildSampleData(istDateKey(new Date()));
     for (const w of writes) saveRecord({ workspaceId, collectionName: w.collection, docId: w.docId, entity: w.entity, before: w.before, data: w.data, reason: w.reason });
     setMsg(`Added ${writes.length} sample records. Open Home to see the dashboard.`);
@@ -41,6 +45,37 @@ export function SampleDataCard() {
     }
   }
 
+  /** Clear DEMO (confirmed 4 Nov 2026): deletes every record and its history in DEMO only. */
+  async function clearDemo() {
+    if (!workspaceId || modeOfWorkspace(workspaceId) !== 'DEMO' || !workspaceId.endsWith('_demo')) return; // never ACTUAL
+    setBusy(true);
+    setMsg('Clearing DEMO…');
+    let n = 0;
+    try {
+      for (const name of BACKUP_COLLECTIONS) {
+        const snap = await getDocsFromServer(collection(db, `workspaces/${workspaceId}/${name}`));
+        for (let i = 0; i < snap.docs.length; i += 400) {
+          const b = writeBatch(db);
+          for (const d of snap.docs.slice(i, i + 400)) b.delete(d.ref);
+          await b.commit();
+          n += Math.min(400, snap.docs.length - i);
+        }
+      }
+      setWord('');
+      setMsg(`DEMO cleared: ${n} records deleted. ACTUAL was not touched.`);
+    } catch (e) {
+      logError(e, 'clear-demo');
+      const text = e instanceof Error ? e.message : String(e);
+      setMsg(
+        /permission/i.test(text)
+          ? `Stopped after ${n} records: the Firestore rules do not allow clearing yet. Publish the latest rules, then try again.`
+          : `Stopped after ${n} records: ${text} (needs internet). Try again to finish.`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="card">
       <h3>Sample data (DEMO)</h3>
@@ -56,6 +91,20 @@ export function SampleDataCard() {
           Add new sample records
         </button>
       )}
+      <details className="clear-demo">
+        <summary className="small">Clear DEMO (start fresh)</summary>
+        <p className="small">
+          Deletes <strong>everything</strong> in DEMO — products, raw materials, BOMs, orders, tasks, settings and their history — so DEMO can start fresh (e.g.
+          from an ERP import). ACTUAL is never touched. Make a DEMO backup first if you may want it back. Needs internet.
+        </p>
+        <label className="small">
+          Type CLEAR DEMO to confirm
+          <input value={word} onChange={(e) => setWord(e.target.value)} autoComplete="off" />
+        </label>
+        <button type="button" className="danger small" disabled={busy || word.trim().toUpperCase() !== 'CLEAR DEMO'} onClick={() => void clearDemo()}>
+          {busy ? 'Clearing…' : 'Delete all DEMO data'}
+        </button>
+      </details>
       {msg && <p className="ok small">{msg}</p>}
     </div>
   );

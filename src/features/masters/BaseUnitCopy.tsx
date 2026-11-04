@@ -1,3 +1,4 @@
+import { businessFields } from './businessFields';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../AppContext';
@@ -120,10 +121,4 @@ export function BaseUnitCopy({ product }: { product: WithMeta<Product> }) {
       </div>
     </details>
   );
-}
-
-const META = new Set(['id', 'rev', 'pending', 'updatedAt', 'updatedBy', 'lastAuditId']);
-/** The record without its id and version fields (those are written by saveRecord). */
-function businessFields<T extends object>(r: WithMeta<T>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(r).filter(([k]) => !META.has(k)));
 }

@@ -28,6 +28,8 @@ export interface BackupFile {
   workspaceId: string;
   mode: 'ACTUAL' | 'DEMO';
   exportedAt: string; // ISO
+  /** Set on files made outside the app (e.g. an ERP import); used as the history reason. */
+  label?: string;
   counts: Record<string, number>;
   collections: Record<string, { id: string; data: unknown }[]>;
 }

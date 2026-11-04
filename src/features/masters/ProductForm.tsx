@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
-import { bomStatus, COLLECTIONS, findDuplicate, needsBom, productContext, type Product, type SupplyType } from '../../lib/masters';
+import { baseUnitGuessed, bomStatus, COLLECTIONS, findDuplicate, needsBom, productContext, type Product, type SupplyType } from '../../lib/masters';
+import { ErpReference, GroupFields, groupDraftOf, groupFields, UnitGuess, type GroupDraft } from './ItemExtrasFields';
 import { useMasterData } from './useMasterData';
 import { availableUnits, completeFacts, LENGTH_UNITS, areaFromSize, formatQty } from '../../lib/units';
 import type { DataStatus } from '../../lib/dataStatus';
@@ -58,6 +59,9 @@ export function ProductForm() {
   const [units, setUnits] = useState<CustomUnitDraft[]>([]);
   const [route, setRoute] = useState<RouteDraft[]>([]);
   const [routeConfirmed, setRouteConfirmed] = useState(false);
+  const [group, setGroup] = useState<GroupDraft>(groupDraftOf(null));
+  const [erpCode, setErpCode] = useState('');
+  const [confirmUnit, setConfirmUnit] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const loaded = useRef<string | null>(null);
   const [params, setParams] = useSearchParams();
@@ -87,12 +91,16 @@ export function ProductForm() {
     setUnits(draftsFromCustomUnits(item.customUnits));
     setRoute(draftsFromRoute(item.route, item.baseUnit));
     setRouteConfirmed(item.routeConfirmed === true);
+    setGroup(groupDraftOf(item));
+    setErpCode(item.erpCode ?? '');
+    setConfirmUnit(false);
   }, [item]);
 
   if (!isNew && loading) return <p className="muted">{t('loading')}</p>;
   if (!isNew && !item) return <p className="error">Product not found.</p>;
 
   const dup = name.trim() ? findDuplicate(name, all.items, isNew ? undefined : id) : undefined;
+  const guessed = !isNew && baseUnitGuessed(item);
 
   // Parse once for both save and the live preview.
   const len = parseNum(lenText);
@@ -128,6 +136,10 @@ export function ProductForm() {
           customUnits: unitsP,
           route: routeP,
           routeConfirmed,
+          ...groupFields(group),
+          ...(erpCode.trim() ? { erpCode: erpCode.trim() } : {}),
+          ...(item?.importSource ? { importSource: item.importSource } : {}),
+          ...(guessed ? { baseUnitStatus: confirmUnit ? 'USER_PROVIDED' : 'ESTIMATED' } : item?.baseUnitStatus ? { baseUnitStatus: item.baseUnitStatus } : {}),
         }
       : null;
 
@@ -138,7 +150,7 @@ export function ProductForm() {
     if (!workspaceId) return false;
     if (!name.trim()) return setError('Name is required'), false;
     if (parseError || !draftProduct) return setError(parseError ?? 'Check the values'), false;
-    if (!isNew && item && item.baseUnit !== baseUnit) {
+    if (!isNew && item && item.baseUnit !== baseUnit && !guessed) {
       return setError('The base unit cannot be changed after creation (the BOM is written per base unit). Use “Wrong base unit? Copy in another unit” below.'), false;
     }
     setError(null);
@@ -192,7 +204,9 @@ export function ProductForm() {
             <span className="muted small block">Pre-fills Make/Buy on new Job Order lines; you can still change it per order.</span>
           </label>
         )}
-        {!isNew && <p className="muted small">The base unit is fixed after creation so the BOM stays correct. To correct it, use “Wrong base unit?” below the form.</p>}
+        {guessed && <UnitGuess type="PRODUCT" id={id} savedUnit={item?.baseUnit ?? null} unit={baseUnit} confirmed={confirmUnit} onConfirm={setConfirmUnit} />}
+        {!isNew && !guessed && <p className="muted small">The base unit is fixed after creation so the BOM stays correct. To correct it, use “Wrong base unit?” below the form.</p>}
+        <GroupFields value={group} onChange={setGroup} existing={all.items} product />
         <TextField label="Product code (optional)" value={code} onChange={setCode} max={40} />
         <TextField label="Specifications" multiline value={specifications} onChange={setSpecs} />
 
@@ -223,7 +237,13 @@ export function ProductForm() {
         )}
         <CustomUnitsEditor baseUnit={baseUnit} rows={units} onChange={setUnits} />
         <RouteEditor rows={route} onChange={setRoute} confirmed={routeConfirmed} onConfirmedChange={setRouteConfirmed} units={facts ? availableUnits(facts) : [baseUnit]} baseUnit={baseUnit} />
+        {!isNew && item?.family && (
+          <p className="small">
+            <Link to={`/masters/family-steps?family=${encodeURIComponent(item.family)}`}>Set steps for the whole family “{item.family}”</Link>
+          </p>
+        )}
         <TextField label="Notes" multiline value={notes} onChange={setNotes} />
+        {(!isNew || erpCode) && <ErpReference erpCode={erpCode} onChange={setErpCode} importSource={item?.importSource} />}
       </FormShell>
   );
 
@@ -244,7 +264,7 @@ export function ProductForm() {
       {tab === 'details' && item && item.supplyType !== 'MANUFACTURED' && (
         <ItemSuppliers type="PRODUCT" id={id} name={item.name} here={`/masters/products/${id}?tab=details`} />
       )}
-      {tab === 'details' && item && item.active !== false && <BaseUnitCopy key={item.id} product={item} />}
+      {tab === 'details' && item && item.active !== false && !guessed && <BaseUnitCopy key={item.id} product={item} />}
       {tab === 'conversion' && (draftProduct ? <ConversionCheck ctx={productContext(draftProduct)} /> : <p className="error">{parseError}</p>)}
     </>
   );

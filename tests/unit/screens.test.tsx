@@ -62,7 +62,8 @@ const tasks = [
   { id: 't1', rev: 1, pending: false, title: 'Artwork approval from buyer', departmentId: 'd1', person: 'Rajan K', dueDate: '2020-01-01', priority: 'HIGH', status: 'WAITING', waitingOn: 'buyer', joId: 'j1', joNumber: 'JO-77', notes: '', repeat: null, doneOn: null },
   { id: 't2', rev: 1, pending: false, title: 'GST filing status', departmentId: '', person: '', dueDate: '2099-01-10', priority: 'NORMAL', status: 'OPEN', waitingOn: '', joId: null, joNumber: '', notes: '', repeat: { kind: 'MONTHLY', day: 10 }, doneOn: null },
 ];
-const data: Record<string, { id: string }[]> = { tasks, departments: [department], products: [product], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder, stepped], suppliers: [supplier], processes };
+const guessedProduct = { ...product, id: 'p2', name: 'Printed mat 45x75', category: 'Doormats', productType: 'Tufted Doormats', family: 'Printed family', erpCode: 'ERP-77', importSource: 'ERP import (draft data)', baseUnitStatus: 'ESTIMATED', route: [] };
+const data: Record<string, { id: string }[]> = { tasks, departments: [department], products: [product, guessedProduct], rawMaterials: [rm], boms: [bom], customers: [customer], jobOrders: [jobOrder, stepped], suppliers: [supplier], processes };
 
 vi.mock('../../src/firebase', () => ({ db: {}, auth: { currentUser: { uid: 'u1' } }, offlineCacheEnabled: true }));
 vi.mock('../../src/features/settings/useProfile', () => ({ useProfile: () => ({ profile: null, loading: false, pendingWrite: false, fromCache: false, error: null }) }));
@@ -95,6 +96,7 @@ const { PerformancePage } = await import('../../src/features/reports/Performance
 const { Layout } = await import('../../src/components/Layout');
 const { SettingsPage } = await import('../../src/features/settings/SettingsPage');
 const { DepartmentForm } = await import('../../src/features/masters/DepartmentForm');
+const { FamilyStepsPage } = await import('../../src/features/masters/FamilyStepsPage');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -433,5 +435,31 @@ describe('Rules warning', () => {
     });
     expect(s).toMatchObject({ state: 'old', missing: ['Work (tasks and follow-ups)'] });
     expect(render('/', '/', <Layout />)).toContain('Firestore rules need publishing');
+  });
+});
+
+describe('ERP import aids (4 Nov 2026)', () => {
+  it('masters list shows category groups, filters and the unit-guessed tag', () => {
+    const html = render('/masters', '/masters', <MastersPage />);
+    expect(html).toContain('Doormats');
+    expect(html).toContain('No category');
+    expect(html).toContain('unit guessed');
+    expect(html).toContain('Only units guessed (1)');
+  });
+  it('a guessed unit can be changed until confirmed; the ERP code is kept out of sight', () => {
+    const html = render('/masters/products/p2?tab=details', '/masters/products/:id', <ProductForm />);
+    expect(html).toContain('Unit guessed');
+    expect(html).toContain('Confirm unit (pcs)');
+    expect(html).toContain('ERP reference');
+    expect(html).toContain('Came from: ERP import (draft data)');
+    expect(html).toContain('Set steps for the whole family');
+    expect(html).not.toContain('The base unit is fixed after creation');
+    expect(render('/masters/products/p1?tab=details', '/masters/products/:id', <ProductForm />)).toContain('The base unit is fixed after creation');
+  });
+  it('steps for a family: shows the members and what changes', () => {
+    const html = render('/masters/family-steps?family=Printed%20family', '/masters/family-steps', <FamilyStepsPage />);
+    expect(html).toContain('Steps for a family');
+    expect(html).toContain('Printed family');
+    expect(html).toContain('1 active product');
   });
 });
