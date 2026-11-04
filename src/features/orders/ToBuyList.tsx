@@ -111,7 +111,8 @@ function BuyRow({ r, jos, countMap, suppliers, others, grouped }: { r: BuyTotal;
         {r.orders.map((o, i) => (
           <span key={o.joId}>
             {i > 0 && ' · '}
-            <Link to={`/orders/${o.joId}?tab=materials`}>{o.joNumber}</Link> {formatQty(o.net)}
+            <Link to={`/orders/${o.joId}?tab=materials`}>{o.joNumber}</Link>
+            {r.orders.length > 1 && ` ${formatQty(o.net)}`}
           </span>
         ))}
       </span>

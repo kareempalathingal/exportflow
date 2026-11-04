@@ -277,6 +277,14 @@ export function planDoc(
   };
 }
 
+/**
+ * The "Orders" cell of a To buy row (5 Nov 2026): one order = just its number (the
+ * quantity is already in "To buy"); several = each order's share.
+ */
+export function ordersCell(r: Pick<BuyTotal, 'orders'>): string {
+  return r.orders.length === 1 ? r.orders[0]!.joNumber : r.orders.map((o) => `${o.joNumber}: ${formatQty(o.net)}`).join(', ');
+}
+
 export function toBuyAllDoc(
   rows: BuyTotal[],
   ordersWithErrors: string[],
@@ -296,7 +304,7 @@ export function toBuyAllDoc(
           r.type === 'PRODUCT' ? 'Product' : 'Raw material',
           qty(r.net, r.unit),
           supplierCell(opts.supplierNames, r.key),
-          r.orders.map((o) => `${o.joNumber}: ${formatQty(o.net)}`).join(', '),
+          ordersCell(r),
         ]),
         empty: 'Nothing to buy.',
       },

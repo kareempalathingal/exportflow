@@ -72,3 +72,11 @@ describe('PDF output', () => {
     expect(bytes.length).toBeGreaterThan(2000);
   });
 });
+
+describe('To buy: orders column (5 Nov 2026)', async () => {
+  const { ordersCell } = await import('../../src/lib/docs/model');
+  it('one order shows only its number; several show each share', () => {
+    expect(ordersCell({ orders: [{ joId: 'a', joNumber: 'WO 95/2026', net: 4680 }] })).toBe('WO 95/2026');
+    expect(ordersCell({ orders: [{ joId: 'a', joNumber: 'A', net: 10 }, { joId: 'b', joNumber: 'B', net: 5 }] })).toBe('A: 10, B: 5');
+  });
+});

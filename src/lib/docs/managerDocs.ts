@@ -16,7 +16,7 @@ import {
   type WorkGroup,
 } from '../managerReports';
 import { formatQty, unitLabel } from '../units';
-import { safeFileName, type DocModel, type DocTable } from './model';
+import { ordersCell, safeFileName, type DocModel, type DocTable } from './model';
 
 const q = (n: number, unit: string) => `${formatQty(n)} ${unitLabel(unit)}`;
 const pctOf = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '-');
@@ -217,7 +217,7 @@ export function toBuyBySupplierDoc(
         `${r.name}${r.provisional ? ' *' : ''}`,
         r.type === 'PRODUCT' ? 'Product' : 'Raw material',
         q(r.net, r.unit),
-        r.orders.map((o) => `${o.joNumber}: ${formatQty(o.net)}`).join(', '),
+        ordersCell(r),
         others.join(', ') || '-',
       ]),
       empty: 'Nothing.',
