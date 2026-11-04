@@ -128,7 +128,7 @@ describe('Phase 2 screens render', () => {
     expect(render('/masters/products/p1?tab=details', '/masters/products/:id', <ProductForm />)).toContain('Size of one piece');
     expect(render('/masters/products/p1?tab=conversion', '/masters/products/:id', <ProductForm />)).toContain('Conversion check');
     const conv = render('/masters/products/p1?tab=conversion', '/masters/products/:id', <ProductForm />);
-    expect(conv).toContain('40 × 60 cm (≈ 15½ × 23½ in)'); // summary line; the size table needs the form loaded (browser)
+    expect(conv).toContain('40 × 60 cm (15.75 × 23.62 in)'); // summary line; the size table needs the form loaded (browser)
   });
   it('new product form renders', () => {
     expect(render('/masters/products/new', '/masters/products/:id', <ProductForm />)).toContain('New product');

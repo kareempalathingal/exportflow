@@ -214,26 +214,16 @@ export function formatQty(v: number): string {
   return groupDigits(v, digits);
 }
 
-/** Nearest half: 17.72 → "17½", 29.0 → "29" (display only; calculations use the exact value). */
-export function nearestHalf(v: number): string {
-  const r = Math.round(v * 2) / 2;
-  const whole = Math.floor(r);
-  return r === whole ? String(whole) : whole === 0 ? '½' : `${whole}½`;
-}
-
 export interface PieceSize {
   /** Length × width in each length unit (cm, mm, inch, ft, m), the entered unit first. */
   rows: { unit: string; length: number; width: number }[];
-  /** "≈ 17½ × 29½ in" */
-  inchesHalf: string;
-  /** Area of one piece in sq m, sq ft and sq in. */
-  area: { unit: string; value: number }[];
   estimate: boolean;
 }
 
 /**
  * Size of one piece in every length unit (confirmed 4 Nov 2026): length and
- * width are converted separately; nothing is shown without a size.
+ * width are converted separately, exact figures (no fractions); nothing is
+ * shown without a size.
  */
 export function pieceSize(size: { length: number | null; width: number | null; unit: string; status: string } | undefined): PieceSize | null {
   if (!size || size.length === null || size.width === null || !(size.length > 0) || !(size.width > 0)) return null;
@@ -244,12 +234,8 @@ export function pieceSize(size: { length: number | null; width: number | null; u
     const t = BY_ID.get(u)!;
     return { unit: u, length: (size.length! * from.si) / t.si, width: (size.width! * from.si) / t.si };
   });
-  const inch = rows.find((r) => r.unit === 'in')!;
-  const sqm = size.length * from.si * size.width * from.si;
   return {
     rows,
-    inchesHalf: `${nearestHalf(inch.length)} × ${nearestHalf(inch.width)} in`,
-    area: ['sqm', 'sqft', 'sqin'].map((u) => ({ unit: u, value: sqm / BY_ID.get(u)!.si })),
     estimate: !(size.status === 'VERIFIED' || size.status === 'USER_PROVIDED'),
   };
 }

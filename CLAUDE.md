@@ -353,11 +353,13 @@ report the discrepancy and ask; do not silently choose.
     print a normal space (`pdfSafe`). Number inputs accept commas or
     spaces.
 -   Size of one piece (confirmed 4 Nov 2026, `pieceSize()` in
-    `src/lib/units.ts`, `SizeCard`): length × width in cm, mm, inch (plus
-    "≈ 17½ × 29½ in", nearest half inch, display only), ft and m; area per
-    piece in sq m / sq ft / sq in and weight per piece. On the product's
-    Conversion tab, in Calculator → By product and in the product summary
-    line. Nothing shown without a full size; never read from the name.
+    `src/lib/units.ts`, `SizeCard`): length × width in cm, mm, inch, ft
+    and m, exact decimals only (no ½ / ¼ fractions in any unit, corrected
+    4 Nov 2026). Area and weight per piece are not repeated there: the
+    conversion table below already shows them. On the product's Conversion
+    tab, in Calculator → By product and in the product summary line
+    ("40 × 60 cm (15.75 × 23.62 in)"). Nothing shown without a full size;
+    never read from the name.
 -   Long lists (confirmed 4 Nov 2026, `src/components/LongList.tsx`): more
     than 5 entries collapse into one row ("54 products", tap to show),
     grouped by family (biggest first, "Other" last), one entry per line.
