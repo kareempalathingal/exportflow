@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { LongList } from '../../components/LongList';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { mailHref, phoneDigits } from '../../lib/contacts';
@@ -138,19 +139,24 @@ export function DepartmentForm() {
       <fieldset className="tracked">
         <legend>Processes this department handles</legend>
         {d.processIds.length === 0 && <p className="muted small">None yet.</p>}
-        <ul className="chips">
-          {d.processIds.map((pid) => (
-            <li key={pid} className="chip">
-              <span>
-                {procName.get(pid) ?? '(missing process)'}
-                {elsewhere.has(pid) && <span className="warn small"> · also in {elsewhere.get(pid)}</span>}
-              </span>
-              <button type="button" className="chip-x" aria-label={`Remove ${procName.get(pid) ?? pid}`} onClick={() => set({ processIds: d.processIds.filter((x) => x !== pid) })}>
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
+        <LongList
+          as="chips"
+          summary={`${d.processIds.length} processes`}
+          entries={d.processIds.map((pid) => ({
+            key: pid,
+            node: (
+              <li key={pid} className="chip">
+                <span>
+                  {procName.get(pid) ?? '(missing process)'}
+                  {elsewhere.has(pid) && <span className="warn small"> · also in {elsewhere.get(pid)}</span>}
+                </span>
+                <button type="button" className="chip-x" aria-label={`Remove ${procName.get(pid) ?? pid}`} onClick={() => set({ processIds: d.processIds.filter((x) => x !== pid) })}>
+                  ×
+                </button>
+              </li>
+            ),
+          }))}
+        />
         <label>
           Add a process
           <select value="" onChange={(e) => e.target.value && set({ processIds: [...d.processIds, e.target.value] })}>

@@ -198,22 +198,32 @@ export function madeFromText(r: Pick<PlanRow, 'madeFrom'>): string {
   return r.madeFrom.join(', ') || '—';
 }
 
-/** "Coir mat, Coir rug (via Coir yarn)" — the ordered products an item is needed for. */
-export function usedForText(r: Pick<PlanRow, 'usedFor' | 'via' | 'ordered'>): string {
+/** Distinct products ordered on a Job Order (for "all N ordered products"). */
+export function orderedProductCount(jo: Pick<JobOrder, 'lines'>): number {
+  return new Set(jo.lines.map((l) => l.productId)).size;
+}
+
+/**
+ * "Coir mat, Coir rug (via Coir yarn)" — the ordered products an item is needed for.
+ * When it is needed for every product of a larger order: "all 35 ordered products"
+ * (confirmed 4 Nov 2026: long lists are shortened).
+ */
+export function usedForText(r: Pick<PlanRow, 'usedFor' | 'via' | 'ordered'>, orderedCount = 0): string {
   const parts: string[] = [];
-  if (r.usedFor.length) parts.push(`${r.usedFor.join(', ')}${r.via.length ? ` (via ${r.via.join(', ')})` : ''}`);
+  const all = orderedCount > 3 && r.usedFor.length === orderedCount;
+  if (r.usedFor.length) parts.push(`${all ? `all ${orderedCount} ordered products` : r.usedFor.join(', ')}${r.via.length ? ` (via ${r.via.join(', ')})` : ''}`);
   if (r.ordered) parts.push(r.usedFor.length ? 'also ordered as is' : 'ordered as is');
   return parts.join('; ') || '—';
 }
 
-function planRows(rows: PlanRow[], withType: boolean, names?: SupplierNames): string[][] {
+function planRows(rows: PlanRow[], withType: boolean, names?: SupplierNames, orderedCount = 0): string[][] {
   return rows.map((r) => [
     `${r.name}${r.provisional ? ' *' : ''}`,
     ...(withType ? [r.type === 'PRODUCT' ? 'Product' : 'Raw material'] : []),
     qty(r.gross, r.unit),
     r.fromStock > 0 ? qty(Math.min(r.fromStock, r.gross), r.unit) : '—',
     qty(r.net, r.unit),
-    withType ? usedForText(r) : madeFromText(r),
+    withType ? usedForText(r, orderedCount) : madeFromText(r),
     ...(withType ? [supplierCell(names, r.key)] : []),
   ]);
 }
@@ -255,7 +265,7 @@ export function planDoc(
           { label: produce ? 'Made from' : 'For' },
           ...(produce ? [] : [{ label: 'Suppliers' }]),
         ],
-        rows: planRows(rows, !produce, opts.supplierNames),
+        rows: planRows(rows, !produce, opts.supplierNames, orderedProductCount(jo)),
         empty: produce ? 'Nothing to make for this order.' : 'Nothing to buy for this order.',
       },
     ],
@@ -836,7 +846,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     {
       title: 'Raw materials to buy for production',
       columns: [{ label: 'Item' }, ...nums, { label: 'To buy', align: 'right' }, { label: 'For' }, { label: 'Suppliers' }],
-      rows: forProduction.map((r) => matRow(r, [usedForText(r), supplierCell(input.supplierNames, r.key)])),
+      rows: forProduction.map((r) => matRow(r, [usedForText(r, orderedProductCount(jo)), supplierCell(input.supplierNames, r.key)])),
       empty: 'Nothing to buy for production.',
     },
     ...(readyMade.length

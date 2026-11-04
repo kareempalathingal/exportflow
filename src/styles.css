@@ -536,3 +536,12 @@ label.inline { display: flex; align-items: center; gap: 0.5rem; }
 .erp-ref > summary { cursor: pointer; }
 .clear-demo { margin-top: 10px; }
 .clear-demo > summary { cursor: pointer; color: var(--danger); }
+
+/* Long lists collapse into one row (4 Nov 2026) */
+.long-list { display: inline-block; vertical-align: top; width: 100%; }
+.long-list > summary { cursor: pointer; color: var(--brand); }
+.long-list[open] > summary { margin-bottom: 4px; }
+.long-list-group { margin: 2px 0 2px 12px; }
+.long-list-group > summary { cursor: pointer; }
+.long-list-group > .plain-list, .long-list-group > .chips, .long-list-group > span { display: block; margin: 4px 0 6px 12px; }
+.long-list-items > li { padding: 3px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }

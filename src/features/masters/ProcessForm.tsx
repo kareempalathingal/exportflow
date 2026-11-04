@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { LongList } from '../../components/LongList';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTIONS, findDuplicate, type Department, type Process } from '../../lib/masters';
@@ -71,17 +72,15 @@ export function ProcessForm() {
       <TextField label="Notes" multiline value={d.notes} onChange={(notes) => setD((x) => ({ ...x, notes }))} />
       <p className="muted small">Department and standard times are added later, when known. Planned days are set per product in its process route.</p>
       {!isNew && (
-        <p className="small">
+        <div className="small">
           Used by:{' '}
-          {usedBy.length === 0
-            ? 'no product yet'
-            : usedBy.map((p, i) => (
-                <span key={p.id}>
-                  {i > 0 && ', '}
-                  <Link to={`/masters/products/${p.id}?tab=details`}>{p.name}</Link>
-                </span>
-              ))}
-        </p>
+          <LongList
+            as="comma"
+            summary={`${usedBy.length} products`}
+            empty="no product yet"
+            entries={usedBy.map((p) => ({ key: p.id, group: p.family, node: <Link to={`/masters/products/${p.id}?tab=details`}>{p.name}</Link> }))}
+          />
+        </div>
       )}
       {!isNew && (
         <p className="small">

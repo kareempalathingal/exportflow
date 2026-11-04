@@ -18,7 +18,8 @@ import type { WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { useCollection } from '../masters/useCollection';
 import { DocButtons } from '../docs/DocButtons';
-import { madeFromText, planDoc, usedForText } from '../../lib/docs/model';
+import { madeFromText, orderedProductCount, planDoc, usedForText } from '../../lib/docs/model';
+import { LongList, LONG_LIST_INLINE } from '../../components/LongList';
 
 interface EntryDraft {
   qtyText: string;
@@ -129,6 +130,7 @@ export function MaterialsTab(props: {
     setTimeout(() => setSaved(false), 2500);
   }
 
+  const orderedCount = orderedProductCount(jo);
   const rowView = (r: PlanRow, verb: string) => {
     const comp = componentContext(r.type, r.id, md);
     const units = comp ? availableUnits(comp.ctx) : [r.unit];
@@ -142,9 +144,29 @@ export function MaterialsTab(props: {
           {r.provisional && <span className="pill warn inline-pill">provisional</span>}
         </legend>
         {verb === 'To produce' ? (
-          r.madeFrom.length > 0 && <p className="muted small">Made from: {madeFromText(r)}</p>
+          r.madeFrom.length > 0 && (
+            <div className="muted small">
+              Made from:{' '}
+              {r.madeFrom.length > LONG_LIST_INLINE ? (
+                <LongList as="comma" summary={`${r.madeFrom.length} items`} entries={r.madeFrom.map((n) => ({ key: n, node: n }))} />
+              ) : (
+                madeFromText(r)
+              )}
+            </div>
+          )
         ) : (
-          <p className="muted small">For: {usedForText(r)}</p>
+          <div className="muted small">
+            For:{' '}
+            {r.usedFor.length > LONG_LIST_INLINE && r.usedFor.length < orderedCount ? (
+              <>
+                <LongList as="comma" summary={`${r.usedFor.length} products`} entries={r.usedFor.map((n) => ({ key: n, node: n }))} />
+                {r.via.length > 0 && ` (via ${r.via.join(', ')})`}
+                {r.ordered && '; also ordered as is'}
+              </>
+            ) : (
+              usedForText(r, orderedCount)
+            )}
+          </div>
         )}
         <div className="mat-figures">
           <span>

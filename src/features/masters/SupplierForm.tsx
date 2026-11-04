@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { LongList } from '../../components/LongList';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTIONS, findDuplicate, validGstin, type Supplier } from '../../lib/masters';
@@ -72,9 +73,9 @@ export function SupplierForm() {
   const dup = d.name.trim() ? findDuplicate(d.name, all.items, isNew ? undefined : id) : undefined;
   const nameOf = (key: string) => {
     const p = parseItemKey(key);
-    if (!p) return { name: key, kind: '' };
+    if (!p) return { name: key, kind: '', family: '' };
     const x = p.type === 'PRODUCT' ? master.md.products.get(p.id) : master.md.rawMaterials.get(p.id);
-    return { name: x?.name ?? '(missing item)', kind: p.type === 'PRODUCT' ? 'Product' : 'Raw material' };
+    return { name: x?.name ?? '(missing item)', kind: p.type === 'PRODUCT' ? 'Product' : 'Raw material', family: x?.family ?? '' };
   };
 
   function keepDraft() {
@@ -131,21 +132,27 @@ export function SupplierForm() {
       <fieldset className="tracked">
         <legend>Supplies</legend>
         {d.items.length === 0 && <p className="muted small">No items linked yet.</p>}
-        <ul className="chips">
-          {d.items.map((k) => {
+        <LongList
+          as="chips"
+          summary={`${d.items.length} items`}
+          entries={d.items.map((k) => {
             const n = nameOf(k);
-            return (
-              <li key={k} className="chip">
-                <span>
-                  {n.name} <span className="muted small">{n.kind}</span>
-                </span>
-                <button type="button" className="chip-x" aria-label={`Remove ${n.name}`} onClick={() => set({ items: d.items.filter((x) => x !== k) })}>
-                  ×
-                </button>
-              </li>
-            );
+            return {
+              key: k,
+              group: n.family || n.kind,
+              node: (
+                <li key={k} className="chip">
+                  <span>
+                    {n.name} <span className="muted small">{n.kind}</span>
+                  </span>
+                  <button type="button" className="chip-x" aria-label={`Remove ${n.name}`} onClick={() => set({ items: d.items.filter((x) => x !== k) })}>
+                    ×
+                  </button>
+                </li>
+              ),
+            };
           })}
-        </ul>
+        />
         <label>
           Add an item
           <select

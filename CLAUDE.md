@@ -352,6 +352,13 @@ report the discrepancy and ask; do not silently choose.
     confused (12 345 · 1 23 456.75); up to 4 digits no space (7859). PDFs
     print a normal space (`pdfSafe`). Number inputs accept commas or
     spaces.
+-   Long lists (confirmed 4 Nov 2026, `src/components/LongList.tsx`): more
+    than 5 entries collapse into one row ("54 products", tap to show),
+    grouped by family (biggest first, "Other" last), one entry per line.
+    Used in Process "Used by", Supplier "Supplies", Department processes,
+    the Materials tab "Made from" / "For" and the "BOM changed" notice. In
+    the Materials tab and plan PDFs an item needed for every product of an
+    order of 4+ products reads "all N ordered products".
 
 ## KPIs (confirmed 26 Oct 2026)
 

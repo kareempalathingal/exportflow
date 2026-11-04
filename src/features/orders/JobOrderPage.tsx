@@ -1,3 +1,4 @@
+import { LongList } from '../../components/LongList';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
@@ -338,9 +339,10 @@ export function JobOrderPage() {
 
           {changed.length > 0 && (
             <div className="card subtle">
-              <p className="warn">
-                <strong>BOM changed after confirmation:</strong> {changed.map((pid) => md.products.get(pid)?.name ?? pid).join(', ')}.
-              </p>
+              <div className="warn">
+                <strong>BOM changed after confirmation:</strong>{' '}
+                <LongList as="comma" summary={`${changed.length} products`} entries={changed.map((pid) => ({ key: pid, group: md.products.get(pid)?.family, node: md.products.get(pid)?.name ?? pid }))} />.
+              </div>
               <p className="small muted">This order keeps the BOM it was confirmed with until you choose otherwise.</p>
               <button type="button" className="secondary small" onClick={() => withReason('CONFIRMED', 'Reason for using the latest BOMs on this order', { freshSnapshot: true })}>
                 Use latest BOMs
