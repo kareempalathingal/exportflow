@@ -471,6 +471,17 @@ report the discrepancy and ask; do not silently choose.
 -   Clear DEMO (Settings → Sample data, type CLEAR DEMO): deletes every
     record and audit event in the DEMO workspace; rules allow deletes only in
     `<uid>_demo`. ACTUAL is never deleted.
+-   Restore may change a GUESSED base unit (stored `baseUnitStatus`
+    ESTIMATED), as the form can; a fixed unit is still skipped (4 Nov 2026).
+-   A real work order (plan + recipe) from the company was used for a second
+    import file (outside the repo): processes as named in the company plan,
+    benchmarks per step with status "Known" (to be confirmed after joining),
+    departments linked to processes, a semi-finished "base mat per sq m"
+    product with the company recipe as its BOM (company figures already
+    include wastage, so wastage 0% to match the company totals; fuel such
+    as firewood / diesel kept as BOM lines on request) and one BOM line of
+    base mat by area for each tufted mat of that GSM only (other GSMs: no
+    recipe, BOM missing). Prices / rates in company files are never imported.
 -   Import rules agreed: GSM written as 4 / 4.8 / 5 / 5.2 = kg per sq m
     (× 1000); implausible values left empty "to be checked"; tools (moulds,
     plates, guns) skipped; duplicate names kept once; families with the same

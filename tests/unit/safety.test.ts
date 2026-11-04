@@ -76,6 +76,10 @@ describe('restore plan', () => {
     const p = planRestore(backup('ACTUAL', { products: [{ id: 'p1', data: product('Mat', 'kg') }] }), { products: [cur('p1', product('Mat', 'pcs'), 1)] }, { workspaceId: 'u1_actual', mode: 'ACTUAL' });
     expect(p.writes).toHaveLength(0);
     expect(p.skips[0]!.reason).toMatch(/base unit/);
+    // a guessed unit may still change (4 Nov 2026), like in the form
+    const g = planRestore(backup('ACTUAL', { rawMaterials: [{ id: 'r1', data: { name: 'Diesel', active: true, baseUnit: 'kg' } }] }), { rawMaterials: [cur('r1', { name: 'Diesel', active: true, baseUnit: 'pcs', baseUnitStatus: 'ESTIMATED' }, 1)] }, { workspaceId: 'u1_actual', mode: 'ACTUAL' });
+    expect(g.skips).toHaveLength(0);
+    expect(g.writes[0]!.data.baseUnit).toBe('kg');
   });
   it('job orders go through allowed status changes only', () => {
     expect(statusPath('CONFIRMED', 'CONFIRMED')).toEqual(['CONFIRMED']);

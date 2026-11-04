@@ -163,7 +163,8 @@ export function planRestore(
         counts.same++;
         continue;
       }
-      if (cur && (collection === 'products' || collection === 'rawMaterials') && curData!.baseUnit !== data.baseUnit) {
+      // A guessed base unit may still change (4 Nov 2026), as in the form; a fixed one never does.
+      if (cur && (collection === 'products' || collection === 'rawMaterials') && curData!.baseUnit !== data.baseUnit && curData!.baseUnitStatus !== 'ESTIMATED') {
         skip(`base unit is ${String(curData!.baseUnit)} now but ${String(data.baseUnit)} in the backup (it cannot change)`);
         continue;
       }
