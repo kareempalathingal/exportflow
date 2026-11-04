@@ -503,6 +503,25 @@ report the discrepancy and ask; do not silently choose.
     meaning but different names stay separate products; services other than
     packing / tagging wait for dispatch stages.
 
+## Company WO planning sheet (noted 5 Nov 2026; build AFTER joining)
+
+-   The user needs both: the app's plan PDFs AND the company's own "WO
+    Planning" sheet format (Production planning: WO no., issued / cargo
+    ready date, lead time, total qty; per process qty, output / day, days,
+    planned dates, units, responsible department; base mat, outright
+    purchase, dispatch / landing for outside work, tags / labels / packing
+    materials purchase, packing plan). Output as Excel, built on the phone,
+    after joining (exact layout from the company then).
+-   Fields the app does not record yet (indent / processing intend / PO
+    "to be issued by" dates, raw material availability, purchase complete
+    by, mould / stencil ready, dispatch and landing schedules, tags / packing
+    material order and landing dates, QC accepted) are left blank "to be
+    filled" in the sheet for now. Lead days for such dates are never
+    guessed; they come from the company.
+-   The company overlaps processes (the next process starts before the
+    previous one has finished the whole quantity); the app's within-order
+    plan does not overlap yet (decision pending, 5 Nov 2026).
+
 ## Factory documentation (noted 27 Oct 2026; build AFTER joining)
 
 -   The user will be answerable for factory records being complete and on
