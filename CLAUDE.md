@@ -352,6 +352,12 @@ report the discrepancy and ask; do not silently choose.
     confused (12 345 · 1 23 456.75); up to 4 digits no space (7859). PDFs
     print a normal space (`pdfSafe`). Number inputs accept commas or
     spaces.
+-   Size of one piece (confirmed 4 Nov 2026, `pieceSize()` in
+    `src/lib/units.ts`, `SizeCard`): length × width in cm, mm, inch (plus
+    "≈ 17½ × 29½ in", nearest half inch, display only), ft and m; area per
+    piece in sq m / sq ft / sq in and weight per piece. On the product's
+    Conversion tab, in Calculator → By product and in the product summary
+    line. Nothing shown without a full size; never read from the name.
 -   Long lists (confirmed 4 Nov 2026, `src/components/LongList.tsx`): more
     than 5 entries collapse into one row ("54 products", tap to show),
     grouped by family (biggest first, "Other" last), one entry per line.

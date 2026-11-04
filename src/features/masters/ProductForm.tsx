@@ -27,6 +27,7 @@ import { safeReturnTo, withAdded } from './returnTo';
 import { itemKey } from '../../lib/materials';
 import { newId, useCollection, useDocument } from './useCollection';
 import { ConversionCheck } from './ConversionCheck';
+import { SizeCard } from './SizeCard';
 import { BomEditor } from './BomEditor';
 import { ProductSummary } from './ProductSummary';
 import { ItemSuppliers } from './ItemSuppliers';
@@ -265,6 +266,7 @@ export function ProductForm() {
         <ItemSuppliers type="PRODUCT" id={id} name={item.name} here={`/masters/products/${id}?tab=details`} />
       )}
       {tab === 'details' && item && item.active !== false && !guessed && <BaseUnitCopy key={item.id} product={item} />}
+      {tab === 'conversion' && draftProduct && <SizeCard product={draftProduct} />}
       {tab === 'conversion' && (draftProduct ? <ConversionCheck ctx={productContext(draftProduct)} /> : <p className="error">{parseError}</p>)}
     </>
   );

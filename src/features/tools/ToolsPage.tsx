@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { convertItemAll, convertStandard, DIMENSIONS, evaluate, formatResult, showQty, unitsOf } from '../../lib/calc';
-import { productContext, rawMaterialContext } from '../../lib/masters';
+import { productContext, rawMaterialContext, type Product } from '../../lib/masters';
+import { SizeCard } from '../masters/SizeCard';
 import { readJson, writeJson } from '../../lib/storage';
 import { availableUnits, completeFacts, standardUnit, unitLabel, type Dimension } from '../../lib/units';
 import { useMasterData } from '../masters/useMasterData';
@@ -225,8 +226,8 @@ function ItemConverter({ qty }: { qty: number | null }) {
   const [from, setFrom] = useState('');
   const items = useMemo(
     () => [
-      ...master.products.items.filter((p) => p.active !== false).map((p) => ({ key: `PRODUCT:${p.id}`, name: p.name, group: 'Products', link: `/masters/products/${p.id}?tab=details`, ctx: productContext(p) })),
-      ...master.rawMaterials.items.filter((r) => r.active !== false).map((r) => ({ key: `RAW_MATERIAL:${r.id}`, name: r.name, group: 'Raw materials', link: `/masters/raw-materials/${r.id}`, ctx: rawMaterialContext(r) })),
+      ...master.products.items.filter((p) => p.active !== false).map((p) => ({ key: `PRODUCT:${p.id}`, name: p.name, group: 'Products', link: `/masters/products/${p.id}?tab=details`, ctx: productContext(p), product: p as Product | null })),
+      ...master.rawMaterials.items.filter((r) => r.active !== false).map((r) => ({ key: `RAW_MATERIAL:${r.id}`, name: r.name, group: 'Raw materials', link: `/masters/raw-materials/${r.id}`, ctx: rawMaterialContext(r), product: null as Product | null })),
     ].sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name)),
     [master.products.items, master.rawMaterials.items],
   );
@@ -279,6 +280,7 @@ function ItemConverter({ qty }: { qty: number | null }) {
       {items.length === 0 && <p className="muted small">No products or raw materials yet (Masters).</p>}
       {item && (
         <>
+          {item.product && <SizeCard product={item.product} />}
           <table className="conv-table">
             <tbody>
               {rows.map((r) => (

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { productContext, type BomStatus, type Product } from '../../lib/masters';
-import { completeFacts, formatQty, unitLabel } from '../../lib/units';
+import { completeFacts, formatQty, pieceSize, unitLabel } from '../../lib/units';
 
 const SUPPLY = { MANUFACTURED: 'Manufactured', TRADED: 'Traded', BOTH: 'Manufactured + Traded' } as const;
 
@@ -18,6 +18,7 @@ export function BomBadge({ status }: { status: BomStatus }) {
 
 export function ProductSummary({ product, bomStatus, bomVersion }: { product: Product & { id: string }; bomStatus: BomStatus; bomVersion: number }) {
   const facts = completeFacts(productContext(product));
+  const size = pieceSize(product.size);
   const perPiece: string[] = [];
   if (product.baseUnit === 'pcs') {
     if (facts.areaPerPieceSqm) perPiece.push(`${formatQty(facts.areaPerPieceSqm.value)} sq m`);
@@ -37,6 +38,7 @@ export function ProductSummary({ product, bomStatus, bomVersion }: { product: Pr
         {product.supplyType === 'BOTH' && product.usualSupply && ` (usually ${product.usualSupply === 'MAKE' ? 'made' : 'bought'})`} · base unit {unitLabel(product.baseUnit)}
         {product.code && ` · ${product.code}`}
         {product.active === false && ' · Inactive'}
+        {size && ` · ${formatQty(size.rows[0]!.length)} × ${formatQty(size.rows[0]!.width)} ${unitLabel(size.rows[0]!.unit)} (≈ ${size.inchesHalf})`}
       </p>
       <div className="summary-grid">
         <div>
