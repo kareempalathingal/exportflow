@@ -346,6 +346,12 @@ report the discrepancy and ask; do not silently choose.
     orders; never guesses).
 -   Later, when needed: size → area per piece, GSM + size → weight per
     piece, container fill (after packing data).
+-   Number display (confirmed 4 Nov 2026, `groupDigits()` in
+    `src/lib/units.ts`): Indian grouping (lakh / crore) with a thin
+    no-break space instead of a comma, so the decimal point is never
+    confused (12 345 · 1 23 456.75); up to 4 digits no space (7859). PDFs
+    print a normal space (`pdfSafe`). Number inputs accept commas or
+    spaces.
 
 ## KPIs (confirmed 26 Oct 2026)
 

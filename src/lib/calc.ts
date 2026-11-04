@@ -6,7 +6,7 @@
  *   200 × 10%  = 20    (10% = 0.1)
  *   50%        = 0.5
  */
-import { convert, UNIT_CHOICES, unitLabel, type ConversionContext, type Dimension } from './units';
+import { convert, groupDigits, UNIT_CHOICES, unitLabel, type ConversionContext, type Dimension } from './units';
 
 export type CalcResult = { ok: true; value: number } | { ok: false; error: string };
 
@@ -14,7 +14,7 @@ type Tok = { t: 'num'; v: number } | { t: 'op'; v: '+' | '-' | '*' | '/' } | { t
 
 function tokenize(s: string): Tok[] | string {
   const out: Tok[] = [];
-  const src = s.replace(/×/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/,/g, '');
+  const src = s.replace(/×/g, '*').replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/[,\u202F\u00A0]/g, '');
   let i = 0;
   while (i < src.length) {
     const c = src[i]!;
@@ -116,11 +116,11 @@ export function evaluate(expr: string): CalcResult {
   }
 }
 
-/** A result for the display: up to 10 decimals, no float noise, grouped in the Indian style. */
+/** A result for the display: up to 10 decimals, no float noise, grouped in the Indian style with thin spaces. */
 export function formatResult(v: number): string {
   if (!Number.isFinite(v)) return '—';
   const r = Number(v.toPrecision(12));
-  return r.toLocaleString('en-IN', { maximumFractionDigits: 10 });
+  return groupDigits(r, 10);
 }
 
 // ---------------------------------------------------------------------------
@@ -171,5 +171,5 @@ export function showQty(v: number): string {
   if (!Number.isFinite(v)) return '—';
   const abs = Math.abs(v);
   if (abs > 0 && abs < 0.001) return v.toPrecision(3);
-  return v.toLocaleString('en-IN', { maximumFractionDigits: abs >= 1000 ? 2 : 4 });
+  return groupDigits(v, abs >= 1000 ? 2 : 4);
 }

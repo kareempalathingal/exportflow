@@ -57,6 +57,7 @@ describe('document models', () => {
   });
   it('keeps PDF text and file names safe', () => {
     expect(pdfSafe('A → B — “x” ½ 40×60 മാറ്റ്')).toBe('A -> B - "x" ½ 40×60 ?');
+    expect(pdfSafe('12\u202F345 kg')).toBe('12 345 kg'); // PDF fonts have no thin space
     expect(safeFileName('JO 1042/A')).toBe('JO-1042-A');
   });
 });

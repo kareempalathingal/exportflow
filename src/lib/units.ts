@@ -193,9 +193,23 @@ export function areaFromSize(length: number, width: number, lengthUnit: string):
   return length * u.si * (width * u.si);
 }
 
+/** Narrow no-break space: groups digits without looking like a decimal point (PDFs print a normal space). */
+export const DIGIT_GROUP = '\u202F';
+
+/**
+ * Indian grouping (lakh, crore) with a thin space instead of a comma, so the
+ * decimal point is never confused with it (confirmed 4 Nov 2026):
+ * 7859 · 12 345 · 1 23 456.75. Up to 4 digits: no space at all.
+ */
+export function groupDigits(v: number, maximumFractionDigits: number): string {
+  const text = v.toLocaleString('en-IN', { maximumFractionDigits });
+  const intDigits = text.replace(/^-/, '').split('.')[0]!.replace(/,/g, '').length;
+  return text.replace(/,/g, intDigits <= 4 ? '' : DIGIT_GROUP);
+}
+
 export function formatQty(v: number): string {
   if (!Number.isFinite(v)) return '—';
   const abs = Math.abs(v);
   const digits = abs >= 1000 ? 0 : abs >= 10 ? 2 : 3;
-  return v.toLocaleString('en-IN', { maximumFractionDigits: digits });
+  return groupDigits(v, digits);
 }

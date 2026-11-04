@@ -314,7 +314,7 @@ export function pdfSafe(s: string): string {
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/\u2192/g, '->')
     .replace(/\u2026/g, '...')
-    .replace(/\u00A0/g, ' ')
+    .replace(/[\u00A0\u202F]/g, ' ')
     .replace(/[^\u0020-\u007E\u00A1-\u00FF]+/g, '?');
 }
 

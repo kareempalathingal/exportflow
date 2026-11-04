@@ -30,6 +30,6 @@ describe('order items at a glance', () => {
     expect(lineSummaries(sqm, md, TODAY, ctx)[0]!.baseText).toBe('= 100 pcs');
   });
   it('totals add up only within one unit', () => {
-    expect(quantityTotals({ lines: [{ qty: 1200, unit: 'pcs' }, { qty: 300, unit: 'pcs' }, { qty: 500, unit: 'sqm' }] as never })).toBe('1,500 pcs + 500 sq m');
+    expect(quantityTotals({ lines: [{ qty: 1200, unit: 'pcs' }, { qty: 300, unit: 'pcs' }, { qty: 500, unit: 'sqm' }] as never })).toBe('1500 pcs + 500 sq m');
   });
 });

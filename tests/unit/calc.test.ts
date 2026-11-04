@@ -35,9 +35,12 @@ describe('calculator', () => {
     expect(evaluate('').ok).toBe(false);
   });
   it('formats results for the display', () => {
-    expect(formatResult(1234567.5)).toBe('12,34,567.5');
+    // thin spaces, not commas (4 Nov 2026): never confused with the decimal point; up to 4 digits no space
+    expect(formatResult(1234567.5)).toBe('12\u202F34\u202F567.5');
     expect(showQty(10.7639104)).toBe('10.7639');
-    expect(showQty(2083.3333)).toBe('2,083.33');
+    expect(showQty(2083.3333)).toBe('2083.33');
+    expect(showQty(-25000)).toBe('-25\u202F000');
+    expect(val('12\u202F34\u202F567.5 + 1')).toBe(1234568.5); // a copied result can be calculated again
   });
 });
 

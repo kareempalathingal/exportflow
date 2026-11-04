@@ -36,7 +36,7 @@ export function TextField(props: { label: string; value: string; onChange: (v: s
 
 /** Parse a user-typed number; empty → null. Invalid → NaN (caller validates). */
 export function parseNum(s: string): number | null {
-  const t = s.trim().replace(/,/g, '');
+  const t = s.trim().replace(/[,\u202F\u00A0 ]/g, '');
   if (t === '') return null;
   return Number(t);
 }

@@ -145,7 +145,7 @@ function Calculator({ onConvert }: { onConvert: (v: number) => void }) {
 function Converter({ initial }: { initial: number | null }) {
   const [mode, setMode] = useState<'units' | 'item'>('units');
   const [qtyText, setQtyText] = useState(initial !== null ? String(initial) : '1');
-  const q = Number(qtyText.replace(/,/g, ''));
+  const q = Number(qtyText.replace(/[,\u202F\u00A0 ]/g, ''));
   const qtyOk = qtyText.trim() !== '' && Number.isFinite(q);
   return (
     <div className="card">
