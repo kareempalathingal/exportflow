@@ -57,9 +57,14 @@ export function OrdersPage() {
     <section>
       <div className="row between">
         <h2>Job Orders</h2>
-        <Link className="button primary small" to="/orders/new">
-          + New JO
-        </Link>
+        <span className="row gap">
+          <Link className="button secondary small" to="/orders/import">
+            Import
+          </Link>
+          <Link className="button primary small" to="/orders/new">
+            + New JO
+          </Link>
+        </span>
       </div>
       <div className="tabs" role="tablist">
         {TABS.map((x) => (

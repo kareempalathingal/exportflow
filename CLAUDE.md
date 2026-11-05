@@ -111,7 +111,9 @@ report the discrepancy and ask; do not silently choose.
     built after the user joins and has a sample format. No AI
     extraction for now. Imported data is always a draft the user
     confirms. Original files are kept on the phone only. Android share
-    target ("Share → ExportFlow") comes with import.
+    target ("Share → ExportFlow") comes with import. (Changed 5 Nov 2026:
+    Excel / CSV and photo import built now — see "JO import" below; text
+    PDF and the share target not yet.)
 -   Daily task/blocker list waits for department benchmarks; it must
     also be printable/shareable.
 -   3c documents (`src/lib/docs/`): A4 PDF built on the phone, English,
@@ -151,6 +153,44 @@ report the discrepancy and ask; do not silently choose.
     actual % is a manual per-JO slider (dated); planned % rises
     linearly from confirmation to the internal deadline; no update =
     "Not tracked".
+
+## JO import (confirmed 5 Nov 2026, mockup canvas "JO import · Excel and photo")
+
+-   Orders → "Import" (`/orders/import`, `src/features/orders/ImportPage.tsx`;
+    logic `src/lib/joImport.ts`, file reading `src/lib/importRead.ts`). The
+    format of the boss's WO sheets is not known, so ANY layout: A · choose an
+    Excel (.xlsx) / CSV file (first choice) or a photo (extra, "check every
+    row"); B · which column is what; C · check before the draft is made.
+-   B: sheet (the one with item rows is guessed), heading row (the row naming
+    most fields), item columns guessed from the headings (name, code, size,
+    quantity, unit, pack quantity; "QTY (NOS)" gives the unit), order details
+    found next to their labels with the cell shown (JO / WO no., customer,
+    buyer PO, issued / received, delivery / cargo ready). Price / rate /
+    amount columns are never mapped or read. First rows as read. "Remember
+    this layout" (name; phone only, `exportflow:importLayouts`, max 20): a
+    file whose sheet and headings match is set up the same way next time.
+-   C: order fields editable (dates read day first: 08/09/2026, 10-Oct-26,
+    26 Sept 2026; customer matched by name or chosen). Each row: matched by
+    remembered text, item code / ERP code, or exact name; else "not found"
+    with the closest products first, or "+ New product with this name"
+    (product form prefilled, back to the import with the new product). "Remember:
+    this text means that product" (phone only, per workspace, max 500).
+    Quantity editable (photo: letters inside a number such as "5l6" are
+    turned into digits and marked "check qty"; never silently), unit per
+    row, base-unit equivalent, Make / Buy from the product. Totals within one
+    unit, to compare with the sheet. "Create draft JO" only when every row
+    has a product, quantity and unit.
+-   Nothing is saved by the import itself: it fills the normal New Job Order
+    form (`?from=import`, banner "Filled from the import… check… then Save"),
+    which saves a Draft as usual (duplicate-number check, deadline, history).
+    Pack quantities have no field yet: they go into the order notes with the
+    file name. The file / photo stays on the phone.
+-   Engines load on first use: exceljs (same chunk as the Excel export);
+    Tesseract.js 7.0.0 (English) for photos, its worker and language data
+    (~10 MB) downloaded once from the jsdelivr CDN and kept by the browser;
+    OCR runs on the phone. Old .xls files: "save as .xlsx or CSV".
+-   Not yet: text PDFs (pdf.js text), "Share → ExportFlow" (share target),
+    a JO line field for pack quantity (with packing, after joining).
 
 ## Order items at a glance (confirmed 26 Oct 2026)
 

@@ -97,6 +97,7 @@ const { Layout } = await import('../../src/components/Layout');
 const { SettingsPage } = await import('../../src/features/settings/SettingsPage');
 const { DepartmentForm } = await import('../../src/features/masters/DepartmentForm');
 const { FamilyStepsPage } = await import('../../src/features/masters/FamilyStepsPage');
+const { ImportPage, IMPORT_DRAFT_KEY } = await import('../../src/features/orders/ImportPage');
 
 function render(path: string, pattern: string, el: React.ReactElement) {
   return renderToString(
@@ -464,5 +465,48 @@ describe('ERP import aids (4 Nov 2026)', () => {
     expect(html).toContain('Steps for a family');
     expect(html).toContain('Printed family');
     expect(html).toContain('1 active product');
+  });
+});
+
+describe('Orders → Import a Job Order', () => {
+  const store = new Map<string, string>();
+  const fakeSession = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+  it('starts with Excel / CSV first and the photo as an extra', () => {
+    const html = render('/orders/import', '/orders/import', <ImportPage />);
+    expect(html).toContain('Choose Excel / CSV file');
+    expect(html).toContain('extra · check every row');
+    expect(html).toContain('prices in it are never read');
+  });
+  it('review: matched and not-found rows, totals, and no draft until every product is matched', () => {
+    vi.stubGlobal('sessionStorage', fakeSession);
+    const row = { name: '', code: '', size: '', qtyText: '', qty: null, unit: 'pcs', pack: '', unclear: false, by: null, candidates: [], remember: true };
+    store.set('exportflow:importSession', JSON.stringify({
+      step: 'review', fileName: 'wo.xlsx', fromPhoto: false, sheets: [{ name: 'S', grid: [] }], sheet: 0, headerRow: 0,
+      columns: { name: 1, code: null, size: null, qty: 2, unit: null, pack: null }, unit: 'pcs', orderCells: {}, layoutId: null, remember: false, layoutName: '',
+      order: { joNumber: 'WO 12/2026', customerText: 'Buyer GmbH', customerId: 'c1', poNumber: '', receivedDate: '2026-11-01', deliveryDate: '2026-12-30' },
+      rows: [
+        { ...row, row: 2, name: 'Mat A', qtyText: '2190', qty: 2190, productId: 'p1', by: 'name', qtyEdit: '2190', unitEdit: 'pcs' },
+        { ...row, row: 3, name: 'Shaped mat', size: '45x75', qtyText: '5l6', unclear: true, productId: '', candidates: ['p2'], qtyEdit: '516', unitEdit: 'pcs' },
+      ],
+    }));
+    const html = render('/orders/import', '/orders/import', <ImportPage />);
+    expect(html).toContain('2 things to check');
+    expect(html).toContain('not found');
+    expect(html).toContain('+ New product with this name');
+    expect(html).toContain('read “5l6”');
+    expect(html).toContain('2 items · 2706 pcs');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Create draft JO/);
+    vi.unstubAllGlobals();
+    store.clear();
+  });
+  it('the New Job Order form is filled from the import and says to check it', () => {
+    vi.stubGlobal('sessionStorage', fakeSession);
+    store.set(IMPORT_DRAFT_KEY, JSON.stringify({ joNumber: 'WO 12/2026', customerId: 'c1', poNumber: 'PO-1', receivedDate: '2026-11-01', deliveryDate: '2026-12-30', notes: 'Imported from wo.xlsx', lines: [{ productId: 'p1', qtyText: '2190', unit: 'pcs', supply: 'MAKE' }] }));
+    const html = render('/orders/new?from=import', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Filled from the import');
+    expect(html).toContain('value="WO 12/2026"');
+    expect(html).toContain('value="2190"');
+    vi.unstubAllGlobals();
+    store.clear();
   });
 });

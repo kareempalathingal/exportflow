@@ -38,6 +38,7 @@ import { newId, useCollection, useDocument } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { MaterialsTab } from './MaterialsTab';
+import { IMPORT_DRAFT_KEY, type ImportDraft } from './ImportPage';
 import { ItemsCard } from './ItemsCard';
 import { ProgressCard } from './ProgressCard';
 import { ProductsTab } from './ProductsTab';
@@ -71,6 +72,18 @@ interface Draft {
 }
 
 const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'bought', BOTH: 'made/bought' } as const;
+
+/** A draft handed over by Orders → Import (removed after the form has opened). */
+function importedDraft(today: string): Draft | null {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(IMPORT_DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as ImportDraft;
+    return { joNumber: d.joNumber, customerId: d.customerId, poNumber: d.poNumber, receivedDate: d.receivedDate || today, deliveryDate: d.deliveryDate, deliveryDateType: 'UNCONFIRMED', notes: d.notes, lines: d.lines.map((l) => ({ id: newLineId(), ...l })) };
+  } catch {
+    return null;
+  }
+}
 
 function draftFrom(jo: JobOrder | null, today: string): Draft {
   if (!jo) return { joNumber: '', customerId: '', poNumber: '', receivedDate: today, deliveryDate: '', deliveryDateType: 'UNCONFIRMED', notes: '', lines: [] };
@@ -108,13 +121,22 @@ export function JobOrderPage() {
   const { md, bomRev } = master;
   const { cal } = useWorkCalendar();
 
-  const [d, setD] = useState<Draft>(() => draftFrom(isNew ? null : item, today));
+  const fromImport = isNew && params.get('from') === 'import';
+  const [d, setD] = useState<Draft>(() => (fromImport && importedDraft(today)) || draftFrom(isNew ? null : item, today));
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const loaded = useRef<string | null>(isNew ? 'new' : item ? `${item.id}:${item.rev}` : null);
-  const savedDraft = useRef(JSON.stringify(d));
+  const savedDraft = useRef(fromImport ? '' : JSON.stringify(d)); // an imported draft is not saved yet
+  useEffect(() => {
+    if (!fromImport) return;
+    try {
+      globalThis.sessionStorage?.removeItem(IMPORT_DRAFT_KEY);
+    } catch {
+      /* nothing kept */
+    }
+  }, [fromImport]);
 
   useEffect(() => {
     if (!item) return;
@@ -304,7 +326,10 @@ export function JobOrderPage() {
         </Link>
       </p>
       {isNew ? (
-        <h2>New Job Order</h2>
+        <>
+          <h2>New Job Order</h2>
+          {fromImport && <p className="notice warn small">Filled from the import. Check every field against the original, then Save — it is saved as a Draft.</p>}
+        </>
       ) : (
         <>
           <div className="row between">

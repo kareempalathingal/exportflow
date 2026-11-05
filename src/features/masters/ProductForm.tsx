@@ -67,6 +67,11 @@ export function ProductForm() {
   const loaded = useRef<string | null>(null);
   const [params, setParams] = useSearchParams();
   const returnTo = safeReturnTo(params);
+  // From Orders → Import: "+ New product with this name" (5 Nov 2026).
+  const [prefilled] = useState(() => (isNew ? (params.get('name') ?? '').slice(0, 120) : ''));
+  useEffect(() => {
+    if (prefilled) setName((n) => n || prefilled);
+  }, [prefilled]);
   const master = useMasterData(workspaceId);
 
   useEffect(() => {
