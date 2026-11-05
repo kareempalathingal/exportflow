@@ -2,16 +2,19 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder, type JoLine, type JoStep } from '../../lib/jobOrders';
+import { productContext, type Product } from '../../lib/masters';
+import type { StepOutput } from '../../lib/jobOrders';
+import { parseNum } from '../masters/fields';
 import { COLLECTIONS, type Department, type MasterData, type Process } from '../../lib/masters';
 import { departmentsFor, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { buildLineSteps, completeCurrent, lineSchedule, orderPlan, processPlanRows, orderStart, orderStepProgress, planLines, routeFits, startCurrent, stepDates, stepTime, undoLast, undoStart, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
+import { addOutput, buildLineSteps, canStart, completeCurrent, isBuiltIn, lineSchedule, MATERIALS_KEY, orderPlan, processPlanRows, orderStart, orderStepProgress, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey } from '../../lib/time';
-import { formatQty, unitLabel } from '../../lib/units';
+import { availableUnits, convert, formatQty, unitLabel } from '../../lib/units';
 import { useCollection, type WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { jobOrderData } from './MaterialsTab';
@@ -166,6 +169,7 @@ function LineCard(props: {
   const cal = ctx.cal;
   const [editing, setEditing] = useState(false);
   const [when, setWhen] = useState(today);
+  const [outputFor, setOutputFor] = useState<string | null>(null);
   const start = orderStart(jo);
   const lp = props.lp;
   const supply = line.supply === 'BUY' ? 'Buy' : 'Make';
@@ -191,7 +195,85 @@ function LineCard(props: {
   const color = gapColor(track, readRedAt());
   const fits = routeFits(lp.plannedTotalDays, start, jo.deadline.internalDeadline, cal);
   const current = lp.current;
-  const nextStep = current ? lp.steps[lp.steps.indexOf(current) + 1] : undefined;
+  // Steps the user acts on (built-in stages are worked out): the first not done, and any running with it.
+  const rawSteps = raw.steps ?? [];
+  const keyIdx = new Map(rawSteps.map((s, i) => [s.key, i]));
+  const firstRaw = rawSteps.findIndex((s) => !s.doneAt);
+  const act = firstRaw >= 0 ? lp.steps.find((v) => v.step.key === rawSteps[firstRaw]!.key) : undefined;
+  const nextStep = act ? lp.steps[lp.steps.indexOf(act) + 1] : undefined;
+  const running = lp.steps.filter((v) => v.state === 'NOW' && !isBuiltIn(v.step) && !v.queued);
+  const nowText = running.length ? running.map((v) => v.step.label).join(' + ') : current ? current.step.label : null;
+  const dayOfIso = (iso: string | null | undefined) => (iso ? istDateKey(new Date(iso)) : null);
+  const product = ctx.md.products.get(line.productId);
+
+  const actionsFor = (v: StepView): ReactNode => {
+    if (!editable || v.state === 'DONE') return null;
+    const i = keyIdx.get(v.step.key);
+    if (i === undefined) return null;
+    const isFirst = i === firstRaw;
+    const startable = canStart(rawSteps, i);
+    const prevStart = i > 0 ? (dayOfIso(rawSteps[i - 1]!.startedAt) ?? dayOfIso(rawSteps[i - 1]!.doneAt)) : null;
+    const startMin = isFirst ? v.startOn : prevStart;
+    const doneMin = v.startedOn ?? v.startOn;
+    const canOutput = (v.state === 'NOW' || v.step.startedAt) && !v.step.passThrough && v.step.qty !== null;
+    const label = v.step.label;
+    const btns: ReactNode[] = [];
+    if (startable)
+      btns.push(
+        <button key="start" type="button" className="secondary small" disabled={when > today || (startMin !== null && when < startMin)} onClick={() => props.onSteps(startStepAt(rawSteps, i, stepTime(when, today))!, `${label} started ${when === today ? 'today' : formatDay(when)} (${line.productName})`)}>
+          {label} started
+        </button>,
+      );
+    if (canOutput)
+      btns.push(
+        <button key="out" type="button" className="secondary small" onClick={() => setOutputFor(outputFor === v.step.key ? null : v.step.key)}>
+          {outputFor === v.step.key ? 'Close' : "+ Day's output"}
+        </button>,
+      );
+    if (isFirst)
+      btns.push(
+        <button
+          key="done"
+          type="button"
+          className="primary small"
+          disabled={when > today || (doneMin !== null && when < doneMin)}
+          onClick={() => {
+            props.onSteps(completeCurrent(rawSteps, stepTime(when, today))!, `${label} done ${when === today ? 'today' : formatDay(when)} (${line.productName})`);
+            setWhen(today);
+          }}
+        >
+          {label} done{nextStep ? ` → ${nextStep.step.label}` : ''}
+        </button>,
+      );
+    else if (v.step.startedAt) btns.push(<span key="wait" className="muted small">“Done” after {rawSteps[i - 1]?.label ?? 'the step before'} is done</span>);
+    if (v.step.startedAt && undoStartAt(rawSteps, i))
+      btns.push(
+        <button key="undo" type="button" className="secondary small" onClick={() => window.confirm(`Remove the recorded start of ${label}?`) && props.onSteps(undoStartAt(rawSteps, i)!, `Undo start of ${label} (${line.productName})`)}>
+          Undo start
+        </button>,
+      );
+    return (
+      <>
+        {btns.length > 0 && <span className="row gap step-actions">{btns}</span>}
+        {outputFor === v.step.key && (
+          <OutputForm
+            step={v.step}
+            product={product}
+            today={today}
+            onAdd={(entry) => {
+              const next = addOutput(rawSteps, i, entry);
+              if (!next) return;
+              const total = (v.step.outputQty ?? 0) + (entry.unit === v.step.qtyUnit ? entry.qty : 0);
+              const whole = v.step.qty !== null && entry.unit === v.step.qtyUnit && total >= v.step.qty - 1e-9;
+              if (whole && isFirst && window.confirm(`Whole quantity made: mark ${label} done?`)) props.onSteps(completeCurrent(next, stepTime(entry.on, today))!, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)}; done (${line.productName})`);
+              else props.onSteps(next, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)} (${line.productName})`);
+            }}
+            onRemove={(k) => window.confirm('Remove this output entry?') && props.onSteps(removeOutput(rawSteps, i, k)!, `${label}: output entry removed (${line.productName})`)}
+          />
+        )}
+      </>
+    );
+  };
 
   // Who to ask: the department of the step running now and of the next one.
   const sched = new Map(lineSchedule(lp, today, cal).map((x) => [x.view.step.key, x.finish]));
@@ -240,7 +322,7 @@ function LineCard(props: {
       <div className="row between small">
         <span>Is {lp.actualPct}%</span>
         <span>Should be {track.planned}%</span>
-        <span>{current ? `Now: ${current.step.label}` : 'All steps done'}</span>
+        <span>{nowText ? `Now: ${nowText}` : 'All steps done'}</span>
       </div>
       {lp.plannedPct === null && <p className="muted small">Some steps have no planned time yet, so “should be” follows the deadline.</p>}
       {lp.expectedFinish && !lp.done && (
@@ -257,44 +339,14 @@ function LineCard(props: {
 
       <ol className="stepper">
         {lp.steps.map((v, i) => (
-          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} />
+          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} actions={actionsFor(v)} />
         ))}
       </ol>
       {dates.ready && <ReadyRow ready={dates.ready} />}
 
-      {editable && current && (
-        <StepDate current={current} today={today} value={when} onChange={setWhen} />
-      )}
+      {editable && act && <StepDate current={act} today={today} value={when} onChange={setWhen} />}
       {editable && (
         <div className="row gap step-actions">
-          {current && !current.startedOn && (
-            <button
-              type="button"
-              className="secondary small"
-              disabled={when > today || (current.startOn !== null && when < current.startOn)}
-              onClick={() => props.onSteps(startCurrent(raw.steps!, stepTime(when, today))!, `${current.step.label} started ${when === today ? 'today' : formatDay(when)} (${line.productName})`)}
-            >
-              {current.step.label} started
-            </button>
-          )}
-          {current && (
-            <button
-              type="button"
-              className="primary small"
-              disabled={when > today || when < (current.startedOn ?? current.startOn ?? when)}
-              onClick={() => {
-                props.onSteps(completeCurrent(raw.steps!, stepTime(when, today))!, `${current.step.label} done ${when === today ? 'today' : formatDay(when)} (${line.productName})`);
-                setWhen(today);
-              }}
-            >
-              {current.step.label} done{nextStep ? ` → ${nextStep.step.label}` : ''}
-            </button>
-          )}
-          {current?.startedOn && (
-            <button type="button" className="secondary small" onClick={() => window.confirm('Remove the recorded start of this step?') && props.onSteps(undoStart(raw.steps!)!, `Undo start (${line.productName})`)}>
-              Undo start
-            </button>
-          )}
           {lp.steps.some((s) => s.state === 'DONE') && (
             <button
               type="button"
@@ -335,7 +387,7 @@ function StepDate({ current, today, value, onChange }: { current: StepView; toda
 const plural = (n: number, w: string) => `${formatQty(n)} ${w}${n === 1 ? '' : 's'}`;
 
 /** Expected date of a step (confirmed 28 Oct 2026): same dates as the plan PDF. */
-function StepDateLine({ d }: { d: StepDate }) {
+function StepDateLine({ d, materials }: { d: StepDate; materials?: boolean }) {
   const tail = (approx: boolean, earliest: boolean) => (approx || earliest ? <span className="muted"> {[approx && '(approx.)', earliest && 'at the earliest'].filter(Boolean).join(' ')}</span> : null);
   switch (d.kind) {
     case 'DONE':
@@ -360,6 +412,7 @@ function StepDateLine({ d }: { d: StepDate }) {
         </span>
       );
     case 'UNKNOWN':
+      if (materials) return <span className="small block warn">Arrival date to be confirmed (Materials tab)</span>;
       return <span className={`small block ${d.noTime ? 'warn' : 'muted'}`}>Date to be confirmed{d.noTime ? ' (no time yet)' : ''}</span>;
   }
 }
@@ -387,7 +440,7 @@ function ReadyRow({ ready: r }: { ready: ReadyDate }) {
   );
 }
 
-function StepRow({ v, date, productName, contacts }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode }) {
+function StepRow({ v, date, productName, contacts, actions }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode; actions?: ReactNode }) {
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
   const over = v.overrunDays !== null && v.overrunDays > 0;
@@ -419,6 +472,7 @@ function StepRow({ v, date, productName, contacts }: { v: StepView; date: StepDa
           {s.label}
           {v.state === 'NOW' && (v.queued ? ' · next' : ' · now')}
           {s.estimated && s.plannedDays !== null && v.state !== 'DONE' && <span className="pill warn"> estimate</span>}
+          {(s.outside || s.outsideOf) && <span className="pill"> outside</span>}
           <span className="muted small">{sub}</span>
         </span>
         <span className="muted small block">
@@ -428,10 +482,12 @@ function StepRow({ v, date, productName, contacts }: { v: StepView; date: StepDa
           {v.state === 'NOW' && v.startedOn && `Started ${formatDay(v.startedOn)} · waited ${days(v.waitDays!)} · working ${days(v.workDays!)} so far`}
           {v.state === 'DONE' && v.startedOn && ` · waited ${days(v.waitDays!)}, worked ${days(v.workDays!)}`}
         </span>
-        <StepDateLine d={date} />
+        {s.outputQty !== null && s.outputQty !== undefined && s.qty !== null && s.qtyUnit && v.state !== 'DONE' && <OutputProgress s={s} />}
+        <StepDateLine d={date} materials={s.key === MATERIALS_KEY} />
         {s.basis && <span className="muted small block">{s.basis}</span>}
         {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
         {contacts}
+        {actions}
       </span>
       <span className="step-time mono small">{right}</span>
     </li>
@@ -497,6 +553,106 @@ function StepEditor({ steps, processes, productName, onSave }: { steps: JoStep[]
       <button type="button" className="primary small" disabled={JSON.stringify(draft) === JSON.stringify(steps)} onClick={() => onSave(draft)}>
         Save steps
       </button>
+    </div>
+  );
+}
+
+/** Output recorded so far on a running step (5 Nov 2026). */
+function OutputProgress({ s }: { s: PlannedStep }) {
+  const pct = Math.min(100, Math.round((s.outputQty! / s.qty!) * 100));
+  const daysLogged = new Set((s.outputLog ?? []).map((e) => e.on)).size;
+  const avg = daysLogged ? s.outputQty! / daysLogged : null;
+  const behind = avg !== null && s.perDay !== null && s.perDayUnit === s.qtyUnit && avg < s.perDay;
+  return (
+    <span className="small block output-progress">
+      <span className="output-bar" aria-hidden="true">
+        <span style={{ width: `${pct}%` }} />
+      </span>
+      <span className="mono">
+        {formatQty(s.outputQty!)} of {formatQty(s.qty!)} {unitLabel(s.qtyUnit!)} ({pct}%)
+      </span>
+      {avg !== null && s.perDay !== null && s.perDayUnit === s.qtyUnit && (
+        <span className={`block ${behind ? 'warn' : 'muted'}`}>
+          {daysLogged === 1 ? "Day's output" : `Average of ${daysLogged} days`} {formatQty(avg)} {unitLabel(s.qtyUnit!)} · plan {formatQty(s.perDay)} per day
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Record one day's output of a step (mockup B, confirmed 5 Nov 2026). The app never marks a step done by itself. */
+function OutputForm(props: { step: PlannedStep; product: Product | undefined; today: string; onAdd: (e: StepOutput) => void; onRemove: (k: number) => void }) {
+  const { step, product, today } = props;
+  const units = [...new Set([step.qtyUnit, ...(product ? availableUnits(productContext(product)) : [])].filter((u): u is string => !!u))];
+  const [on, setOn] = useState(today);
+  const [qtyText, setQtyText] = useState('');
+  const [unit, setUnit] = useState(units[0] ?? 'pcs');
+  const [note, setNote] = useState('');
+  const qty = parseNum(qtyText);
+  const conv = qty !== null && step.qtyUnit && unit !== step.qtyUnit && product ? convert(qty, unit, step.qtyUnit, productContext(product)) : null;
+  const bad = on > today ? 'The date cannot be in the future.' : qtyText && (qty === null || !(qty > 0)) ? 'Enter a quantity above 0.' : conv && !conv.ok ? 'Conversion needed for this unit' : null;
+  return (
+    <div className="card subtle output-form">
+      <label className="small">
+        Date of this output
+        <input type="date" value={on} max={today} onChange={(e) => setOn(e.target.value || today)} />
+      </label>
+      <div className="qty-unit">
+        <label>
+          Quantity made
+          <input inputMode="decimal" value={qtyText} onChange={(e) => setQtyText(e.target.value)} />
+        </label>
+        <label>
+          Unit
+          <select value={unit} onChange={(e) => setUnit(e.target.value)}>
+            {units.map((u) => (
+              <option key={u} value={u}>
+                {unitLabel(u)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {conv && conv.ok && (
+        <span className="muted small">
+          = {formatQty(conv.value)} {unitLabel(step.qtyUnit!)}
+        </span>
+      )}
+      <label className="small">
+        Note (optional)
+        <input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} />
+      </label>
+      {bad && <p className="error small">{bad}</p>}
+      <button
+        type="button"
+        className="primary small"
+        disabled={!!bad || qty === null || !(qty > 0)}
+        onClick={() => {
+          // Stored in the step's unit when it converts, so totals add up simply.
+          const entry: StepOutput = conv && conv.ok ? { on, qty: conv.value, unit: step.qtyUnit!, at: new Date().toISOString() } : { on, qty: qty!, unit, at: new Date().toISOString() };
+          props.onAdd(note.trim() ? { ...entry, note: note.trim() } : entry);
+          setQtyText('');
+          setNote('');
+        }}
+      >
+        Save output
+      </button>
+      {(step.outputLog ?? []).length > 0 && (
+        <ul className="plain-list small">
+          {step.outputLog!.map((e, k) => (
+            <li key={`${e.on}-${e.at}`} className="row between">
+              <span>
+                {formatDay(e.on)} · <span className="mono">{formatQty(e.qty)} {unitLabel(e.unit)}</span>
+                {e.note && <span className="muted"> · {e.note}</span>}
+              </span>
+              <button type="button" className="secondary small icon" aria-label="Remove this entry" onClick={() => props.onRemove(k)}>
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted small">The figures feed the KPIs. A benchmark change is only suggested after enough steps, never applied by itself.</p>
     </div>
   );
 }

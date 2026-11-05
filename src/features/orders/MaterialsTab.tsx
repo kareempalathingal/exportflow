@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../AppContext';
-import { COLLECTION_JOB_ORDERS, formatDay, isEditable, type JobOrder, type StockEntry } from '../../lib/jobOrders';
+import { COLLECTION_JOB_ORDERS, formatDay, isEditable, type JobOrder, type MaterialDates, type StockEntry } from '../../lib/jobOrders';
 import { COLLECTIONS, componentContext, suppliersOf, type ComponentType, type MasterData, type Supplier } from '../../lib/masters';
 import {
   allocationFor,
@@ -48,6 +48,7 @@ export function jobOrderData(jo: JobOrder): JobOrder {
     progress: jo.progress ?? null,
     progressLog: jo.progressLog ?? [],
     completedOn: jo.completedOn ?? null,
+    ...(jo.materialDates ? { materialDates: jo.materialDates } : {}),
   };
 }
 
@@ -128,6 +129,20 @@ export function MaterialsTab(props: {
     setReason('');
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  }
+
+  /** Material arrival dates (5 Nov 2026): saved at once, each change a history entry. */
+  function saveDates(materialDates: Record<string, MaterialDates>, what: string) {
+    if (!workspaceId) return;
+    saveRecord({
+      workspaceId,
+      collectionName: COLLECTION_JOB_ORDERS,
+      docId: jo.id,
+      entity: `Job Order: ${jo.joNumber}`,
+      before: jo,
+      data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), materialDates })) as Record<string, unknown>,
+      reason: what,
+    });
   }
 
   const orderedCount = orderedProductCount(jo);
@@ -228,6 +243,9 @@ export function MaterialsTab(props: {
             {prev.prevBaseQty !== null && ` (was ${formatQty(prev.prevBaseQty)} ${unitLabel(r.unit)})`}
           </p>
         )}
+        {verb === 'To buy' && jo.materialDates && !r.ordered && r.net > 0 && (
+          <MaterialArrival dates={jo.materialDates[r.key]} editable={jo.status === 'CONFIRMED'} today={istDateKey(new Date())} onChange={(md2, what) => saveDates({ ...jo.materialDates, [r.key]: md2 }, `${r.name}: ${what}`)} />
+        )}
         <AllocationLine alloc={alloc} unit={r.unit} onCount={() => setCountFor(countFor === r.key ? null : r.key)} />
         {countFor === r.key && (
           <CountEditor
@@ -279,6 +297,14 @@ export function MaterialsTab(props: {
       {plan.toProduce.length === 0 ? <p className="muted small">Nothing to make in this order.</p> : plan.toProduce.map((r) => rowView(r, 'To produce'))}
 
       <h3 className="section-title">To buy</h3>
+      {jo.status === 'CONFIRMED' && !jo.materialDates && plan.toBuy.some((r) => !r.ordered && r.net > 0) && (
+        <div className="card subtle">
+          <p className="small">This order was confirmed before material arrivals were tracked. Track them to plan production from the day the materials arrive.</p>
+          <button type="button" className="secondary small" onClick={() => saveDates({}, 'Material arrivals tracked from now')}>
+            Track material arrivals
+          </button>
+        </div>
+      )}
       {plan.toBuy.length === 0 ? <p className="muted small">Nothing to buy yet.</p> : plan.toBuy.map((r) => rowView(r, 'To buy'))}
 
       {editable && (plan.toProduce.length > 0 || plan.toBuy.length > 0) && (
@@ -377,6 +403,46 @@ function CountEditor(props: { type: ComponentType; id: string; name: string; uni
         <button type="button" className="secondary small" onClick={props.onDone}>
           Close
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** Ordered on / expected / received for one material to buy (mockup C, confirmed 5 Nov 2026). */
+function MaterialArrival({ dates, editable, today, onChange }: { dates: MaterialDates | undefined; editable: boolean; today: string; onChange: (d: MaterialDates, what: string) => void }) {
+  const d = dates ?? {};
+  const status = d.receivedOn
+    ? { text: `Received ${formatDay(d.receivedOn)}`, cls: 'ok' }
+    : d.expectedOn
+      ? { text: `Expected ${formatDay(d.expectedOn)}${d.expectedOn < today ? ' · overdue' : ''}`, cls: d.expectedOn < today ? 'error' : '' }
+      : d.orderedOn
+        ? { text: 'Ordered · expected date to be confirmed', cls: 'warn' }
+        : { text: 'Not ordered yet · dates to be confirmed', cls: 'warn' };
+  const field = (k: keyof MaterialDates, label: string, past: boolean) => (
+    <label className="small">
+      {label}
+      <input
+        type="date"
+        value={d[k] ?? ''}
+        max={past ? today : undefined}
+        disabled={!editable}
+        onChange={(e) => {
+          const v = e.target.value || null;
+          if (past && v && v > today) return;
+          onChange({ ...d, [k]: v }, v ? `${label.toLowerCase()} ${formatDay(v)}` : `${label.toLowerCase()} cleared`);
+        }}
+      />
+    </label>
+  );
+  return (
+    <div className="arrival">
+      <p className={`small ${status.cls}`}>
+        <strong>{status.text}</strong>
+      </p>
+      <div className="grid3">
+        {field('orderedOn', 'Ordered on', true)}
+        {field('expectedOn', 'Expected', false)}
+        {field('receivedOn', 'Received', true)}
       </div>
     </div>
   );

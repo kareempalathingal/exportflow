@@ -62,6 +62,8 @@ export interface PlanRow {
   madeFrom: string[];
   /** Ordered products this item is needed for (through any number of BOM levels). */
   usedFor: string[];
+  /** The same as product ids (for matching order lines). */
+  usedForIds: string[];
   /** Made products in between (e.g. "Coir yarn" for coir fibre). */
   via: string[];
   /** The item is itself a line of the order. */
@@ -240,6 +242,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
   const parentsOf = (k: string) => [...new Set(links.filter((l) => l.childKey === k).map((l) => l.parentKey))];
   const ancestry = (k: string) => {
     const usedFor = new Set<string>();
+    const usedForIds = new Set<string>();
     const via = new Set<string>();
     const seen = new Set<string>();
     const walk = (c: string) => {
@@ -247,7 +250,10 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
         if (seen.has(pk)) continue;
         seen.add(pk);
         const name = nameOfKey.get(pk) ?? pk;
-        if (roots.has(pk)) usedFor.add(name);
+        if (roots.has(pk)) {
+          usedFor.add(name);
+          usedForIds.add(parseItemKey(pk)?.id ?? pk);
+        }
         if (parentsOf(pk).length) {
           via.add(name);
           walk(pk);
@@ -256,7 +262,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
     };
     walk(k);
     const sorted = (x: Set<string>) => [...x].sort((a, b) => a.localeCompare(b));
-    return { usedFor: sorted(usedFor), via: sorted(via) };
+    return { usedFor: sorted(usedFor), usedForIds: [...usedForIds], via: sorted(via) };
   };
   const toProduce: PlanRow[] = [];
   const toBuy: PlanRow[] = [];

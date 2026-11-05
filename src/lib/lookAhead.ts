@@ -11,7 +11,7 @@ import { isWorkingDay, weekday, type WorkCalendar } from './calendar';
 import type { JobOrder } from './jobOrders';
 import { planMaterials } from './materials';
 import type { Department } from './masters';
-import { lineProgresses, lineSchedule, PLANNING_KEY, type PlanContext } from './route';
+import { lineProgresses, isBuiltIn, lineSchedule, type PlanContext } from './route';
 import { isActive, nextDue, type Task } from './tasks';
 
 export const NO_DEPT_ID = '__none';
@@ -114,8 +114,9 @@ export function buildLookAhead(args: {
     for (const { line, lp } of lineProgresses(jo, today, ctx)) {
       for (const st of lineSchedule(lp, today, cal)) {
         const s = st.view.step;
-        if (s.key === PLANNING_KEY || st.view.state === 'DONE') continue;
+        if (isBuiltIn(s) || st.view.state === 'DONE') continue;
         const product = s.forProduct || line.productName;
+        if (s.processId === null && s.outsideOf) continue; // dispatch / landing of outside work: no department load
         if (s.processId === null) {
           bought.push({ joNumber: jo.joNumber, product, text: `${s.label}${st.finish ? ` - planned ${short(st.finish)}` : st.start ? ` - from ${short(st.start)}, date to be confirmed` : ' - date to be confirmed'}` });
           continue;
@@ -218,7 +219,7 @@ export function buildLookAhead(args: {
     for (const { lp } of lineProgresses(jo, today, ctx))
       for (const st of lineSchedule(lp, today, cal)) {
         const s = st.view.step;
-        if (s.key === PLANNING_KEY || !s.productId) continue;
+        if (isBuiltIn(s) || !s.productId) continue;
         const k = `PRODUCT:${s.productId}`;
         if (st.view.state === 'DONE' || st.view.startedOn) started.add(k);
         if (!st.start) continue;

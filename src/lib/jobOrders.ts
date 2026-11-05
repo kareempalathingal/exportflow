@@ -161,9 +161,33 @@ export interface JoStep {
   waitAll?: boolean;
   /** The time is the user's estimate (route status "My estimate"): used, but marked. */
   estimated?: boolean;
+  /** The step is done outside (job work); its dispatch and landing steps carry `outsideOf`. */
+  outside?: boolean;
+  /** Dispatch / landing of an outside step: the process id of that step (for grouping). */
+  outsideOf?: string;
+  /** No time of its own: assumed together with the step before it (dispatch, landing without a rate). */
+  passThrough?: boolean;
+  /** Output recorded per day (5 Nov 2026), oldest first. */
+  outputLog?: StepOutput[];
   /** Optional: when work on the step actually started (ISO). Separates waiting from working time (KPIs). */
   startedAt?: string | null;
   doneAt: string | null; // ISO time the step was marked done (may be back-dated)
+}
+
+/** One day's output of a step (entered by the user; may be back-dated, never in the future). */
+export interface StepOutput {
+  on: string; // YYYY-MM-DD
+  qty: number;
+  unit: string;
+  note?: string;
+  at: string; // ISO time it was recorded
+}
+
+/** When a material to buy for the order was ordered / is expected / was received (5 Nov 2026). */
+export interface MaterialDates {
+  orderedOn?: string | null;
+  expectedOn?: string | null;
+  receivedOn?: string | null;
 }
 
 export interface BomSnapshotEntry {
@@ -194,6 +218,8 @@ export interface JobOrder {
   progressLog?: ProgressEntry[];
   /** Date the order was marked completed (cleared if reopened). */
   completedOn?: string | null;
+  /** Per material to buy (item key): ordered / expected / received dates. Gates the "Materials ready" stage. */
+  materialDates?: Record<string, MaterialDates>;
 }
 
 /** Completion date after a status change: set on completion, cleared on reopen, else kept. */

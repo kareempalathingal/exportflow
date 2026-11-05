@@ -13,7 +13,7 @@ import { buildKpis, fmtPct, toneFor, type KpiTargets, type KpiTone } from './kpi
 import { buildLookAhead } from './lookAhead';
 import { orderOutlook } from './managerReports';
 import type { JoHistoryEvent } from './performance';
-import { DEFAULT_PLANNING_DAYS, lineProgresses, orderStepProgress, PLANNING_KEY, type PlanContext } from './route';
+import { DEFAULT_PLANNING_DAYS, lineProgresses, orderStepProgress, isBuiltIn, type PlanContext } from './route';
 import { isActive, outcomeText, withTaskDefaults, type Task } from './tasks';
 import { istDateKey } from './time';
 
@@ -107,7 +107,7 @@ export function buildMyReport(args: {
     const st = standing(jo, today, ctx);
     for (const { line, lp } of lineProgresses(jo, today, ctx)) {
       for (const v of lp.steps) {
-        if (v.step.key === PLANNING_KEY) continue;
+        if (isBuiltIn(v.step)) continue;
         const product = v.step.forProduct || line.productName;
         if (v.state === 'DONE' && inRange(v.doneOn)) {
           stepsDone++;

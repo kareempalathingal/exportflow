@@ -226,6 +226,8 @@ export function JobOrderPage() {
       progress: item?.progress ?? null,
       progressLog: item?.progressLog ?? [],
       completedOn: completedOnAfter(isNew ? null : status, next, item?.completedOn, today),
+      // Orders confirmed from 5 Nov 2026 track material arrivals ("Materials ready" stage).
+      ...(item?.materialDates || (next === 'CONFIRMED' && status === 'DRAFT') ? { materialDates: item?.materialDates ?? {} } : {}),
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;

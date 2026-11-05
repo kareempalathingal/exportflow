@@ -14,6 +14,10 @@ export interface RouteDraft {
   fixedText: string;
   alsoForStock: boolean;
   waitAll?: boolean;
+  /** Done outside (job work): dispatch and landing are added on orders. */
+  outside?: boolean;
+  landingText?: string;
+  landingUnit?: string;
   status: DataStatus;
 }
 
@@ -25,6 +29,9 @@ export function draftsFromRoute(route: RouteStep[] | undefined, baseUnit: string
     fixedText: s.fixedDays === null || s.fixedDays === undefined ? '' : String(s.fixedDays),
     alsoForStock: s.alsoForStock === true,
     waitAll: s.waitAll === true,
+    outside: s.outside === true,
+    landingText: s.landingPerDay === null || s.landingPerDay === undefined ? '' : String(s.landingPerDay),
+    landingUnit: s.landingPerDayUnit || s.perDayUnit || baseUnit,
     status: s.status ?? 'PENDING_VERIFICATION',
   }));
 }
@@ -38,6 +45,8 @@ export function routeFromDrafts(rows: RouteDraft[]): RouteStep[] | string {
     const fixed = parseNum(r.fixedText);
     if (perDay !== null && (!Number.isFinite(perDay) || perDay <= 0)) return `Process step ${i + 1}: output per day must be more than 0`;
     if (fixed !== null && (!Number.isFinite(fixed) || fixed <= 0)) return `Process step ${i + 1}: fixed days must be more than 0 (or leave it empty)`;
+    const landing = r.outside ? parseNum(r.landingText ?? '') : null;
+    if (landing !== null && (!Number.isFinite(landing) || landing <= 0)) return `Process step ${i + 1}: landing per day must be more than 0 (or leave it empty)`;
     const known = perDay !== null || fixed !== null;
     const status: DataStatus = !known
       ? r.status === 'UNAVAILABLE'
@@ -46,7 +55,7 @@ export function routeFromDrafts(rows: RouteDraft[]): RouteStep[] | string {
       : r.status === 'UNAVAILABLE' || r.status === 'PENDING_VERIFICATION'
         ? 'USER_PROVIDED'
         : r.status;
-    out.push({ processId: r.processId, perDay, perDayUnit: r.perDayUnit, fixedDays: fixed, ...(r.alsoForStock ? { alsoForStock: true } : {}), ...(r.waitAll ? { waitAll: true } : {}), status, source: '' });
+    out.push({ processId: r.processId, perDay, perDayUnit: r.perDayUnit, fixedDays: fixed, ...(r.alsoForStock ? { alsoForStock: true } : {}), ...(r.waitAll ? { waitAll: true } : {}), ...(r.outside ? { outside: true, landingPerDay: landing, landingPerDayUnit: landing !== null ? (r.landingUnit ?? r.perDayUnit) : null } : {}), status, source: '' });
   }
   return out;
 }
@@ -148,6 +157,18 @@ export function RouteEditor(props: { rows: RouteDraft[]; onChange: (r: RouteDraf
               <label className="check small">
                 <input type="checkbox" checked={r.waitAll === true} onChange={(e) => set(i, { waitAll: e.target.checked })} /> Waits for the whole quantity of the previous step (outside work, drying, batches)
               </label>
+            )}
+            <label className="check small">
+              <input type="checkbox" checked={r.outside === true} onChange={(e) => set(i, { outside: e.target.checked })} /> Done outside (job work): orders get “Dispatch for” before it and “Landing from” after it
+            </label>
+            {r.outside && (
+              <div className="qty-unit">
+                <label className="small">
+                  Landing per day (coming back)
+                  <input inputMode="decimal" placeholder="empty = with the outside step" value={r.landingText ?? ''} onChange={(e) => set(i, { landingText: e.target.value })} />
+                </label>
+                <UnitSelect label="Unit" value={r.landingUnit ?? r.perDayUnit} units={props.units.includes(r.landingUnit ?? r.perDayUnit) ? props.units : [...props.units, r.landingUnit ?? r.perDayUnit]} onChange={(landingUnit) => set(i, { landingUnit })} />
+              </div>
             )}
           </li>
         ))}

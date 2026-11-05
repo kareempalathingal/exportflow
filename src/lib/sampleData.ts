@@ -4,11 +4,11 @@
  * a real company, recipe or benchmark. Never written to ACTUAL.
  */
 import type { Tracked } from './dataStatus';
-import { addDays, computeDeadline, snapshotBoms, type JobOrder, type JoLine, type JoStatus, type StockEntry } from './jobOrders';
+import { addDays, computeDeadline, snapshotBoms, type JobOrder, type JoLine, type JoStatus, type MaterialDates, type StockEntry } from './jobOrders';
 import type { Bom, BomLine, Customer, Department, MasterData, Process, Product, RawMaterial, RouteStep, Supplier } from './masters';
 import { emptyTask, monthDay, nextDue, type Task } from './tasks';
 import { buildLineSteps, completeCurrent, startCurrent } from './route';
-import type { StockCount } from './materials';
+import { planMaterials, type StockCount } from './materials';
 
 export interface SampleWrite {
   collection: string;
@@ -185,7 +185,14 @@ export function buildSampleData(today: string): SampleWrite[] {
     };
     if (o.final === 'DRAFT') continue;
     const confirmedLines = o.lines.map((l) => ({ ...l, steps: buildLineSteps(l, md, processMap) }));
-    step({ ...current, status: 'CONFIRMED', confirmedOn: d(o.confirmed!), bomSnapshot: snapshotBoms(o.lines, md, () => 1), stock: o.stock ?? {}, lines: confirmedLines });
+    const confirmedJo: JobOrder = { ...current, status: 'CONFIRMED', confirmedOn: d(o.confirmed!), bomSnapshot: snapshotBoms(o.lines, md, () => 1), stock: o.stock ?? {}, lines: confirmedLines };
+    // Materials to buy: received on confirmation; the newest order still waits for them (expected in 2 days).
+    const materialDates: Record<string, MaterialDates> = {};
+    for (const r of planMaterials(confirmedJo, md).toBuy) {
+      if (r.ordered || !(r.net > 0)) continue;
+      materialDates[r.key] = o.id === 'sample_jo_105' ? { orderedOn: d(o.confirmed!), expectedOn: d(2) } : { orderedOn: d(o.confirmed!), receivedOn: d(o.confirmed!) };
+    }
+    step({ ...confirmedJo, materialDates });
     if (o.done) {
       const lines = confirmedLines.map((l) => ({ ...l, steps: [...l.steps] }));
       for (const [li, day, startDay] of o.done) {

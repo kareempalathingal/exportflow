@@ -272,6 +272,38 @@ report the discrepancy and ask; do not silently choose.
     not started yet never starts before today. Tracking stays one step at
     a time per item (the next step can be marked only after the current one
     is done).
+-   Flow tracking (confirmed 5 Nov 2026, mockup canvas "JO Products tab ·
+    flow tracking"):
+    -   Outside work: a route step ticked "Done outside (job work)"
+        (`outside`, optional `landingPerDay` + unit) becomes three order
+        steps: "Dispatch for X" (`passThrough`: no time of its own, assumed
+        together with the step before), "X (outside)" and "Landing from X"
+        (its rate; without one also pass-through). Dispatch / landing have
+        `processId` null and `outsideOf` = the process (KPIs and department
+        lists use that process; Look ahead leaves them out); never counted
+        as over plan.
+    -   Materials ready (`MATERIALS_KEY`, built-in like Planning, made lines
+        only): orders confirmed from now on carry `materialDates` (per to-buy
+        item key: orderedOn / expectedOn / receivedOn, Materials tab, saved
+        at once with a history entry); older orders get "Track material
+        arrivals". Nothing to buy = done at confirmation; all received =
+        done on the last date; else ready by the latest expected date; any
+        material without expected / received date = production dates "to
+        be confirmed" (lead times never guessed). Every material is needed
+        at the product's first step for now ("needed at step" later). A
+        started or finished production step means the materials were there
+        ("Production has started"). Never counted as over plan.
+    -   Steps at the same time: a step can be started once the step before
+        it has started (one that waits for the whole quantity: once it is
+        done); "done" stays in order; every started step shows as running
+        (header "Now: A + B"); Undo start only for the last started step.
+    -   Day's output (`JoStep.outputLog`: date (back-dating allowed, never
+        future), qty, unit, optional note; stored in the step's unit when it
+        converts): progress "X of Y (Z%)", day's / average output vs the
+        benchmark, counts into the line's % done; expected done = the rest at
+        the benchmark rate from today (from tomorrow when today's output is
+        in), never the actual rate. Whole quantity made: the app asks "mark
+        done?", never marks it by itself. Entries can be removed (history).
 -   Working days: Sunday is the weekly off (editable); company holidays
     are added on the dashboard calendar (large type; tap a day to add or
     remove). Doc `settings/calendar` {weeklyOff, holidays} lives in the

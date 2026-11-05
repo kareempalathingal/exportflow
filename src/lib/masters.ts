@@ -140,6 +140,11 @@ export interface RouteStep {
   alsoForStock?: boolean;
   /** Starts only when the previous step has finished the whole quantity (outside work, drying, batches); default: overlaps (5 Nov 2026). */
   waitAll?: boolean;
+  /** Done outside (job work, 5 Nov 2026): the order gets "Dispatch for X" before and "Landing from X" after. */
+  outside?: boolean;
+  /** Landing (goods coming back) per working day; empty = assumed together with the outside step. */
+  landingPerDay?: number | null;
+  landingPerDayUnit?: string | null;
   status: DataStatus;
   source: string;
 }

@@ -29,7 +29,8 @@ describe('JO performance report', () => {
     expect(c.bufferUsed).toBe(1);
     expect(c.vsDelivery).toBeLessThan(0); // …but before the customer delivery date
     expect(r.summary).toMatchObject({ onTimeInternal: 0, onTimeDelivery: 1, avgLateDays: 1 });
-    expect(c.steps.length).toBe(7); // planning + 6 process steps
+    expect(c.steps.length).toBe(8); // planning + materials ready + 6 process steps
+    expect(c.steps[1]!.label).toBe('Materials ready');
     expect(c.planningDays).toBe(2);
     expect(c.steps[0]!.label).toBe('Planning');
     expect(c.actualDays).toBeGreaterThan(0);
@@ -182,8 +183,9 @@ describe('clean plan to submit', () => {
     expect(m.meta.find(([k]) => k === 'Progress')![1]).toMatch(/^\d+% complete \(planned \d+% by today\)$/);
     expect(m.roadMap!.stops[1]).toEqual({ label: 'Plan confirmed', date: '14 Oct', note: '', kind: 'done' });
     expect(m.roadMap!.stops[2]).toMatchObject({ kind: 'now', here: true, note: expect.stringMatching(/% complete$/) });
-    expect(m.stepRoads!.items[0]!.nodes[0]).toMatchObject({ state: 'now', sub: 'for Coir yarn (sample)' });
-    expect(m.stepRoads!.items[0]!.reached).toBe(0); // first step running: dark line starts at it
+    expect(m.stepRoads!.items[0]!.nodes[0]).toMatchObject({ label: 'Materials ready', state: 'done' });
+    expect(m.stepRoads!.items[0]!.nodes[1]).toMatchObject({ state: 'now', sub: 'for Coir yarn (sample)' });
+    expect(m.stepRoads!.items[0]!.reached).toBe(1); // first process step running: dark line up to it
     // Late = over the step's own benchmark, not "finishes after the deadline because earlier steps are late".
     const todo = m.stepRoads!.items[0]!.nodes.filter((n) => n.state !== 'now' && n.state !== 'done');
     expect(todo.every((n) => n.state !== 'late' && n.overDays === 0)).toBe(true);

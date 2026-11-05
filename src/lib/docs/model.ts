@@ -4,7 +4,7 @@
  */
 import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from '../calendar';
-import { buildLineSteps, DEFAULT_PLANNING_DAYS, lineProgress, lineSchedule, orderPlan, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, processPlanRows, type PlanContext } from '../route';
+import { buildLineSteps, DEFAULT_PLANNING_DAYS, isBuiltIn, lineProgress, MATERIALS_KEY, lineSchedule, orderPlan, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, processPlanRows, type PlanContext } from '../route';
 import type { Department, MasterData, Process } from '../masters';
 import { departmentsFor } from '../contacts';
 import { planMaterials, type BuyTotal, type MaterialPlan, type PlanRow } from '../materials';
@@ -511,7 +511,7 @@ export function planOverview(o: OverviewInput): { roadMap: DocRoadMap; table: Do
     const doneAll = known && prod.every((st) => st.view.state === 'DONE');
     const unknownStep = prod.find((st) => !st.finish);
     const ready = known && !unknownStep ? prod[prod.length - 1]!.finish : null;
-    const start = known ? prod[0]!.start : null;
+    const start = known ? (prod.find((st) => !isBuiltIn(st.view.step)) ?? prod[0]!).start : null;
     let tone: DocTone;
     let badge: string;
     let cell: string;
@@ -526,7 +526,7 @@ export function planOverview(o: OverviewInput): { roadMap: DocRoadMap; table: Do
       cell = 'done';
     } else if (!ready) {
       tone = 'unknown';
-      badge = unknownStep!.view.step.processId === null ? 'supplier dates to be confirmed' : 'dates to be confirmed';
+      badge = unknownStep!.view.step.key === MATERIALS_KEY ? 'material dates to be confirmed' : unknownStep!.view.step.processId === null ? 'supplier dates to be confirmed' : 'dates to be confirmed';
       cell = 'to be confirmed';
     } else if (ready > deadline) {
       const late = workingDaysBetween(deadline, ready, cal) ?? 0;
@@ -714,7 +714,11 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     }
     for (const st of sched) {
       const s = st.view.step;
-      if (s.key === PLANNING_KEY) continue;
+      if (s.key === MATERIALS_KEY && s.plannedDays === null && st.view.state !== 'DONE' && s.note) {
+        points.push(`${line.productName}: ${s.note.replace('Expected date not entered: ', 'arrival date of ')} to be confirmed with purchase`);
+        provisional.push(`Material arrival date missing (${line.productName})`);
+      }
+      if (isBuiltIn(s)) continue;
       if (s.estimated && s.plannedDays !== null && st.view.state !== 'DONE') {
         risks.push(`${line.productName} · ${s.label}: time is my estimate`);
         provisional.push(`Estimated time for ${s.label} (${line.productName})`);
@@ -818,12 +822,12 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
             const s = st.view.step;
             const name = s.key === PLANNING_KEY ? 'Planning (whole order)' : `${s.label}${s.forProduct !== line.productName ? ` (${s.forProduct})` : ''}`;
             if (clean) {
-              const amount = s.qty !== null && s.qtyUnit ? qty(s.qty, s.qtyUnit) : s.key === PLANNING_KEY ? '—' : s.processId === null ? qty(line.qty, line.unit) : '—';
+              const amount = s.qty !== null && s.qtyUnit ? qty(s.qty, s.qtyUnit) : isBuiltIn(s) ? '—' : s.processId === null ? qty(line.qty, line.unit) : '—';
               const late = st.view.overrunDays !== null && st.view.overrunDays > 0;
               const status = st.view.state === 'DONE' ? 'Done' : st.view.state === 'NOW' ? (late ? 'In progress - delayed' : 'In progress') : st.finish ? 'Planned' : 'To be confirmed';
               return [name, amount, st.start ? formatDay(st.start) : 'To be confirmed', st.finish ? formatDay(st.finish) : 'To be confirmed', status];
             }
-            const basis = [s.basis, s.note].filter(Boolean).join(' · ') || (s.processId === null && s.key !== PLANNING_KEY ? 'Purchase' : '—');
+            const basis = [s.basis, s.note].filter(Boolean).join(' · ') || (s.processId === null && !isBuiltIn(s) ? 'Purchase' : '—');
             const days =
               st.view.state === 'DONE'
                 ? `${formatQty(st.view.actualDays ?? 0)}${s.plannedDays !== null ? ` (plan ${formatQty(s.plannedDays)})` : ''}`

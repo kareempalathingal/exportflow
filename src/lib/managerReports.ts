@@ -10,7 +10,7 @@ import { addDays, daysBetween, DELIVERY_DATE_TYPES, formatDay, type JobOrder } f
 import type { Department, MasterData, Supplier } from './masters';
 import { allocationFor, parseItemKey, stockCountId, type AllocationState, type BuyTotal, type StockCount } from './materials';
 import { trackGroup, trackLabel, type Track } from './progress';
-import { DEFAULT_PLANNING_DAYS, lineProgresses, lineSchedule, orderTrack, PLANNING_KEY, type PlanContext } from './route';
+import { DEFAULT_PLANNING_DAYS, lineProgresses, lineSchedule, orderTrack, isBuiltIn, type PlanContext } from './route';
 import { formatQty, unitLabel } from './units';
 
 type Jo = JobOrder & { id: string };
@@ -48,7 +48,7 @@ export function orderOutlook(jo: JobOrder, today: string, ctx: PlanContext): Ord
   const spareDays = expectedFinish ? workingDaysBetween(expectedFinish, jo.deadline.internalDeadline, ctx.cal) : null;
   const now = lps.map(({ line, lp }) => `${line.productName}: ${lp.current ? lp.current.step.label : 'done'}`);
   const overruns = lps
-    .filter(({ lp }) => lp.current && lp.current.step.key !== PLANNING_KEY && (lp.current.overrunDays ?? 0) > 0)
+    .filter(({ lp }) => lp.current && !isBuiltIn(lp.current.step) && (lp.current.overrunDays ?? 0) > 0)
     .map(({ line, lp }) => ({ product: lp.current!.step.forProduct || line.productName, step: lp.current!.step.label, days: lp.current!.overrunDays! }));
   const estimated = lps.some(({ lp }) => lp.steps.some((v) => v.state !== 'DONE' && v.step.estimated === true));
   return { track, expectedFinish, estimated, spareDays, fits: spareDays === null ? 'UNKNOWN' : spareDays >= 0 ? 'YES' : 'NO', now, overruns };
@@ -305,7 +305,7 @@ export function departmentWork(args: { jobOrders: Jo[]; ctx: PlanContext; today:
       const sched = lineSchedule(lp, today, ctx.cal);
       sched.forEach((st, i) => {
         const v = st.view;
-        if (v.state === 'DONE' || v.step.key === PLANNING_KEY) return;
+        if (v.state === 'DONE' || isBuiltIn(v.step)) return;
         const prevIsNow = i > 0 && sched[i - 1]!.view.state === 'NOW';
         // Running now; starting within the window; or the very next step when its start is not known yet.
         const include = v.state === 'NOW' || (st.start !== null && st.start <= until) || (st.start === null && prevIsNow);
@@ -320,7 +320,7 @@ export function departmentWork(args: { jobOrders: Jo[]; ctx: PlanContext; today:
           start: st.start,
           finish: st.finish,
           overrunDays: v.state === 'NOW' ? v.overrunDays : null,
-          processId: v.step.processId,
+          processId: v.step.processId ?? v.step.outsideOf ?? null,
         });
       });
     }

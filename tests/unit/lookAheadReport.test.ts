@@ -65,7 +65,8 @@ describe('look ahead (confirmed 27 Oct 2026)', () => {
     for (const m of la.materials) expect(m.neededBy <= la.to).toBe(true);
     expect(la.materials.some((m) => m.joNumber === 'DEMO-101')).toBe(false); // already in production
     const fibre = la.materials.find((m) => m.name.startsWith('Coir fibre') && m.joNumber === 'DEMO-105')!;
-    expect(fibre).toMatchObject({ overdue: true });
+    // DEMO-105 waits for its materials (expected in 2 days), so its work starts then: not overdue.
+    expect(fibre).toMatchObject({ overdue: false });
   });
   it('long ranges use months; repeating tasks show each coming occurrence', () => {
     const long = buildLookAhead({ ...base, from: TODAY, to: '2027-01-26' });

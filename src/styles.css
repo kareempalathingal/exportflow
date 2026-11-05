@@ -550,3 +550,15 @@ label.inline { display: flex; align-items: center; gap: 0.5rem; }
 table.proc-plan { width: 100%; border-collapse: collapse; }
 table.proc-plan th, table.proc-plan td { padding: 6px 4px; border-bottom: 1px solid var(--line, #e3e6ea); text-align: left; vertical-align: top; }
 table.proc-plan .num { text-align: right; }
+
+/* Material arrivals (Materials tab, 5 Nov 2026) */
+.arrival { border-top: 1px solid var(--line); margin-top: 0.5rem; padding-top: 0.5rem; }
+.arrival .grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.arrival .grid3 label { margin: 0; }
+.arrival input[type='date'] { min-width: 0; width: 100%; padding-left: 4px; padding-right: 4px; }
+
+/* Day's output (Products tab, 5 Nov 2026) */
+.output-progress { margin: 0.25rem 0; }
+.output-bar { display: block; height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin-bottom: 2px; }
+.output-bar > span { display: block; height: 6px; background: var(--brand); }
+.output-form { margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.5rem; }

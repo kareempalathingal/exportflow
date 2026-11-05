@@ -13,7 +13,7 @@ import { workingDaysBetween } from './calendar';
 import { departmentsFor } from './contacts';
 import type { Department } from './masters';
 import { buildPerformance, type JoHistoryEvent } from './performance';
-import { DEFAULT_PLANNING_DAYS, lineProgresses, orderTrack, PLANNING_KEY, type PlanContext } from './route';
+import { DEFAULT_PLANNING_DAYS, lineProgresses, orderTrack, isBuiltIn, type PlanContext } from './route';
 import { formatQty, unitLabel } from './units';
 
 type Jo = JobOrder & { id: string };
@@ -139,13 +139,13 @@ export function finishedSteps(jobOrders: Jo[], ctx: PlanContext, from: string, t
     const at = jo.status === 'COMPLETED' && jo.completedOn ? jo.completedOn : today;
     for (const { line, lp } of lineProgresses(jo, at, ctx)) {
       for (const v of lp.steps) {
-        if (v.step.key === PLANNING_KEY || v.state !== 'DONE' || !v.doneOn || v.doneOn < from || v.doneOn > to) continue;
+        if (isBuiltIn(v.step) || v.state !== 'DONE' || !v.doneOn || v.doneOn < from || v.doneOn > to) continue;
         out.push({
           joId: jo.id,
           joNumber: jo.joNumber,
           product: v.step.forProduct || line.productName,
           label: v.step.label,
-          processId: v.step.processId,
+          processId: v.step.processId ?? v.step.outsideOf ?? null,
           doneOn: v.doneOn,
           planned: v.step.plannedDays,
           days: v.workDays ?? v.actualDays ?? 0,
@@ -202,9 +202,9 @@ function periodKpi(args: { jobOrders: Jo[]; ctx: PlanContext; from: string; to: 
     let worst: { processId: string | null; over: number } | null = null;
     for (const { lp } of lineProgresses(jo, at, ctx)) {
       for (const v of lp.steps) {
-        if (v.step.key === PLANNING_KEY || v.step.plannedDays === null || v.state === 'TODO') continue;
+        if (isBuiltIn(v.step) || v.step.plannedDays === null || v.state === 'TODO') continue;
         const over = (v.workDays ?? v.actualDays ?? 0) - v.step.plannedDays;
-        if (over > 0 && (!worst || over > worst.over)) worst = { processId: v.step.processId, over };
+        if (over > 0 && (!worst || over > worst.over)) worst = { processId: v.step.processId ?? v.step.outsideOf ?? null, over };
       }
     }
     if (worst) for (const g of groupOf(worst.processId, departments)) blame.set(g.id, (blame.get(g.id) ?? 0) + 1);
@@ -217,9 +217,9 @@ function periodKpi(args: { jobOrders: Jo[]; ctx: PlanContext; from: string; to: 
       if (jo.status !== 'CONFIRMED') continue;
       for (const { lp } of lineProgresses(jo, today, ctx)) {
         const c = lp.current;
-        if (!c || c.step.key === PLANNING_KEY) continue;
+        if (!c || isBuiltIn(c.step)) continue;
         const over = c.step.plannedDays !== null && (c.workDays ?? c.actualDays ?? 0) > c.step.plannedDays;
-        for (const g of groupOf(c.step.processId, departments)) {
+        for (const g of groupOf(c.step.processId ?? c.step.outsideOf ?? null, departments)) {
           const r = running.get(g.id) ?? { now: 0, over: 0 };
           r.now += 1;
           if (over) r.over += 1;
