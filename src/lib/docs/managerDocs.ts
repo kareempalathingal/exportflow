@@ -17,6 +17,7 @@ import {
 } from '../managerReports';
 import { formatQty, unitLabel } from '../units';
 import { ordersCell, safeFileName, type DocModel, type DocTable } from './model';
+import { AWAITED_KIND_LABEL, type AwaitedItem } from '../followUp';
 
 const q = (n: number, unit: string) => `${formatQty(n)} ${unitLabel(unit)}`;
 const pctOf = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : '-');
@@ -235,5 +236,37 @@ export function toBuyBySupplierDoc(
     ],
     generatedAt: opts.generatedAt,
     fileName: `to-buy_by-supplier_${opts.today}.pdf`,
+  };
+}
+
+/** Awaited from outside, grouped by supplier / vendor (5 Nov 2026). No prices. */
+export function awaitedDoc(items: AwaitedItem[], opts: { company: string; today: string; generatedAt: string; supplierName: (id: string | null) => string }): DocModel {
+  const groups = new Map<string, AwaitedItem[]>();
+  for (const i of items) {
+    const k = i.supplierId ?? '';
+    groups.set(k, [...(groups.get(k) ?? []), i]);
+  }
+  const keys = [...groups.keys()].sort((a, b) => (a === '' ? 1 : b === '' ? -1 : opts.supplierName(a).localeCompare(opts.supplierName(b))));
+  const when = (i: AwaitedItem) => (i.expectedOn ? `${formatDay(i.expectedOn)}${i.lateDays ? ` - ${i.lateDays} day${i.lateDays === 1 ? '' : 's'} late` : ''}${i.promisedFirst ? ` (first said ${formatDay(i.promisedFirst)})` : ''}` : 'to be confirmed');
+  return {
+    title: 'Awaited from Outside',
+    reference: `As of ${formatDay(opts.today)}`,
+    company: opts.company,
+    meta: [
+      ['Items', String(items.length)],
+      ['Late', String(items.filter((i) => i.bucket === 'LATE').length)],
+    ],
+    tables: keys.map((k) => ({
+      title: k ? opts.supplierName(k) : 'No supplier recorded',
+      columns: [{ label: 'Order' }, { label: 'Item' }, { label: 'Type' }, { label: 'PO' }, { label: 'Outstanding' }, { label: 'Expected' }],
+      rows: groups.get(k)!.map((i) => [i.joNumber, `${i.what}${i.product && i.product !== i.what ? ` (${i.product})` : ''}`, AWAITED_KIND_LABEL[i.kind], i.poNo || '-', i.outstanding, when(i)]),
+      rowTones: groups.get(k)!.map((i) => (i.bucket === 'LATE' ? 'late' : i.bucket === 'SOON' ? 'tight' : i.bucket === 'UNKNOWN' ? 'unknown' : null)),
+      empty: '',
+    })),
+    notes: ['Dates are those given by the supplier or vendor; no prices are included.'],
+    provisional: false,
+    provisionalReasons: [],
+    generatedAt: opts.generatedAt,
+    fileName: `awaited-from-outside_${opts.today}.pdf`,
   };
 }

@@ -100,6 +100,8 @@ export interface Process extends MasterBase {
    * per unit (confirmed 5 Nov 2026). Items of an order queue for it.
    */
   parallelUnits?: number;
+  /** "Ready to start?" items the user checks before this process starts on an order (5 Nov 2026). */
+  readiness?: string[];
 }
 
 /** Units of a process (at least 1). */
@@ -158,6 +160,8 @@ export interface Supplier extends MasterBase {
   gstin: string;
   /** What this supplier can supply: item keys "RAW_MATERIAL:<id>" / "PRODUCT:<id>". The only place the link is stored. */
   items: string[];
+  /** Does job work for us (embossing, bleaching…): offered first for outside steps (5 Nov 2026). */
+  jobWork?: boolean;
 }
 
 /** Suppliers linked to an item (by item key). */

@@ -9,6 +9,8 @@ import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route
 import { formatQty, unitLabel } from './units';
 import { isActive, type Task } from './tasks';
 import { formatClock } from './time';
+import { awaitedItems, startChecks } from './followUp';
+import type { Process, Supplier } from './masters';
 
 export const SOON_WORKING_DAYS = 2;
 
@@ -39,6 +41,10 @@ export function buildToday(args: {
   /** Work tasks (any department): overdue, today and the next 2 working days. */
   tasks?: (Task & { id: string })[];
   deptName?: (id: string) => string;
+  /** Ready-to-start checks and supplier / vendor follow-ups (5 Nov 2026). */
+  processes?: Map<string, Process>;
+  suppliers?: Map<string, Supplier>;
+  alertDays?: number;
 }): TodaySummary {
   const { today, ctx } = args;
   const cal: WorkCalendar = ctx.cal;
@@ -89,6 +95,20 @@ export function buildToday(args: {
         const ew = when(end);
         if (ew === 'TODAY' || ew === 'SOON') items.push({ when: ew, date: end, text: `${name} should finish ${day(end)}`, link: `${link}?tab=products`, step });
       }
+    }
+  }
+
+  // Steps starting soon that are not ready, and what is awaited from outside.
+  if (args.processes) {
+    for (const c of startChecks(args.jobOrders, ctx, today, args.processes, args.suppliers ?? new Map(), args.alertDays)) {
+      if (c.ready) continue;
+      const w: TodayWhen = c.start <= today ? 'OVERDUE' : 'SOON';
+      items.push({ when: w, date: c.start, text: `${c.joNumber} · ${c.product}: ${c.label} ${c.start <= today ? 'due to start' : `starts ${day(c.start)}`} - ready ${c.readyCount} of ${c.total}`, link: '/' });
+    }
+    const name = (id: string | null) => (id ? (args.suppliers?.get(id)?.name ?? 'supplier') : 'no supplier yet');
+    for (const a of awaitedItems(args.jobOrders, ctx, today, args.alertDays)) {
+      if (a.bucket === 'LATE') items.push({ when: 'OVERDUE', date: a.expectedOn, text: `${a.joNumber}: ${a.what} from ${name(a.supplierId)} ${a.lateDays} working day${a.lateDays === 1 ? '' : 's'} late (${a.outstanding})`, link: a.link });
+      else if (a.bucket === 'SOON') items.push({ when: a.expectedOn === today ? 'TODAY' : 'SOON', date: a.expectedOn, text: `${a.joNumber}: ${a.what} expected from ${name(a.supplierId)} ${day(a.expectedOn!)} - confirm (${a.outstanding})`, link: a.link });
     }
   }
 

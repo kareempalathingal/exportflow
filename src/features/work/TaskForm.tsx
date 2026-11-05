@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { WEEKDAY_NAMES } from '../../lib/calendar';
 import { COLLECTION_JOB_ORDERS, type JobOrder } from '../../lib/jobOrders';
@@ -24,7 +24,16 @@ export function TaskForm() {
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
   // Start from the saved task when it is already loaded (no empty flash), else empty until it arrives.
-  const [t, setT] = useState<Task>(() => (item ? ({ ...emptyTask(), ...strip(item as Task) } as Task) : emptyTask()));
+  const [qp] = useSearchParams();
+  // Prefilled from a follow-up (Awaited from outside / Ready to start?), 5 Nov 2026.
+  const prefill = (): Task => ({
+    ...emptyTask(),
+    ...(qp.get('title') ? { title: qp.get('title')! } : {}),
+    ...(qp.get('person') ? { person: qp.get('person')! } : {}),
+    ...(qp.get('due') ? { dueDate: qp.get('due')! } : {}),
+    ...(qp.get('jo') ? { joId: qp.get('jo')!, joNumber: qp.get('joNo') ?? '' } : {}),
+  });
+  const [t, setT] = useState<Task>(() => (item ? ({ ...emptyTask(), ...strip(item as Task) } as Task) : prefill()));
   const [kind, setKind] = useState<RepeatKind>(() => item?.repeat?.kind ?? 'NONE');
   const [nText, setNText] = useState(() => (item?.repeat?.kind === 'EVERY_N_DAYS' ? String(item.repeat.days) : '7'));
   const [error, setError] = useState<string | null>(null);

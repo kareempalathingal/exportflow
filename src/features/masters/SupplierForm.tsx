@@ -99,6 +99,7 @@ export function SupplierForm() {
       email: d.email.trim(),
       gstin: d.gstin.trim().toUpperCase(),
       items: [...new Set(d.items)],
+      ...(d.jobWork ? { jobWork: true } : {}),
     };
     saveRecord({ workspaceId, collectionName: COLLECTIONS.suppliers, docId, entity: `Supplier: ${data.name}`, before: isNew ? null : item, data: { ...data }, reason });
     if (isNew) navigate(returnTo ?? `/masters/suppliers/${docId}`, { replace: true });
@@ -128,6 +129,9 @@ export function SupplierForm() {
         <TextField label="Email" value={d.email} onChange={(email) => set({ email })} />
       </div>
       <TextField label="GSTIN (optional)" value={d.gstin} onChange={(gstin) => set({ gstin })} max={15} />
+      <label className="check">
+        <input type="checkbox" checked={d.jobWork === true} onChange={(e) => set({ jobWork: e.target.checked })} /> Does job work for us (embossing, bleaching…): offered first for outside steps
+      </label>
 
       <fieldset className="tracked">
         <legend>Supplies</legend>

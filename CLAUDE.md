@@ -303,6 +303,39 @@ report the discrepancy and ask; do not silently choose.
         the benchmark rate from today (from tomorrow when today's output is
         in), never the actual rate. Whole quantity made: the app asks "mark
         done?", never marks it by itself. Entries can be removed (history).
+-   Follow-up and readiness (confirmed 5 Nov 2026, mockup canvas
+    "Follow-up & readiness"; `src/lib/followUp.ts`):
+    -   Bought items: the "Ordered" step holds supplier (Suppliers master),
+        PO number (optional), ordered on and the supplier's date
+        (`supplierId`, `poNo`, `orderedOn`, `expectedOn`); outside work: the
+        same on the outside step (vendor = supplier tagged `jobWork`, offered
+        first). Materials to buy: supplier and PO in `materialDates` too.
+        No prices. A changed expected date keeps the old one in
+        `expectedHistory` (reason optional; `firstPromise()` = the original).
+    -   The promised date drives the plan (`withPromises()`): "Received" /
+        the outside step lasts until it (`readyBy`); past it and not done =
+        "N working days late · ask for a new date" (`lateDays`), never an
+        overrun.
+    -   Part deliveries: "+ Dispatched" / "+ Received back" / "+ Received"
+        use the step's `outputLog`; "still with <vendor>" = dispatched -
+        back; the whole quantity in → the app asks "mark done?".
+    -   Orders → "Awaited" tab (`awaitedItems()`, `AwaitedList.tsx`): job
+        work out, bought items, materials (orders tracking arrivals); Late /
+        next N working days / later / date to be confirmed; filters; contact
+        buttons with a draft (`supplierMessage()`), "+ Task" (prefilled
+        `/work/new?title=&person=&due=&jo=&joNo=`), share text, PDF by
+        supplier (`awaitedDoc()`); Reports links to it. Late → Today
+        Overdue; due within N days → Today "confirm".
+    -   Ready to start? (`startChecks()`, Home card `StartingSoon.tsx`):
+        every process step planned to start within N working days (Settings
+        → profile `alertDays`, default 2, one value for all) or due and not
+        started. The app checks materials, the step before, and supplier /
+        vendor + date of bought items and outside work; plus the process's
+        own checklist (Processes → "Ready to start?", `readiness`, written
+        by the user, never invented), ticked per order step with the date
+        (`JoStep.readiness`, history entry). Not ready → Today (Overdue on
+        the start day). Contact buttons of the department, "+ Follow-up task".
+    -   Not yet: supplier / vendor delay KPIs against the first promise.
 -   Working days: Sunday is the weekly off (editable); company holidays
     are added on the dashboard calendar (large type; tap a day to add or
     remove). Doc `settings/calendar` {weeklyOff, holidays} lives in the

@@ -167,8 +167,17 @@ export interface JoStep {
   outsideOf?: string;
   /** No time of its own: assumed together with the step before it (dispatch, landing without a rate). */
   passThrough?: boolean;
-  /** Output recorded per day (5 Nov 2026), oldest first. */
+  /** Output recorded per day (5 Nov 2026), oldest first. Also dispatched / received quantities. */
   outputLog?: StepOutput[];
+  /** Follow-up of bought items (on "Ordered") and outside work (on the outside step), 5 Nov 2026. */
+  supplierId?: string | null;
+  poNo?: string;
+  orderedOn?: string | null;
+  /** The date the supplier / vendor gave; earlier promises in `expectedHistory` (first = the original promise). */
+  expectedOn?: string | null;
+  expectedHistory?: { on: string; at: string }[];
+  /** "Ready to start?" checklist items ticked for this step (item text, date ticked). */
+  readiness?: { item: string; on: string }[];
   /** Optional: when work on the step actually started (ISO). Separates waiting from working time (KPIs). */
   startedAt?: string | null;
   doneAt: string | null; // ISO time the step was marked done (may be back-dated)
@@ -188,6 +197,22 @@ export interface MaterialDates {
   orderedOn?: string | null;
   expectedOn?: string | null;
   receivedOn?: string | null;
+  supplierId?: string | null;
+  poNo?: string;
+  /** Earlier expected dates (first = the original promise). */
+  expectedHistory?: { on: string; at: string }[];
+}
+
+/** A new expected date keeps the previous one in the history (confirmed 5 Nov 2026: reason optional). */
+export function withExpected<T extends { expectedOn?: string | null; expectedHistory?: { on: string; at: string }[] }>(x: T, next: string | null, at: string): T {
+  const prev = x.expectedOn ?? null;
+  if (prev === next) return x;
+  return { ...x, expectedOn: next, ...(prev ? { expectedHistory: [...(x.expectedHistory ?? []), { on: prev, at }] } : {}) };
+}
+
+/** The first date promised (for "late against the promise"). */
+export function firstPromise(x: { expectedOn?: string | null; expectedHistory?: { on: string; at: string }[] }): string | null {
+  return x.expectedHistory?.[0]?.on ?? x.expectedOn ?? null;
 }
 
 export interface BomSnapshotEntry {

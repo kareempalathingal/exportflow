@@ -55,3 +55,12 @@ export function stepMessage(args: { person?: string; joNumber: string; product: 
   const ask = args.late ? 'It is running behind plan. Could you tell me the status and when it will be done?' : 'Could you update me on the status?';
   return { subject: `${args.joNumber} · ${args.step} - status`, body: `${hi}\n${what}${when}.\n${ask}\nThank you.` };
 }
+
+/** A draft to a supplier / job-work vendor about something awaited (5 Nov 2026). The user edits and sends it. */
+export function supplierMessage(args: { person?: string; joNumber: string; what: string; outstanding?: string | null; poNo?: string; expectedOn?: string | null; late?: boolean }): StepMessage {
+  const hi = args.person ? `Hi ${args.person.split(' ')[0]},` : 'Hi,';
+  const what = `${args.poNo ? `PO ${args.poNo} · ` : ''}${args.joNumber} · ${args.what}${args.outstanding ? ` (${args.outstanding})` : ''}`;
+  const when = args.expectedOn ? ` - expected ${args.expectedOn}` : '';
+  const ask = args.late ? 'It has not reached us yet. Could you tell me the status and the new date?' : 'Could you confirm it will reach us on time?';
+  return { subject: `${args.poNo ? `PO ${args.poNo} · ` : ''}${args.what} - status`, body: `${hi}\n${what}${when}.\n${ask}\nThank you.` };
+}

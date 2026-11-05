@@ -562,3 +562,13 @@ table.proc-plan .num { text-align: right; }
 .output-bar { display: block; height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin-bottom: 2px; }
 .output-bar > span { display: block; height: 6px; background: var(--brand); }
 .output-form { margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
+
+/* Awaited from outside / Ready to start (5 Nov 2026) */
+button.chip { min-height: 36px; padding: 0 0.8rem; color: var(--ink); }
+button.chip.on { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.awaited > li { padding: 0.6rem 0; border-bottom: 1px solid var(--line); }
+.awaited > li:last-child { border-bottom: 0; }
+.ready-check { border: 1px solid var(--line); border-radius: 12px; padding: 0.75rem; margin: 0.5rem 0; }
+.ready-check.not-ready { border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
+.ready-check ul { margin: 0.25rem 0; }
+.ready-check label.check { min-height: 40px; }

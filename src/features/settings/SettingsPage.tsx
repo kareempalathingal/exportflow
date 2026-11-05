@@ -38,6 +38,7 @@ function ReadinessLinkCard() {
 }
 import { DEFAULT_RED_AT, readRedAt, readTheme, saveRedAt, saveTheme, type ThemePref } from '../../lib/theme';
 import { DEFAULT_PLANNING_DAYS } from '../../lib/route';
+import { DEFAULT_ALERT_DAYS } from '../../lib/followUp';
 
 function AppearanceCard() {
   const [theme, setTheme] = useState<ThemePref>(readTheme);
@@ -97,6 +98,7 @@ function ProfileForm() {
   const [person, setPerson] = useState('');
   const [designation, setDesignation] = useState('');
   const [planningText, setPlanningText] = useState(String(DEFAULT_PLANNING_DAYS));
+  const [alertText, setAlertText] = useState(String(DEFAULT_ALERT_DAYS));
 
   // Load saved values only when a new revision arrives (or the workspace
   // changes), not on every sync-metadata update, so typing is never lost.
@@ -112,6 +114,7 @@ function ProfileForm() {
     setPerson(profile.preparedByName ?? '');
     setDesignation(profile.preparedByDesignation ?? '');
     setPlanningText(profile.planningDays === null ? '' : String(profile.planningDays ?? DEFAULT_PLANNING_DAYS));
+    setAlertText(String(profile.alertDays ?? DEFAULT_ALERT_DAYS));
   }, [profile, workspaceId]);
 
   function submit(e: FormEvent) {
@@ -130,6 +133,11 @@ function ProfileForm() {
       setFormError('Planning time must be between 0.5 and 30 working days, or empty');
       return;
     }
+    const alertDays = Math.floor(Number(alertText));
+    if (!Number.isFinite(alertDays) || alertDays < 1 || alertDays > 10) {
+      setFormError('Ready-to-start alert must be 1 to 10 working days');
+      return;
+    }
     setFormError(null);
     saveRecord({
       workspaceId,
@@ -137,7 +145,7 @@ function ProfileForm() {
       docId: PROFILE_DOC,
       entity: 'Profile',
       before: profile,
-      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning },
+      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning, alertDays },
       reason,
     });
     setReason('');
@@ -185,6 +193,11 @@ function ProfileForm() {
         <input inputMode="decimal" value={planningText} onChange={(e) => setPlanningText(e.target.value)} placeholder="not set" />
       </label>
       <p className="muted small">Your own benchmark; drafts older than this show as late in planning. Empty = not set.</p>
+      <label>
+        Ready-to-start and follow-up alerts (working days before)
+        <input inputMode="numeric" value={alertText} onChange={(e) => setAlertText(e.target.value)} style={{ maxWidth: 90 }} />
+      </label>
+      <p className="muted small">Home asks whether each process is ready this many working days before it starts, and reminds you to confirm dates with suppliers and vendors.</p>
       <label>
         {t('reasonOptional')}
         <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} />

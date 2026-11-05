@@ -1,5 +1,5 @@
 import { mailHref, orderedPeople, telHref, whatsappHref, type StepMessage } from '../../lib/contacts';
-import type { Department, Person } from '../../lib/masters';
+import type { Department, Person, Supplier } from '../../lib/masters';
 
 /** Call / WhatsApp / Email for one person. Messages open ready to edit; nothing is sent automatically. */
 export function PersonContact({ person, message }: { person: Person; message: (p: Person) => StepMessage }) {
@@ -63,4 +63,12 @@ export function StepContacts({ departments, message }: { departments: Pick<Depar
       })}
     </div>
   );
+}
+
+/** Call / WhatsApp / email a supplier or vendor (drafts only; the app never sends anything). */
+export function SupplierContact({ supplier, message }: { supplier: Pick<Supplier, 'name' | 'contactPerson' | 'phone' | 'email'> | undefined; message: (p: Person) => StepMessage }) {
+  if (!supplier) return <span className="muted small">No supplier recorded</span>;
+  if (!supplier.phone && !supplier.email) return <span className="muted small">{supplier.name}: no phone or email in Masters → Suppliers</span>;
+  const person: Person = { name: supplier.contactPerson || supplier.name, designation: '', phone: supplier.phone, whatsapp: '', email: supplier.email, primary: true };
+  return <PersonContact person={person} message={message} />;
 }

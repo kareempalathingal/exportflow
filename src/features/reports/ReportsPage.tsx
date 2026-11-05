@@ -46,10 +46,14 @@ export function ReportsPage() {
     const m = new Map(departments.items.map((d) => [d.id, d.name]));
     return (id: string) => m.get(id) ?? '';
   }, [departments.items]);
-  const summary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today, tasks: tasks.items, deptName }), [jos.items, ctx, today, tasks.items, deptName]);
   const generatedAt = () => `${formatDateTime(new Date())} IST`;
   const processes = useCollection<Process>(workspaceId, COLLECTIONS.processes);
   const processMap = useMemo(() => new Map(processes.items.map((p) => [p.id, p])), [processes.items]);
+  const supplierMap = useMemo(() => new Map(suppliers.items.map((p) => [p.id, p])), [suppliers.items]);
+  const summary = useMemo(
+    () => buildToday({ jobOrders: jos.items, ctx, today, tasks: tasks.items, deptName, processes: processMap, suppliers: supplierMap, alertDays: profile?.alertDays }),
+    [jos.items, ctx, today, tasks.items, deptName, processMap, supplierMap, profile?.alertDays],
+  );
   const processNames = useMemo(() => new Map(processes.items.map((p) => [p.id, p.name])), [processes.items]);
   const { targets: kpiTargets } = useKpiTargets(workspaceId);
   const [planJo, setPlanJo] = useState('');
@@ -185,6 +189,14 @@ export function ReportsPage() {
               </p>
             </div>
           </SettingSection>
+
+          <Link to="/orders?tab=awaited" className="card setting-link">
+            <span className="setting-title">Awaited from outside</span>
+            <span className="setting-sum">Job work, bought items, materials · late first · PDF by supplier</span>
+            <span className="setting-chev" aria-hidden="true">
+              ›
+            </span>
+          </Link>
 
           <Link to="/history" className="card setting-link">
             <span className="setting-title">{t('historyTitle')}</span>

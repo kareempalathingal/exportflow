@@ -15,7 +15,7 @@
  * All day counts are working days (Sundays and company holidays left out).
  */
 import { addWorkingDays, DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from './calendar';
-import { effectiveSupply, resolveLine, type JobOrder, type JoLine, type JoStep, type StepOutput } from './jobOrders';
+import { effectiveSupply, resolveLine, withExpected, type JobOrder, type JoLine, type JoStep, type StepOutput } from './jobOrders';
 import { lineComponent, needsBom, processUnits, productContext, type MasterData, type Process, type Product, type RouteStep } from './masters';
 import { planMaterials } from './materials';
 import { istDateKey } from './time';
@@ -223,7 +223,7 @@ function planStepTime(step: JoStep, made: StepQty | undefined, product: Product 
   const perDay = pos(step.perDay);
   const fixed = pos(step.fixedDays);
   if (step.passThrough) return { ...base, plannedDays: 0, workDays: 0, qty: q?.qty ?? null, qtyUnit: q?.unit ?? null, note: 'No time of its own: assumed together with the step before' };
-  if (perDay === null && fixed === null) return base; // time pending
+  if (perDay === null && fixed === null) return q ? { ...base, qty: q.qty, qtyUnit: q.unit } : base; // time pending (quantity kept for receipts)
   if (!q) {
     if (perDay === null) return { ...base, plannedDays: roundUpHalf(fixed!), workDays: fixed!, basis: `${formatQty(fixed!)} fixed days` };
     return { ...base, note: 'Quantity cannot be worked out (check the BOM and conversions)' };
@@ -282,6 +282,8 @@ export interface StepView {
   workDays: number | null;
   /** Next in line but the process is still busy with other items of the order (startOn = expected start). */
   queued?: boolean;
+  /** Not done and the supplier's / vendor's date has passed: working days late (5 Nov 2026). */
+  lateDays?: number;
 }
 
 export interface LineProgress {
@@ -307,7 +309,7 @@ export function isBuiltIn(s: Pick<JoStep, 'key'>): boolean {
 
 /** actual − planned, when it means something (never for "Materials ready" or a step without a time of its own). */
 function overrunOf(s: PlannedStep, actualDays: number): number | null {
-  if (s.plannedDays === null || s.key === MATERIALS_KEY || s.passThrough) return null;
+  if (s.plannedDays === null || s.key === MATERIALS_KEY || s.passThrough || s.readyBy) return null;
   return actualDays - s.plannedDays;
 }
 
@@ -463,6 +465,26 @@ export function addOutput(steps: JoStep[], i: number, entry: StepOutput): JoStep
   if (!s || !(entry.qty > 0) || !entry.unit) return null;
   const log = [...(s.outputLog ?? []), entry].sort((a, b) => a.on.localeCompare(b.on) || a.at.localeCompare(b.at));
   return steps.map((x, j) => (j === i ? { ...x, outputLog: log } : x));
+}
+
+/** Supplier / vendor, PO and dates on step `i` (Ordered or an outside step); a new expected date keeps the old one in history. */
+export function setPromise(steps: JoStep[], i: number, p: { supplierId?: string | null; poNo?: string; orderedOn?: string | null; expectedOn?: string | null }, at: string): JoStep[] | null {
+  const s = steps[i];
+  if (!s) return null;
+  let next: JoStep = { ...s };
+  if (p.supplierId !== undefined) next.supplierId = p.supplierId;
+  if (p.poNo !== undefined) next.poNo = p.poNo;
+  if (p.orderedOn !== undefined) next.orderedOn = p.orderedOn;
+  if (p.expectedOn !== undefined) next = withExpected(next, p.expectedOn, at);
+  return steps.map((x, j) => (j === i ? next : x));
+}
+
+/** Ticks or unticks one "Ready to start?" item on step `i`. */
+export function tickReady(steps: JoStep[], i: number, item: string, on: string | null): JoStep[] | null {
+  const s = steps[i];
+  if (!s) return null;
+  const rest = (s.readiness ?? []).filter((r) => r.item !== item);
+  return steps.map((x, j) => (j === i ? { ...x, readiness: on ? [...rest, { item, on }] : rest } : x));
 }
 
 /** Removes output entry `k` of step `i`. */
@@ -709,8 +731,8 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
           break;
         }
         // As before: the step's time counts from the previous step's finish (waiting included).
-        let finish = Math.max(prev + work(s)!, todayOff, start);
-        const out = byOutput(s);
+        let finish = s.readyBy ? Math.max(off(s.readyBy), todayOff, start) : Math.max(prev + work(s)!, todayOff, start);
+        const out = s.readyBy ? null : byOutput(s);
         if (out !== null) finish = Math.max(out, start);
         if (s.processId) unitsOf(s.processId)[0]!.push({ s: start, e: finish });
         const prevDate = si > 0 ? res[li]![si - 1]!.finishDate : undefined;
@@ -725,8 +747,8 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
       const startDate = dayOf(s.startedAt!) > today ? today : dayOf(s.startedAt!);
       const start = Math.max(prevT.workStart ?? prevT.start ?? 0, off(startDate));
       const len = work(s)!;
-      let finish = Math.max(start + len, prevT.finish + Math.min(1, len), todayOff);
-      const out = byOutput(s);
+      let finish = s.readyBy ? Math.max(off(s.readyBy), todayOff, start) : Math.max(start + len, prevT.finish + Math.min(1, len), todayOff);
+      const out = s.readyBy ? null : byOutput(s);
       if (out !== null) finish = Math.max(out, prevT.finish + Math.min(1, len), todayOff);
       if (s.processId) unitsOf(s.processId)[0]!.push({ s: start, e: finish });
       res[li]![si] = { start, finish, queued: false, workStart: start, startDate };
@@ -772,8 +794,8 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
     const { li, si, ready, after } = pick as { li: number; si: number; ready: number; after: number };
     const ss = steps[li]!;
     const s = ss[si]!;
-    // "Materials ready": lasts until the last material is expected.
-    const len = s.key === MATERIALS_KEY && s.readyBy ? Math.max(0, off(s.readyBy) - ready) : work(s)!;
+    // "Materials ready", a bought item or outside work with a promised date: lasts until that date.
+    const len = s.readyBy ? Math.max(0, off(s.readyBy) - ready) : work(s)!;
     let start = ready;
     if (s.processId) {
       const units = unitsOf(s.processId);
@@ -791,6 +813,28 @@ function scheduleOrder(steps: (PlannedStep[] | undefined)[], base: string, today
   return res;
 }
 
+/**
+ * Dates promised by suppliers / vendors drive the plan (5 Nov 2026): a bought item's
+ * "Received" lasts until the date on its "Ordered" step ("Ordered" itself takes no time
+ * once that date is known); an outside step lasts until the vendor's return date.
+ */
+export function withPromises(ss: PlannedStep[]): PlannedStep[] {
+  const out = ss.map((s) => ({ ...s }));
+  out.forEach((s, i) => {
+    if (!s.expectedOn) return;
+    if (s.outside) {
+      if (!s.doneAt) out[i] = { ...s, readyBy: s.expectedOn, ...(s.plannedDays === null ? { plannedDays: 0, workDays: 0 } : {}) };
+      return;
+    }
+    if (s.processId === null && !s.outsideOf && s.label === PURCHASE_STEPS[0]) {
+      if (s.plannedDays === null) out[i] = { ...s, plannedDays: 0, workDays: 0 };
+      const r = out[i + 1];
+      if (r && !r.doneAt && r.processId === null && r.label === PURCHASE_STEPS[1]) out[i + 1] = { ...r, readyBy: s.expectedOn, ...(r.plannedDays === null ? { plannedDays: 0, workDays: 0 } : {}) };
+    }
+  });
+  return out;
+}
+
 /** Whole-order plan: every line's progress and dates, and the plan per process. */
 export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): OrderPlan {
   const cal = ctx.cal;
@@ -806,7 +850,7 @@ export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): Order
     const moved = ss.slice(1).flatMap((x) => [x.startedAt, x.doneAt]).filter((x): x is string => !!x).sort()[0];
     if (!mat.doneAt && moved) mat = { ...mat, doneAt: moved, readyBy: undefined, plannedDays: 0, workDays: 0, note: 'Production has started' };
     return [ss[0]!, mat, ...ss.slice(1)];
-  });
+  }).map((ss) => (ss ? withPromises(ss) : ss));
   const at = (o: number) => (o <= 0 ? base : addWorkingDays(base, o, cal)!);
   const real = scheduleOrder(steps, base, today, ctx, true);
   const plan = scheduleOrder(steps, base, today, ctx, false);
@@ -831,6 +875,11 @@ export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): Order
         return { ...v, startOn, actualDays, overrunDays: overrunOf(v.step, actualDays), ...splitWait(startOn, v.step.startedAt, today, cal) };
       }
       return v;
+    });
+    lp.steps = lp.steps.map((v) => {
+      const by = v.step.readyBy;
+      if (v.state === 'DONE' || !by || by >= today || v.step.key === MATERIALS_KEY) return v;
+      return { ...v, lateDays: Math.max(1, workingDaysBetween(by, today, cal) ?? 1) };
     });
     lp.current = lp.steps.find((v) => v.state === 'NOW') ?? null;
     lp.schedule = lp.steps.map((v, i) => ({

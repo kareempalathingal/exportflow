@@ -2,14 +2,14 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder, type JoLine, type JoStep } from '../../lib/jobOrders';
-import { productContext, type Product } from '../../lib/masters';
-import type { StepOutput } from '../../lib/jobOrders';
+import { productContext, suppliersOf, type Product, type Supplier } from '../../lib/masters';
+import { firstPromise, type StepOutput } from '../../lib/jobOrders';
 import { parseNum } from '../masters/fields';
 import { COLLECTIONS, type Department, type MasterData, type Process } from '../../lib/masters';
 import { departmentsFor, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { addOutput, buildLineSteps, canStart, completeCurrent, isBuiltIn, lineSchedule, MATERIALS_KEY, orderPlan, processPlanRows, orderStart, orderStepProgress, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
+import { addOutput, setPromise, buildLineSteps, canStart, completeCurrent, isBuiltIn, lineSchedule, MATERIALS_KEY, orderPlan, processPlanRows, orderStart, orderStepProgress, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
@@ -29,6 +29,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const { profile } = useProfile(workspaceId);
   const ctx: PlanContext = { md, cal, planningDays: profile?.planningDays, units: unitsMap(processes) };
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
+  const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const [params] = useSearchParams();
   const focusLine = params.get('line');
   // Opened from the items list at the top: bring that product into view.
@@ -76,7 +77,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
           </li>
         ))}
       </ul>
@@ -163,6 +164,7 @@ function LineCard(props: {
   editable: boolean;
   processes: Map<string, Process>;
   departments: Department[];
+  suppliers: (Supplier & { id: string })[];
   onSteps: (steps: JoStep[], what: string) => void;
 }) {
   const { jo, line, raw, today, editable, ctx } = props;
@@ -170,6 +172,7 @@ function LineCard(props: {
   const [editing, setEditing] = useState(false);
   const [when, setWhen] = useState(today);
   const [outputFor, setOutputFor] = useState<string | null>(null);
+  const [promiseFor, setPromiseFor] = useState<string | null>(null);
   const start = orderStart(jo);
   const lp = props.lp;
   const supply = line.supply === 'BUY' ? 'Buy' : 'Make';
@@ -206,6 +209,38 @@ function LineCard(props: {
   const dayOfIso = (iso: string | null | undefined) => (iso ? istDateKey(new Date(iso)) : null);
   const product = ctx.md.products.get(line.productId);
 
+  const supplierName = (id: string | null | undefined) => (id ? (props.suppliers.find((x) => x.id === id)?.name ?? 'supplier') : null);
+  /** Supplier / vendor line and what is still out (5 Nov 2026). */
+  const followFor = (v: StepView): ReactNode => {
+    const s = v.step;
+    const parts: string[] = [];
+    if (s.outside || (s.processId === null && !s.outsideOf && s.label === 'Ordered')) {
+      const who = supplierName(s.supplierId);
+      if (who) parts.push(who);
+      if (s.poNo) parts.push(`PO ${s.poNo}`);
+      if (s.orderedOn) parts.push(`ordered ${formatDay(s.orderedOn)}`);
+      if (s.expectedOn) {
+        const first = firstPromise(s);
+        parts.push(`${s.outside ? 'back by' : 'expected'} ${formatDay(s.expectedOn)}${first && first !== s.expectedOn ? ` (first said ${formatDay(first)})` : ''}`);
+      }
+    }
+    let out: string | null = null;
+    if (s.outsideOf && !s.passThrough && v.state !== 'DONE') {
+      const disp = rawSteps.find((x) => x.outsideOf === s.outsideOf && x.passThrough && x.label.startsWith('Dispatch'));
+      const sent = (disp?.outputLog ?? []).reduce((a, e) => a + e.qty, 0);
+      const back = s.outputQty ?? 0;
+      if (sent > 0) out = `${formatQty(Math.max(0, sent - back))} ${unitLabel(s.qtyUnit ?? '')} still with ${supplierName(rawSteps.find((x) => x.outside && x.processId === s.outsideOf)?.supplierId) ?? 'the vendor'}`;
+    }
+    if (!parts.length && !out && !v.lateDays) return null;
+    return (
+      <>
+        {parts.length > 0 && <span className="small block">{parts.join(' · ')}</span>}
+        {out && <span className="small block warn">{out}</span>}
+        {v.lateDays ? <span className="small block error">{formatQty(v.lateDays)} working day{v.lateDays === 1 ? '' : 's'} late · ask for a new date</span> : null}
+      </>
+    );
+  };
+
   const actionsFor = (v: StepView): ReactNode => {
     if (!editable || v.state === 'DONE') return null;
     const i = keyIdx.get(v.step.key);
@@ -215,7 +250,10 @@ function LineCard(props: {
     const prevStart = i > 0 ? (dayOfIso(rawSteps[i - 1]!.startedAt) ?? dayOfIso(rawSteps[i - 1]!.doneAt)) : null;
     const startMin = isFirst ? v.startOn : prevStart;
     const doneMin = v.startedOn ?? v.startOn;
-    const canOutput = (v.state === 'NOW' || v.step.startedAt) && !v.step.passThrough && v.step.qty !== null;
+    const isReceipt = v.step.processId === null && !isBuiltIn(v.step);
+    const canOutput = (v.state === 'NOW' || v.step.startedAt || isReceipt) && v.step.qty !== null && (isReceipt || !v.step.passThrough) && v.step.label !== 'Ordered';
+    const outLabel = v.step.outsideOf && v.step.passThrough && v.step.label.startsWith('Dispatch') ? '+ Dispatched' : v.step.outsideOf ? '+ Received back' : isReceipt ? '+ Received' : "+ Day's output";
+    const holdsPromise = v.step.outside || (v.step.processId === null && !v.step.outsideOf && v.step.label === 'Ordered');
     const label = v.step.label;
     const btns: ReactNode[] = [];
     if (startable)
@@ -227,7 +265,13 @@ function LineCard(props: {
     if (canOutput)
       btns.push(
         <button key="out" type="button" className="secondary small" onClick={() => setOutputFor(outputFor === v.step.key ? null : v.step.key)}>
-          {outputFor === v.step.key ? 'Close' : "+ Day's output"}
+          {outputFor === v.step.key ? 'Close' : outLabel}
+        </button>,
+      );
+    if (holdsPromise)
+      btns.push(
+        <button key="prom" type="button" className="secondary small" onClick={() => setPromiseFor(promiseFor === v.step.key ? null : v.step.key)}>
+          {promiseFor === v.step.key ? 'Close' : v.step.supplierId ? 'Supplier & dates' : v.step.outside ? '+ Vendor, PO, date' : '+ Supplier, PO, date'}
         </button>,
       );
     if (isFirst)
@@ -255,6 +299,21 @@ function LineCard(props: {
     return (
       <>
         {btns.length > 0 && <span className="row gap step-actions">{btns}</span>}
+        {promiseFor === v.step.key && (
+          <PromiseEditor
+            step={rawSteps[i]!}
+            outside={!!v.step.outside}
+            suppliers={v.step.outside ? [...props.suppliers].sort((a, b) => Number(!!b.jobWork) - Number(!!a.jobWork) || a.name.localeCompare(b.name)) : (() => {
+              const linked = suppliersOf(`PRODUCT:${line.productId}`, props.suppliers);
+              return [...linked, ...props.suppliers.filter((x) => !linked.includes(x)).sort((a, b) => a.name.localeCompare(b.name))];
+            })()}
+            today={today}
+            onSave={(p, what) => {
+              props.onSteps(setPromise(rawSteps, i, p, new Date().toISOString())!, `${label}: ${what} (${line.productName})`);
+              setPromiseFor(null);
+            }}
+          />
+        )}
         {outputFor === v.step.key && (
           <OutputForm
             step={v.step}
@@ -265,7 +324,7 @@ function LineCard(props: {
               if (!next) return;
               const total = (v.step.outputQty ?? 0) + (entry.unit === v.step.qtyUnit ? entry.qty : 0);
               const whole = v.step.qty !== null && entry.unit === v.step.qtyUnit && total >= v.step.qty - 1e-9;
-              if (whole && isFirst && window.confirm(`Whole quantity made: mark ${label} done?`)) props.onSteps(completeCurrent(next, stepTime(entry.on, today))!, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)}; done (${line.productName})`);
+              if (whole && isFirst && window.confirm(`Whole quantity ${isReceipt ? 'in' : 'made'}: mark ${label} done?`)) props.onSteps(completeCurrent(next, stepTime(entry.on, today))!, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)}; done (${line.productName})`);
               else props.onSteps(next, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)} (${line.productName})`);
             }}
             onRemove={(k) => window.confirm('Remove this output entry?') && props.onSteps(removeOutput(rawSteps, i, k)!, `${label}: output entry removed (${line.productName})`)}
@@ -339,7 +398,7 @@ function LineCard(props: {
 
       <ol className="stepper">
         {lp.steps.map((v, i) => (
-          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} actions={actionsFor(v)} />
+          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} actions={actionsFor(v)} follow={followFor(v)} />
         ))}
       </ol>
       {dates.ready && <ReadyRow ready={dates.ready} />}
@@ -440,7 +499,7 @@ function ReadyRow({ ready: r }: { ready: ReadyDate }) {
   );
 }
 
-function StepRow({ v, date, productName, contacts, actions }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode; actions?: ReactNode }) {
+function StepRow({ v, date, productName, contacts, actions, follow }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode; actions?: ReactNode; follow?: ReactNode }) {
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
   const over = v.overrunDays !== null && v.overrunDays > 0;
@@ -483,6 +542,7 @@ function StepRow({ v, date, productName, contacts, actions }: { v: StepView; dat
           {v.state === 'DONE' && v.startedOn && ` · waited ${days(v.waitDays!)}, worked ${days(v.workDays!)}`}
         </span>
         {s.outputQty !== null && s.outputQty !== undefined && s.qty !== null && s.qtyUnit && v.state !== 'DONE' && <OutputProgress s={s} />}
+        {follow}
         <StepDateLine d={date} materials={s.key === MATERIALS_KEY} />
         {s.basis && <span className="muted small block">{s.basis}</span>}
         {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
@@ -653,6 +713,60 @@ function OutputForm(props: { step: PlannedStep; product: Product | undefined; to
         </ul>
       )}
       <p className="muted small">The figures feed the KPIs. A benchmark change is only suggested after enough steps, never applied by itself.</p>
+    </div>
+  );
+}
+
+/** Supplier / vendor, PO and dates (mockup B, confirmed 5 Nov 2026). Prices are never asked. */
+function PromiseEditor(props: { step: JoStep; outside: boolean; suppliers: (Supplier & { id: string })[]; today: string; onSave: (p: { supplierId: string | null; poNo: string; orderedOn: string | null; expectedOn: string | null }, what: string) => void }) {
+  const { step, outside, today } = props;
+  const [supplierId, setSupplierId] = useState(step.supplierId ?? '');
+  const [poNo, setPoNo] = useState(step.poNo ?? '');
+  const [orderedOn, setOrderedOn] = useState(step.orderedOn ?? (step.label === 'Ordered' && step.doneAt ? istDateKey(new Date(step.doneAt)) : ''));
+  const [expectedOn, setExpectedOn] = useState(step.expectedOn ?? '');
+  const bad = orderedOn && orderedOn > today ? 'The order date cannot be in the future.' : expectedOn && orderedOn && expectedOn < orderedOn ? 'The expected date is before the order date.' : null;
+  const first = firstPromise(step);
+  return (
+    <div className="card subtle output-form">
+      <label className="small">
+        {outside ? 'Vendor (job work)' : 'Supplier'}
+        <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+          <option value="">— not set —</option>
+          {props.suppliers.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+              {outside && x.jobWork ? ' · job work' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="small">
+        PO number (optional)
+        <input value={poNo} maxLength={40} onChange={(e) => setPoNo(e.target.value)} />
+      </label>
+      <div className="grid2">
+        <label className="small">
+          {outside ? 'PO / sent on' : 'Ordered on'}
+          <input type="date" value={orderedOn} max={today} onChange={(e) => setOrderedOn(e.target.value)} />
+        </label>
+        <label className="small">
+          {outside ? 'Vendor says: all back by' : 'Supplier says: by'}
+          <input type="date" value={expectedOn} onChange={(e) => setExpectedOn(e.target.value)} />
+        </label>
+      </div>
+      {first && step.expectedOn && expectedOn && expectedOn !== step.expectedOn && <span className="muted small">The earlier date ({formatDay(step.expectedOn)}) stays in the history{first !== step.expectedOn ? `; first promised ${formatDay(first)}` : ''}.</span>}
+      {bad && <p className="error small">{bad}</p>}
+      <button
+        type="button"
+        className="primary small"
+        disabled={!!bad}
+        onClick={() => {
+          const what = [supplierId !== (step.supplierId ?? '') && (supplierId ? 'supplier set' : 'supplier cleared'), poNo !== (step.poNo ?? '') && `PO ${poNo || 'cleared'}`, expectedOn !== (step.expectedOn ?? '') && (expectedOn ? `expected ${formatDay(expectedOn)}` : 'expected date cleared'), orderedOn !== (step.orderedOn ?? '') && orderedOn && `ordered ${formatDay(orderedOn)}`].filter(Boolean).join(', ') || 'details saved';
+          props.onSave({ supplierId: supplierId || null, poNo: poNo.trim(), orderedOn: orderedOn || null, expectedOn: expectedOn || null }, what);
+        }}
+      >
+        Save
+      </button>
     </div>
   );
 }

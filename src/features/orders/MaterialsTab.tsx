@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../AppContext';
-import { COLLECTION_JOB_ORDERS, formatDay, isEditable, type JobOrder, type MaterialDates, type StockEntry } from '../../lib/jobOrders';
+import { COLLECTION_JOB_ORDERS, firstPromise, formatDay, isEditable, withExpected, type JobOrder, type MaterialDates, type StockEntry } from '../../lib/jobOrders';
 import { COLLECTIONS, componentContext, suppliersOf, type ComponentType, type MasterData, type Supplier } from '../../lib/masters';
 import {
   allocationFor,
@@ -244,7 +244,16 @@ export function MaterialsTab(props: {
           </p>
         )}
         {verb === 'To buy' && jo.materialDates && !r.ordered && r.net > 0 && (
-          <MaterialArrival dates={jo.materialDates[r.key]} editable={jo.status === 'CONFIRMED'} today={istDateKey(new Date())} onChange={(md2, what) => saveDates({ ...jo.materialDates, [r.key]: md2 }, `${r.name}: ${what}`)} />
+          <MaterialArrival
+            dates={jo.materialDates[r.key]}
+            editable={jo.status === 'CONFIRMED'}
+            today={istDateKey(new Date())}
+            suppliers={(() => {
+              const linked = suppliersOf(r.key, suppliers.items);
+              return [...linked, ...suppliers.items.filter((x) => !linked.includes(x)).sort((a, b) => a.name.localeCompare(b.name))];
+            })()}
+            onChange={(md2, what) => saveDates({ ...jo.materialDates, [r.key]: md2 }, `${r.name}: ${what}`)}
+          />
         )}
         <AllocationLine alloc={alloc} unit={r.unit} onCount={() => setCountFor(countFor === r.key ? null : r.key)} />
         {countFor === r.key && (
@@ -408,17 +417,20 @@ function CountEditor(props: { type: ComponentType; id: string; name: string; uni
   );
 }
 
-/** Ordered on / expected / received for one material to buy (mockup C, confirmed 5 Nov 2026). */
-function MaterialArrival({ dates, editable, today, onChange }: { dates: MaterialDates | undefined; editable: boolean; today: string; onChange: (d: MaterialDates, what: string) => void }) {
-  const d = dates ?? {};
+/** Supplier, PO, ordered on / expected / received for one material to buy (mockup C, confirmed 5 Nov 2026). */
+function MaterialArrival(props: { dates: MaterialDates | undefined; editable: boolean; today: string; suppliers: (Supplier & { id: string })[]; onChange: (d: MaterialDates, what: string) => void }) {
+  const { editable, today } = props;
+  const d = props.dates ?? {};
+  const [po, setPo] = useState(d.poNo ?? '');
+  const first = firstPromise(d);
   const status = d.receivedOn
     ? { text: `Received ${formatDay(d.receivedOn)}`, cls: 'ok' }
     : d.expectedOn
-      ? { text: `Expected ${formatDay(d.expectedOn)}${d.expectedOn < today ? ' · overdue' : ''}`, cls: d.expectedOn < today ? 'error' : '' }
+      ? { text: `Expected ${formatDay(d.expectedOn)}${d.expectedOn < today ? ' · late' : ''}`, cls: d.expectedOn < today ? 'error' : '' }
       : d.orderedOn
         ? { text: 'Ordered · expected date to be confirmed', cls: 'warn' }
         : { text: 'Not ordered yet · dates to be confirmed', cls: 'warn' };
-  const field = (k: keyof MaterialDates, label: string, past: boolean) => (
+  const field = (k: 'orderedOn' | 'expectedOn' | 'receivedOn', label: string, past: boolean) => (
     <label className="small">
       {label}
       <input
@@ -429,7 +441,8 @@ function MaterialArrival({ dates, editable, today, onChange }: { dates: Material
         onChange={(e) => {
           const v = e.target.value || null;
           if (past && v && v > today) return;
-          onChange({ ...d, [k]: v }, v ? `${label.toLowerCase()} ${formatDay(v)}` : `${label.toLowerCase()} cleared`);
+          const next = k === 'expectedOn' ? withExpected(d, v, new Date().toISOString()) : { ...d, [k]: v };
+          props.onChange(next, v ? `${label.toLowerCase()} ${formatDay(v)}` : `${label.toLowerCase()} cleared`);
         }}
       />
     </label>
@@ -438,7 +451,29 @@ function MaterialArrival({ dates, editable, today, onChange }: { dates: Material
     <div className="arrival">
       <p className={`small ${status.cls}`}>
         <strong>{status.text}</strong>
+        {first && d.expectedOn && first !== d.expectedOn && <span className="muted"> (first said {formatDay(first)})</span>}
       </p>
+      <div className="grid2">
+        <label className="small">
+          Supplier
+          <select
+            value={d.supplierId ?? ''}
+            disabled={!editable}
+            onChange={(e) => props.onChange({ ...d, supplierId: e.target.value || null }, e.target.value ? `supplier ${props.suppliers.find((x) => x.id === e.target.value)?.name ?? ''}` : 'supplier cleared')}
+          >
+            <option value="">— not set —</option>
+            {props.suppliers.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="small">
+          PO number (optional)
+          <input value={po} maxLength={40} disabled={!editable} onChange={(e) => setPo(e.target.value)} onBlur={() => po.trim() !== (d.poNo ?? '') && props.onChange({ ...d, poNo: po.trim() }, `PO ${po.trim() || 'cleared'}`)} />
+        </label>
+      </div>
       <div className="grid3">
         {field('orderedOn', 'Ordered on', true)}
         {field('expectedOn', 'Expected', false)}

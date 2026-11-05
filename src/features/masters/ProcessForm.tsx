@@ -27,6 +27,8 @@ export function ProcessForm() {
   const [d, setD] = useState<Process>(EMPTY);
   const [error, setError] = useState<string | null>(null);
   const [unitsText, setUnitsText] = useState('1');
+  const [ready, setReady] = useState<string[]>([]);
+  const [newItem, setNewItem] = useState('');
   const loaded = useRef<string | null>(null);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export function ProcessForm() {
     loaded.current = key;
     setD({ ...EMPTY, ...item });
     setUnitsText(String(processUnits(item)));
+    setReady(item.readiness ?? []);
   }, [item]);
 
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
@@ -59,6 +62,7 @@ export function ProcessForm() {
       active: isNew ? true : d.active,
       notes: d.notes.trim(),
       ...(units > 1 ? { parallelUnits: units } : {}),
+      ...(ready.length ? { readiness: ready } : {}),
       ...(extra.importSource ? { importSource: extra.importSource } : {}),
     };
     saveRecord({ workspaceId, collectionName: COLLECTIONS.processes, docId, entity: `Process: ${data.name}`, before: isNew ? null : item, data: { ...data }, reason });
@@ -88,6 +92,39 @@ export function ProcessForm() {
           How many items this process can work on at the same time (machines, lines, printing units). The output per day in each product's steps is per unit. Items of an order wait for a free unit.
         </span>
       </label>
+      <fieldset className="tracked">
+        <legend>Ready to start? (checklist)</legend>
+        <p className="muted small">
+          What must be in place before this process starts on an order (e.g. mould ready, stencil plate ready). Asked on Home a few working days before each start (Settings → profile). The app
+          itself checks materials, the step before, and the supplier / vendor and dates of outside work and bought items.
+        </p>
+        {ready.length > 0 && (
+          <ul className="plain-list">
+            {ready.map((r) => (
+              <li key={r} className="row between">
+                <span>{r}</span>
+                <button type="button" className="secondary small icon" aria-label={`Remove ${r}`} onClick={() => setReady(ready.filter((x) => x !== r))}>
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="row gap">
+          <input value={newItem} maxLength={80} placeholder="Add an item" onChange={(e) => setNewItem(e.target.value)} aria-label="New checklist item" />
+          <button
+            type="button"
+            className="secondary small"
+            disabled={!newItem.trim() || ready.includes(newItem.trim()) || ready.length >= 20}
+            onClick={() => {
+              setReady([...ready, newItem.trim()]);
+              setNewItem('');
+            }}
+          >
+            Add
+          </button>
+        </div>
+      </fieldset>
       <p className="muted small">Planned days are set per product in its process route.</p>
       {!isNew && (
         <div className="small">

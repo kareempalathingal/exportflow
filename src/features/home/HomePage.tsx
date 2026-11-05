@@ -4,7 +4,9 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { useProfile } from '../settings/useProfile';
 import { istDateKey } from '../../lib/time';
-import { COLLECTIONS, masterAttention, type AttentionItem, type Department } from '../../lib/masters';
+import { COLLECTIONS, masterAttention, type AttentionItem, type Department, type Process, type Supplier } from '../../lib/masters';
+import { StartingSoon } from './StartingSoon';
+import { DEFAULT_ALERT_DAYS } from '../../lib/followUp';
 import { addDays, COLLECTION_JOB_ORDERS, deadlineUpdate, formatDay, isEditable, jobOrderAttention, type JoAttention, type JobOrder } from '../../lib/jobOrders';
 import { useMasterData } from '../masters/useMasterData';
 import { useCollection } from '../masters/useCollection';
@@ -64,6 +66,11 @@ export function HomePage() {
   const jos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const counts = useCollection<StockCount>(workspaceId, COLLECTION_STOCK_COUNTS);
+  const processesCol = useCollection<Process>(workspaceId, COLLECTIONS.processes);
+  const suppliersCol = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
+  const processMap = useMemo(() => new Map(processesCol.items.map((p) => [p.id, p as Process])), [processesCol.items]);
+  const supplierMap = useMemo(() => new Map(suppliersCol.items.map((p) => [p.id, p as Supplier])), [suppliersCol.items]);
+  const alertDays = profile?.alertDays ?? DEFAULT_ALERT_DAYS;
   const products = master.products;
   const company = profile?.companyName?.value;
   const today = istDateKey(new Date());
@@ -157,7 +164,10 @@ export function HomePage() {
     const m = new Map(departments.items.map((d) => [d.id, d.name]));
     return (id: string) => m.get(id) ?? '';
   }, [departments.items]);
-  const todaySummary = useMemo(() => buildToday({ jobOrders: jos.items, ctx, today, tasks: tasks.items, deptName }), [jos.items, ctx, today, tasks.items, deptName]);
+  const todaySummary = useMemo(
+    () => buildToday({ jobOrders: jos.items, ctx, today, tasks: tasks.items, deptName, processes: processMap, suppliers: supplierMap, alertDays }),
+    [jos.items, ctx, today, tasks.items, deptName, processMap, supplierMap, alertDays],
+  );
   const total = attention.length + joAttention.length + over.length + overruns.length + deadlineChanges.length + (backupDue ? 1 : 0);
 
   return (
@@ -181,6 +191,8 @@ export function HomePage() {
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
 
       {!loading && (jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') || tasks.items.some(isActive)) && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} />}
+
+      {!loading && <StartingSoon jos={jos.items} ctx={ctx} today={today} processes={processMap} suppliers={supplierMap} departments={departments.items} alertDays={alertDays} />}
 
       <section aria-label="Order status counts" className="counts">
         {GROUPS.map((g) => (
