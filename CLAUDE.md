@@ -269,9 +269,8 @@ report the discrepancy and ask; do not silently choose.
     No overlap for fixed-days-only or purchase steps, or when the route
     step has "Waits for the whole quantity of the previous step"
     (`waitAll`, copied to JO steps; outside work, drying, batches). A step
-    not started yet never starts before today. Tracking stays one step at
-    a time per item (the next step can be marked only after the current one
-    is done).
+    not started yet never starts before today. Steps can also be tracked
+    at the same time (see "Flow tracking" below).
 -   Flow tracking (confirmed 5 Nov 2026, mockup canvas "JO Products tab ·
     flow tracking"):
     -   Outside work: a route step ticked "Done outside (job work)"
