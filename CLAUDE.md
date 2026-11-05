@@ -570,6 +570,14 @@ report the discrepancy and ask; do not silently choose.
     material order and landing dates, QC accepted) are left blank "to be
     filled" in the sheet for now. Lead days for such dates are never
     guessed; they come from the company.
+-   Packing (noted 5 Nov 2026, decide AFTER joining): the app packs each
+    item as soon as it is ready; the WO 95 plan packs from 28 Sep (after
+    embossing landing and packing-material landing). Whether the company
+    packs item by item or the whole order together is not known; the user
+    will decide in his position. Options discussed, not built: (A) BOM
+    line "needed at step" (tags / cartons gate packing only), (B) route
+    step "waits for all items of the order", (C) outside-work PO /
+    dispatch start date per order.
 -   The company overlaps processes (the next process starts before the
     previous one has finished the whole quantity); the app's within-order
     plan overlaps steps within one item since 5 Nov 2026 (see "Overlap
