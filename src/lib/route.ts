@@ -856,7 +856,9 @@ export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): Order
         pp = { processId: s.processId, units: Math.max(1, Math.floor(ctx.units?.get(s.processId) ?? 1)), steps: [], start: null, finish: null, undated: 0 };
         byProc.set(s.processId, pp);
       }
-      pp.steps.push({ lineId: line.id, product: s.forProduct, qty: s.qty, qtyUnit: s.qtyUnit, perDay: s.perDay, perDayUnit: s.perDayUnit, days: work(s), start: st.start, finish: st.finish, done: st.view.state === 'DONE' });
+      // The process's own start is when work started, when recorded (the step's dates include waiting).
+      const began = s.startedAt && st.start ? (dayOf(s.startedAt) > st.start ? dayOf(s.startedAt) : st.start) : st.start;
+      pp.steps.push({ lineId: line.id, product: s.forProduct, qty: s.qty, qtyUnit: s.qtyUnit, perDay: s.perDay, perDayUnit: s.perDayUnit, days: work(s), start: began, finish: st.finish, done: st.view.state === 'DONE' });
     }
   });
   const processes = [...byProc.values()].map((pp) => {
