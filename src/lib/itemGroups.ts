@@ -79,3 +79,16 @@ export function planFamilyRoute<T extends Pick<Product, 'route' | 'routeConfirme
   }
   return out;
 }
+
+/**
+ * Search by name, family, category, type, product code or ERP code
+ * (Calculator → By product, confirmed 5 Nov 2026). Every word typed must
+ * appear somewhere; case and extra spaces are ignored; "40x60" also finds "40 × 60".
+ */
+export function itemMatchesSearch(item: ItemExtras & { name: string; code?: string }, q: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[×*]/g, 'x').replace(/\s*x\s*/g, 'x').replace(/\s+/g, ' ').trim();
+  const words = norm(q).split(' ').filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = norm([item.name, item.family, item.category, item.productType, item.code, item.erpCode].filter(Boolean).join(' | '));
+  return words.every((w) => hay.includes(w));
+}

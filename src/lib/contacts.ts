@@ -47,12 +47,24 @@ export interface StepMessage {
   body: string;
 }
 
+/**
+ * The delay of a step in plain words, for the message (5 Nov 2026): over its
+ * benchmark, or past the supplier's / vendor's date. null = not delayed.
+ */
+export function stepDelay(v: { overrunDays: number | null; lateDays?: number }): string | null {
+  const d = (n: number) => `${n} working day${n === 1 ? '' : 's'}`;
+  if (v.lateDays && v.lateDays > 0) return `It is ${d(v.lateDays)} past the promised date.`;
+  if (v.overrunDays !== null && v.overrunDays > 0) return `It is ${d(Math.ceil(v.overrunDays * 2) / 2)} over the planned time.`;
+  return null;
+}
+
 /** A short status request about one step, written for the person to receive. */
-export function stepMessage(args: { person?: string; joNumber: string; product: string; step: string; quantity?: string | null; plannedFinish?: string | null; late?: boolean }): StepMessage {
+export function stepMessage(args: { person?: string; joNumber: string; product: string; step: string; quantity?: string | null; plannedFinish?: string | null; late?: boolean; delay?: string | null }): StepMessage {
   const hi = args.person ? `Hi ${args.person.split(' ')[0]},` : 'Hi,';
   const what = `${args.joNumber} · ${args.product}${args.quantity ? ` (${args.quantity})` : ''}: ${args.step}`;
   const when = args.plannedFinish ? ` - planned to finish ${args.plannedFinish}` : '';
-  const ask = args.late ? 'It is running behind plan. Could you tell me the status and when it will be done?' : 'Could you update me on the status?';
+  const late = args.late || !!args.delay;
+  const ask = late ? `${args.delay ? `${args.delay} ` : 'It is running behind plan. '}Could you tell me the status and when it will be done?` : 'Could you update me on the status?';
   return { subject: `${args.joNumber} · ${args.step} - status`, body: `${hi}\n${what}${when}.\n${ask}\nThank you.` };
 }
 

@@ -33,6 +33,15 @@ import { shareText } from '../reports/TodayCard';
 import { useProfile } from '../settings/useProfile';
 import { saveRecord } from '../sync/records';
 
+/** Each group shows its first 5; "See more (N)" opens the rest (confirmed 5 Nov 2026). */
+const GROUP_SHOWN = 5;
+const toggle = <T,>(set: Set<T>, v: T) => {
+  const n = new Set(set);
+  if (n.has(v)) n.delete(v);
+  else n.add(v);
+  return n;
+};
+
 const GROUP_CLS: Partial<Record<TaskGroup, string>> = { OVERDUE: 'bad', TODAY: 'warn', WAITING: 'neutral', DONE: 'ok' };
 
 /** How a task ended, and what comes next when it was not resolved (confirmed 27 Oct 2026). */
@@ -112,6 +121,7 @@ export function WorkPage() {
   const groups = useMemo(() => groupTasks(filtered, today, now), [filtered, today, now]);
   const oldDone = useMemo(() => filtered.filter((t) => (t.status === 'DONE' || t.status === 'DROPPED') && !groups.some((g) => g.tasks.includes(t))).sort((a, b) => (b.doneOn ?? '').localeCompare(a.doneOn ?? '')), [filtered, groups]);
   const open = filtered.filter(isActive).length;
+  const [expanded, setExpanded] = useState<Set<TaskGroup>>(new Set());
   const [msg, setMsg] = useState<string | null>(null);
   const flash = (m: string) => {
     setMsg(m);
@@ -153,9 +163,11 @@ export function WorkPage() {
       </div>
       {tasks.error && <p className="error small">{permissionHint(tasks.error)}</p>}
 
-      <div className="card quick-add">
+      <details className="card quick-add-box">
+        <summary>+ Add a task</summary>
+        <div className="quick-add">
         <label>
-          Quick add
+          What
           <input value={qTitle} maxLength={200} placeholder="e.g. Ask finance for Hansa payment status" enterKeyHint="done" onChange={(e) => setQTitle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), quickAdd())} />
         </label>
         <div className="grid2">
@@ -184,8 +196,11 @@ export function WorkPage() {
         <button type="button" className="secondary small" onClick={quickAdd}>
           Add
         </button>
-        <span className="muted small"> More details (person, priority, repeat, Job Order): “+ Task”.</span>
-      </div>
+        <span className="muted small">
+          More details (person, priority, repeat, Job Order): <Link to="/work/new">full form</Link>.
+        </span>
+        </div>
+      </details>
       {msg && <p className="ok small">{msg}</p>}
 
       <div className="row between wrap gap">
@@ -207,12 +222,12 @@ export function WorkPage() {
       {tasks.loading && <p className="muted">{tr('loading')}</p>}
       {!tasks.loading && groups.length === 0 && <p className="muted">Nothing here yet. Add what you need to follow up — any department.</p>}
       {groups.map((g) => (
-        <div key={g.group} className="today-group">
+        <div key={g.group} className={`today-group${g.group === 'DONE' ? ' faded' : ''}`}>
           <span className={`pill ${GROUP_CLS[g.group] ?? 'neutral'}`}>
             {GROUP_LABEL[g.group]} · {g.tasks.length}
           </span>
           <ul className="task-list">
-            {g.tasks.map((t) => (
+            {(expanded.has(g.group) ? g.tasks : g.tasks.slice(0, GROUP_SHOWN)).map((t) => (
               <TaskRow
                 key={t.id}
                 t={t}
@@ -231,11 +246,16 @@ export function WorkPage() {
               />
             ))}
           </ul>
+          {g.tasks.length > GROUP_SHOWN && (
+            <button type="button" className="linkish small" onClick={() => setExpanded((x) => toggle(x, g.group))}>
+              {expanded.has(g.group) ? 'Show fewer' : `See more (${g.tasks.length - GROUP_SHOWN})`}
+            </button>
+          )}
         </div>
       ))}
 
       {oldDone.length > 0 && (
-        <div className="today-group">
+        <div className="today-group faded">
           {showAllDone ? (
             <>
               <span className="pill neutral">Older done / dropped · {oldDone.length}</span>

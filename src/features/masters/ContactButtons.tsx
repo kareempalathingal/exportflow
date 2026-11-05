@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { mailHref, orderedPeople, telHref, whatsappHref, type StepMessage } from '../../lib/contacts';
 import type { Department, Person, Supplier } from '../../lib/masters';
 
@@ -36,8 +37,15 @@ export function PersonContact({ person, message }: { person: Person; message: (p
 }
 
 /** Who handles this step: the department and its people (primary first; others behind "more"). */
-export function StepContacts({ departments, message }: { departments: Pick<Department, 'name' | 'people'>[]; message: (p: Person) => StepMessage }) {
-  if (departments.length === 0) return null;
+export function StepContacts({ departments, message, processId }: { departments: (Pick<Department, 'name' | 'people'> & { id?: string })[]; message: (p: Person) => StepMessage; processId?: string | null }) {
+  if (departments.length === 0) {
+    if (!processId) return null;
+    return (
+      <div className="step-contacts small muted">
+        No department handles this step yet · <Link to="/masters?tab=departments">link it in Departments</Link>
+      </div>
+    );
+  }
   return (
     <div className="step-contacts">
       {departments.map((d) => {
@@ -46,7 +54,12 @@ export function StepContacts({ departments, message }: { departments: Pick<Depar
         return (
           <div key={d.name} className="small">
             <span className="muted">{d.name}</span>
-            {!first && <span className="muted"> · no people added</span>}
+            {!first && (
+              <span className="muted">
+                {' '}
+                · no people added{d.id && <> · <Link to={`/masters/departments/${d.id}`}>add a person</Link></>}
+              </span>
+            )}
             {first && <PersonContact person={first} message={message} />}
             {rest.length > 0 && (
               <details className="more-people">

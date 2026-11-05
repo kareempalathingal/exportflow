@@ -6,7 +6,7 @@ import { productContext, suppliersOf, type Product, type Supplier } from '../../
 import { firstPromise, type StepOutput } from '../../lib/jobOrders';
 import { parseNum } from '../masters/fields';
 import { COLLECTIONS, type Department, type MasterData, type Process } from '../../lib/masters';
-import { departmentsFor, stepMessage } from '../../lib/contacts';
+import { departmentsFor, stepDelay, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
 import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
 import { addOutput, setPromise, buildLineSteps, canStart, completeCurrent, isBuiltIn, lineSchedule, MATERIALS_KEY, orderPlan, processPlanRows, orderStart, orderStepProgress, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
@@ -334,20 +334,24 @@ function LineCard(props: {
     );
   };
 
-  // Who to ask: the department of the step running now and of the next one.
+  // Who to ask (5 Nov 2026): the department of every step running now and of
+  // the next step to do; the delay goes into the message.
   const sched = new Map(lineSchedule(lp, today, cal).map((x) => [x.view.step.key, x.finish]));
-  const nowIndex = lp.steps.findIndex((x) => x.state === 'NOW');
+  const lastNow = lp.steps.map((x) => x.state).lastIndexOf('NOW');
+  const nextTodo = lp.steps.findIndex((x, j) => j > lastNow && x.state === 'TODO' && !isBuiltIn(x.step));
   const dates = stepDates(lp, today, cal, jo.deadline.internalDeadline);
   const contactFor = (v: StepView) => {
     const idx = lp.steps.indexOf(v);
-    if (nowIndex < 0 || (idx !== nowIndex && idx !== nowIndex + 1)) return undefined;
-    const depts = departmentsFor(v.step.processId, props.departments);
-    if (!depts.length) return undefined;
+    if (lastNow < 0 || !(v.state === 'NOW' || idx === nextTodo)) return undefined;
+    const pid = v.step.processId ?? v.step.outsideOf ?? null;
+    if (!pid) return undefined;
+    const depts = departmentsFor(pid, props.departments);
     const finish = sched.get(v.step.key);
-    const late = v.overrunDays !== null && v.overrunDays > 0;
+    const delay = v.state === 'NOW' ? stepDelay(v) : null;
     return (
       <StepContacts
         departments={depts}
+        processId={pid}
         message={(person) =>
           stepMessage({
             person: person.name,
@@ -356,7 +360,7 @@ function LineCard(props: {
             step: v.step.label,
             quantity: v.step.qty !== null && v.step.qtyUnit ? `${formatQty(v.step.qty)} ${unitLabel(v.step.qtyUnit)}` : null,
             plannedFinish: finish ? formatDay(finish) : null,
-            late,
+            delay,
           })
         }
       />

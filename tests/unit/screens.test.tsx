@@ -398,7 +398,8 @@ describe('Work (tasks and follow-ups)', () => {
   it('lists tasks by group with contact buttons and the follow-up PDF', async () => {
     const { WorkPage } = await import('../../src/features/work/WorkPage');
     const html = render('/work', '/work', <WorkPage />);
-    expect(html).toContain('Quick add');
+    expect(html).toContain('<summary>+ Add a task</summary>');
+    expect(html).toContain('>Excel<');
     expect(html).toContain('Overdue · 1');
     expect(html).toContain('Artwork approval from buyer');
     expect(html).toContain('waiting on buyer');

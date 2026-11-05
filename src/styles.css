@@ -572,3 +572,6 @@ button.chip.on { background: var(--brand); color: var(--brand-ink); border-color
 .ready-check.not-ready { border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
 .ready-check ul { margin: 0.25rem 0; }
 .ready-check label.check { min-height: 40px; }
+.quick-add-box > summary { font-weight: 600; color: var(--brand); cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.quick-add-box[open] > summary { margin-bottom: 0.4rem; }
+.today-group.faded .task { opacity: 0.6; }

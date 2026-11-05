@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { convertItemAll, convertStandard, DIMENSIONS, evaluate, formatResult, showQty, unitsOf } from '../../lib/calc';
-import { productContext, rawMaterialContext, type Product } from '../../lib/masters';
+import { productContext, rawMaterialContext, type ItemExtras, type Product } from '../../lib/masters';
+import { itemMatchesSearch } from '../../lib/itemGroups';
 import { SizeCard } from '../masters/SizeCard';
 import { readJson, writeJson } from '../../lib/storage';
 import { availableUnits, completeFacts, standardUnit, unitLabel, type Dimension } from '../../lib/units';
@@ -224,14 +225,16 @@ function ItemConverter({ qty }: { qty: number | null }) {
   const master = useMasterData(workspaceId);
   const [key, setKey] = useState('');
   const [from, setFrom] = useState('');
+  const [q, setQ] = useState('');
   const items = useMemo(
     () => [
-      ...master.products.items.filter((p) => p.active !== false).map((p) => ({ key: `PRODUCT:${p.id}`, name: p.name, group: 'Products', link: `/masters/products/${p.id}?tab=details`, ctx: productContext(p), product: p as Product | null })),
-      ...master.rawMaterials.items.filter((r) => r.active !== false).map((r) => ({ key: `RAW_MATERIAL:${r.id}`, name: r.name, group: 'Raw materials', link: `/masters/raw-materials/${r.id}`, ctx: rawMaterialContext(r), product: null as Product | null })),
+      ...master.products.items.filter((p) => p.active !== false).map((p) => ({ key: `PRODUCT:${p.id}`, name: p.name, group: 'Products', link: `/masters/products/${p.id}?tab=details`, ctx: productContext(p), product: p as Product | null, src: p as ItemExtras & { name: string; code?: string } })),
+      ...master.rawMaterials.items.filter((r) => r.active !== false).map((r) => ({ key: `RAW_MATERIAL:${r.id}`, name: r.name, group: 'Raw materials', link: `/masters/raw-materials/${r.id}`, ctx: rawMaterialContext(r), product: null as Product | null, src: r as ItemExtras & { name: string; code?: string } })),
     ].sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name)),
     [master.products.items, master.rawMaterials.items],
   );
   const item = items.find((i) => i.key === key);
+  const shown = useMemo(() => items.filter((i) => i.key === key || itemMatchesSearch(i.src, q)), [items, q, key]);
   const units = useMemo(() => (item ? availableUnits(completeFacts(item.ctx)) : []), [item]);
   const f = item && units.includes(from) ? from : (item?.ctx.baseUnit ?? '');
   const rows = item && qty !== null ? convertItemAll(qty, f, item.ctx, units) : [];
@@ -240,6 +243,25 @@ function ItemConverter({ qty }: { qty: number | null }) {
   if (master.loading) return <p className="muted small">Loading…</p>;
   return (
     <>
+      {items.length > 8 && (
+        <input
+          className="search"
+          type="search"
+          placeholder="Search name, family, code"
+          aria-label="Search products and raw materials"
+          value={q}
+          onChange={(e) => {
+            const v = e.target.value;
+            setQ(v);
+            const hits = items.filter((i) => itemMatchesSearch(i.src, v));
+            if (v.trim() && hits.length === 1) {
+              setKey(hits[0]!.key);
+              setFrom('');
+            }
+          }}
+        />
+      )}
+      {q.trim() !== '' && <p className="muted small">{items.filter((i) => itemMatchesSearch(i.src, q)).length} of {items.length} shown</p>}
       <div className="grid2">
         <label>
           Product or raw material
@@ -250,10 +272,10 @@ function ItemConverter({ qty }: { qty: number | null }) {
               setFrom('');
             }}
           >
-            <option value="">— choose —</option>
-            {(['Products', 'Raw materials'] as const).map((g) => (
+            <option value="">{q.trim() && shown.length === 0 ? '— no match —' : '— choose —'}</option>
+            {(['Products', 'Raw materials'] as const).filter((g) => shown.some((i) => i.group === g)).map((g) => (
               <optgroup key={g} label={g}>
-                {items
+                {shown
                   .filter((i) => i.group === g)
                   .map((i) => (
                     <option key={i.key} value={i.key}>

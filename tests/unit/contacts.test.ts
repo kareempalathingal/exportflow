@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { departmentsFor, mailHref, orderedPeople, phoneDigits, stepMessage, telHref, whatsappHref } from '../../src/lib/contacts';
+import { departmentsFor, mailHref, orderedPeople, phoneDigits, stepDelay, stepMessage, telHref, whatsappHref } from '../../src/lib/contacts';
 import { peopleError } from '../../src/features/masters/DepartmentForm';
 
 const rajan = { name: 'Rajan K', designation: 'Supervisor', phone: '98765 43210', whatsapp: '', email: 'rajan@company.in', primary: false };
@@ -40,5 +40,15 @@ describe('department contacts', () => {
     expect(peopleError([{ ...rajan, name: ' ' }])).toMatch(/name is required/);
     expect(peopleError([{ ...rajan, phone: '123' }])).toMatch(/phone number looks incomplete/);
     expect(peopleError([{ ...rajan, email: 'x@' }])).toMatch(/email address looks wrong/);
+  });
+});
+
+describe('stepDelay (delay in the message)', () => {
+  it('says past the promised date or over the planned time; nothing when on time', () => {
+    expect(stepDelay({ overrunDays: null, lateDays: 3 })).toBe('It is 3 working days past the promised date.');
+    expect(stepDelay({ overrunDays: 1.2 })).toBe('It is 1.5 working days over the planned time.');
+    expect(stepDelay({ overrunDays: 0 })).toBeNull();
+    const m = stepMessage({ joNumber: 'JO-1', product: 'Mat', step: 'Printing', delay: stepDelay({ overrunDays: 2 }) });
+    expect(m.body).toContain('It is 2 working days over the planned time. Could you tell me the status');
   });
 });

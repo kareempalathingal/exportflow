@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import type { DocModel } from '../../lib/docs/model';
-import { renderPdf, shareOrDownload } from '../../lib/docs/pdf';
+import { renderPdf, saveFile, shareOrDownload } from '../../lib/docs/pdf';
+import { renderXlsx, XLSX_MIME, xlsxFileName } from '../../lib/docs/xlsx';
 import { logError } from '../../lib/errorLog';
 
 const PdfViewer = lazy(() => import('./PdfViewer').then((m) => ({ default: m.PdfViewer })));
@@ -8,7 +9,9 @@ const PdfViewer = lazy(() => import('./PdfViewer').then((m) => ({ default: m.Pdf
 /**
  * "View" shows the PDF inside the app; "Share PDF" opens the phone's share
  * sheet (WhatsApp, email, print…); "Download" saves the file. Nothing is
- * sent by the app itself.
+ * sent by the app itself. "Excel" (5 Nov 2026) makes the same document as an
+ * .xlsx file: shared where the phone allows it, otherwise saved to Downloads
+ * (Android Chrome only shares PDF, images and text files from a web app).
  */
 export function DocButtons({ label, build }: { label: string; build: () => DocModel }) {
   const [busy, setBusy] = useState(false);
@@ -39,6 +42,27 @@ export function DocButtons({ label, build }: { label: string; build: () => DocMo
       setViewing(null);
       setMsg({ kind: 'ok', text: r === 'shared' ? 'Passed to the share menu.' : `Saved as ${viewing.name}.` });
       setTimeout(() => setMsg(null), 4000);
+    }
+  }
+
+  async function excel() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const model = build();
+      const blob = await renderXlsx(model);
+      const name = xlsxFileName(model.fileName);
+      const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [new File([blob], name, { type: XLSX_MIME })] });
+      let r = await saveFile(blob, name, XLSX_MIME, model.title, canShare ? 'share' : 'download');
+      if (r === 'needs-tap') r = await saveFile(blob, name, XLSX_MIME, model.title, 'download');
+      if (r === 'shared') setMsg({ kind: 'ok', text: 'Passed to the share menu.' });
+      if (r === 'downloaded') setMsg({ kind: 'ok', text: canShare ? `Saved as ${name}.` : `Saved as ${name} in Downloads. To send it, open it from the download notification or Files → Downloads and share from there (the phone does not let apps like this share Excel files directly).` });
+    } catch (e) {
+      logError(e, `Excel: ${label}`);
+      setMsg({ kind: 'error', text: `Could not make the Excel file: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMsg(null), 9000);
     }
   }
 
@@ -73,7 +97,7 @@ export function DocButtons({ label, build }: { label: string; build: () => DocMo
   return (
     <div className="doc-buttons">
       <span className="doc-label">{label}</span>
-      <div className="row gap">
+      <div className="row gap wrap">
         <button type="button" className="secondary small" disabled={busy} onClick={() => void view()}>
           View
         </button>
@@ -82,6 +106,9 @@ export function DocButtons({ label, build }: { label: string; build: () => DocMo
         </button>
         <button type="button" className="secondary small" disabled={busy} onClick={() => void run('download')}>
           Download
+        </button>
+        <button type="button" className="secondary small" disabled={busy} onClick={() => void excel()} aria-label={`${label}: Excel file`}>
+          Excel
         </button>
       </div>
       {ready && (

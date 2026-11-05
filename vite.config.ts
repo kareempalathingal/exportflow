@@ -37,8 +37,12 @@ export default defineConfig({
         navigateFallback: `${BASE}index.html`,
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
         // The PDF viewer's worker (pdf.js) is fetched the first time a PDF is viewed, then kept for offline use.
-        globIgnores: ['**/pdf-*.js'],
-        runtimeCaching: [{ urlPattern: /(\.mjs|\/pdf-[^/]+\.js)$/, handler: 'CacheFirst', options: { cacheName: 'exportflow-pdf-viewer', expiration: { maxEntries: 6 } } }],
+        // The Excel writer (exceljs) likewise: fetched on the first Excel file, then kept (5 Nov 2026).
+        globIgnores: ['**/pdf-*.js', '**/xlsx-*.js'],
+        runtimeCaching: [
+          { urlPattern: /(\.mjs|\/pdf-[^/]+\.js)$/, handler: 'CacheFirst', options: { cacheName: 'exportflow-pdf-viewer', expiration: { maxEntries: 6 } } },
+          { urlPattern: /\/xlsx-[^/]+\.js$/, handler: 'CacheFirst', options: { cacheName: 'exportflow-excel', expiration: { maxEntries: 3 } } },
+        ],
       },
     }),
   ],
@@ -46,7 +50,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
-        manualChunks: { firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'] },
+        manualChunks: { firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'], xlsx: ['exceljs'] },
       },
     },
   },

@@ -217,6 +217,13 @@ report the discrepancy and ask; do not silently choose.
     sends — the app never sends anything. Main contact first, others
     under "more people". 10-digit Indian numbers get 91; incomplete
     numbers are refused (`src/lib/contacts.ts`).
+-   Products tab contacts (confirmed 5 Nov 2026): every running step (also
+    "Now: A + B") and the next step to do always show their department;
+    dispatch / landing use the outside process's department. No people →
+    "no people added · add a person" (link to the department); no
+    department → "No department handles this step yet · link it in
+    Departments". The delay goes into the message (`stepDelay()`: "N
+    working days over the planned time" / "past the promised date").
 -   Sample departments use example.com emails and no phone numbers, so no
     real person can be called from DEMO.
 
@@ -441,7 +448,10 @@ report the discrepancy and ask; do not silently choose.
     "Convert this number". Converter: "Units" (within one kind) and "By
     product" (any product / raw material, every unit its size, GSM, weight
     and own units allow, with "via" and an "estimate" tag; same engine as
-    orders; never guesses).
+    orders; never guesses). "By product" has a search box (more than 8
+    items) over name, family, category, type, product code and ERP code
+    (`itemMatchesSearch()` in `src/lib/itemGroups.ts`; every word must
+    match; "40x60" = "40 × 60"); a single hit is chosen at once.
 -   Later, when needed: size → area per piece, GSM + size → weight per
     piece, container fill (after packing data).
 -   Number display (confirmed 4 Nov 2026, `groupDigits()` in
@@ -518,6 +528,11 @@ report the discrepancy and ask; do not silently choose.
     notes; never deleted. Repeats: weekly (weekday of the due date),
     monthly (day of the due date; last day in shorter months), every N
     days; Done adds the next one (never a date already past).
+-   Work screen layout (confirmed 5 Nov 2026): "+ Add a task" is one
+    collapsed row at the top (quick add inside, link to the full form),
+    the list right below; each group shows its first 5, then "See more
+    (N)"; Done (last 7 days) is faded at the bottom, older done / dropped
+    behind a button.
 -   Work screen: Quick add, groups Overdue / Today / This week / Waiting /
     Later / No date / Done (last 7 days; older behind a button), filter by
     department, contact buttons (drafts only), follow-up list text + PDF
@@ -755,6 +770,18 @@ report the discrepancy and ask; do not silently choose.
     `pdfjs-dist` 6.3.289, legacy build for older browsers, loaded on the
     first View and cached by the service worker — not precached), with
     zoom and Share / Download from the viewer.
+-   Excel (confirmed 5 Nov 2026, `src/lib/docs/xlsx.ts`): every PDF button
+    row also has "Excel" — the same DocModel, so it follows the chosen
+    version (default "to submit"). Sheets: "About" (title, reference,
+    details, provisional reasons, notes, signature, made at), the road map
+    as "Key dates", one sheet per table, the step cards as one table in
+    their place; real numbers / percents / dates where a cell is only that
+    (`cellValue()`; codes with a leading zero stay text), no charts.
+    exceljs 4.4.0 in its own chunk (`xlsx-*`), loaded on first use and
+    cached by the service worker, not precached. Android Chrome does not
+    share .xlsx from a web app (only PDF, images, text): the app shares
+    where `canShare` allows it, otherwise saves to Downloads and says how
+    to share it from there.
 -   Two versions (confirmed 21 Oct 2026): "to submit" (default, clean:
     no benchmarks, rates, calculation details, PROVISIONAL band or
     technical notes; missing data appears as plain-language open points
