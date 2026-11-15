@@ -7,7 +7,7 @@ import { addWorkingDays, workingDaysBetween } from './calendar';
 import { effectiveSupply, firstPromise, formatDay, type JobOrder, type JoStep } from './jobOrders';
 import type { Process, Supplier } from './masters';
 import { planMaterials } from './materials';
-import { isBuiltIn, lineProgresses, lineSchedule, MATERIALS_KEY, PURCHASE_STEPS, type PlanContext, type PlannedStep, type StepView } from './route';
+import { isBuiltIn, isLandingStep, lineProgresses, lineSchedule, MATERIALS_KEY, PURCHASE_STEPS, type PlanContext, type PlannedStep, type StepView } from './route';
 import { formatQty, unitLabel } from './units';
 
 /** Working days before a step starts that the "ready to start?" check is shown (confirmed: one value for all). */
@@ -77,7 +77,7 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
       // Bought items: Ordered (supplier, PO, date) → Received (part deliveries).
       if (effectiveSupply(line, ctx.md.products.get(line.productId)) === 'BUY') {
         const o = ss.find((s) => s.processId === null && !s.outsideOf && s.label === PURCHASE_STEPS[0]);
-        const r = ss.find((s) => s.processId === null && !s.outsideOf && s.label === PURCHASE_STEPS[1]);
+        const r = ss.find((s) => s.processId === null && !s.outsideOf && isLandingStep(s.label));
         if (o && r && !r.doneAt) {
           const exp = o.expectedOn ?? null;
           const got = sum(r);
@@ -133,7 +133,7 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
 }
 
 export const AWAITED_BUCKET_LABEL: Record<AwaitedBucket, string> = { LATE: 'Late', SOON: 'Next working days · ask now', LATER: 'Later', UNKNOWN: 'Date to be confirmed' };
-export const AWAITED_KIND_LABEL: Record<AwaitedKind, string> = { JOB_WORK: 'Job work', BOUGHT: 'Bought items', MATERIAL: 'Materials' };
+export const AWAITED_KIND_LABEL: Record<AwaitedKind, string> = { JOB_WORK: 'Job work', BOUGHT: 'Outright purchases', MATERIAL: 'Materials' };
 
 /** Plain text of the awaited list, for the share sheet. */
 export function awaitedText(items: AwaitedItem[], supplierName: (id: string | null) => string, dateText: (d: string) => string, today: string): string {
@@ -145,7 +145,7 @@ export function awaitedText(items: AwaitedItem[], supplierName: (id: string | nu
     out.push('', `${AWAITED_BUCKET_LABEL[b]}:`);
     for (const i of list) {
       const when = i.expectedOn ? (i.lateDays ? `${i.lateDays} working day${i.lateDays === 1 ? '' : 's'} late (expected ${dateText(i.expectedOn)})` : `expected ${dateText(i.expectedOn)}`) : 'date to be confirmed';
-      out.push(`• ${i.joNumber} · ${i.what}${i.product && i.product !== i.what ? ` (${i.product})` : ''} · ${supplierName(i.supplierId)}${i.poNo ? ` · PO ${i.poNo}` : ''} · ${i.outstanding} · ${when}`);
+      out.push(`• ${i.joNumber} · ${i.what}${i.product && i.product !== i.what ? ` (${i.product})` : ''} · ${supplierName(i.supplierId)}${i.poNo ? ` · ${i.kind === 'JOB_WORK' ? 'Vendor' : 'Supplier'} PO ${i.poNo}` : ''} · ${i.outstanding} · ${when}`);
     }
   }
   return out.join('\n');
@@ -217,7 +217,7 @@ export function startChecks(
         const holder = s.outsideOf ? raw.find((x) => x.outside && x.processId === s.outsideOf) : s.outside ? raw[i] : s.processId === null && s.label === PURCHASE_STEPS[0] ? raw[i] : undefined;
         if (holder) {
           const sup = holder.supplierId ? suppliers.get(holder.supplierId) : undefined;
-          auto.push(sup ? { ok: true, text: `${holder.outside ? 'Vendor' : 'Supplier'}: ${sup.name}${holder.poNo ? ` · PO ${holder.poNo}` : ''}` } : { ok: false, text: `No ${holder.outside ? 'vendor' : 'supplier'} recorded` });
+          auto.push(sup ? { ok: true, text: `${holder.outside ? 'Vendor' : 'Supplier'}: ${sup.name}${holder.poNo ? ` · ${holder.outside ? 'Vendor' : 'Supplier'} PO ${holder.poNo}` : ''}` } : { ok: false, text: `No ${holder.outside ? 'vendor' : 'supplier'} recorded` });
           auto.push(holder.expectedOn ? { ok: true, text: `${holder.outside ? 'Expected back' : 'Expected'} ${formatDay(holder.expectedOn)}` } : { ok: false, text: 'No expected date' });
         }
         const pid = s.processId ?? s.outsideOf ?? null;

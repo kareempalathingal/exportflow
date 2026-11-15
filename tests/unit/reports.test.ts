@@ -56,7 +56,7 @@ describe('JO performance report', () => {
       ],
       '2026-10-01',
     );
-    expect(r).toEqual({ count: 1, fields: { 'Products / quantities': 1, 'Delivery date': 1 } });
+    expect(r).toEqual({ count: 1, fields: { 'Products / quantities': 1, 'Cargo ready date': 1 } });
   });
   it('suggests a benchmark only with 5+ steps that differ by 15% or more', () => {
     // Five orders, weaving planned 200/day, each took longer: 400 mats in 3 working days ≈ 133/day.
@@ -84,7 +84,7 @@ describe('daily summary', () => {
     const s = buildToday({ jobOrders: jos, ctx, today: TODAY });
     expect(s.soonUntil).toBe('2026-10-22');
     expect(s.items.find((i) => i.text.startsWith('DEMO-101: internal deadline passed'))?.when).toBe('OVERDUE');
-    expect(s.items.find((i) => i.text.startsWith('DEMO-101: customer delivery'))).toBeUndefined(); // delivery is 3 days away (beyond 2 working days)
+    expect(s.items.find((i) => i.text.startsWith('DEMO-101: cargo ready'))).toBeUndefined(); // delivery is 3 days away (beyond 2 working days)
     expect(s.items.some((i) => i.when === 'OVERDUE' && i.text.includes('over plan'))).toBe(true);
     expect(s.items.every((i, n) => n === 0 || ['OVERDUE', 'TODAY', 'SOON'].indexOf(s.items[n - 1]!.when) <= ['OVERDUE', 'TODAY', 'SOON'].indexOf(i.when))).toBe(true);
   });
@@ -154,7 +154,7 @@ describe('clean plan to submit', () => {
     expect(m.meta.find(([k]) => k === 'Planning')![1]).toBe('Started 18 Oct 2026 - this plan');
     // Overview (confirmed 26 Oct 2026): road map, product table, steps as landmarks; no Gantt chart.
     expect(m.timeline).toBeUndefined();
-    expect(m.roadMap!.stops.map((x) => x.label)).toEqual(['Order received', 'Plan approval', 'Production', 'Internal deadline', 'Customer delivery']);
+    expect(m.roadMap!.stops.map((x) => x.label)).toEqual(['WO date', 'Plan approval', 'Production', 'Internal deadline', 'Cargo ready']);
     expect(m.roadMap!.stops[1]).toMatchObject({ here: true, date: 'today, 20 Oct' });
     expect(m.tables[0]!.columns.map((c) => c.label)).toEqual(['#', 'Product', 'Quantity', 'Start', 'Ready', 'Before deadline']);
     expect(m.tables[0]!.rows[0]!.slice(0, 3)).toEqual(['1', 'Rubber-backed mat 50×80 (sample)', '500 pcs']);
@@ -170,7 +170,7 @@ describe('clean plan to submit', () => {
       'Plan confirmation pending - production can start once this plan is approved',
       'Rubber-backed mat 50×80 (sample): sequence of process steps to be confirmed with production',
       'Rubber-backed mat 50×80 (sample): material list (BOM) to be confirmed',
-      'Delivery date basis (ex-factory / port / arrival) to be confirmed with the customer',
+      'Cargo ready date basis (ex-factory / port / arrival) to be confirmed with the customer',
     ]);
     expect(m.notes).toEqual(['Dates are in working days; Sundays and company holidays are not worked.', 'Prepared from the information available on 20 Oct 2026.']);
     expect(m.fileName).toBe('DEMO-104_proposed-plan_2026-10-20.pdf');

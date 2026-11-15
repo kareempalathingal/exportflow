@@ -1,6 +1,6 @@
 /**
  * Work: tasks and follow-ups for any department (design, finance, HR…),
- * for the user only (confirmed 26 Oct 2026). Not tied to Job Orders, but a
+ * for the user only (confirmed 26 Oct 2026). Not tied to Work Orders, but a
  * task may point to one. Recurring tasks create their next occurrence when
  * one is done. Pure and deterministic; dates are YYYY-MM-DD (IST).
  */

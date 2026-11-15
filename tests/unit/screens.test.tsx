@@ -155,7 +155,7 @@ describe('Phase 3b materials render', () => {
   });
 });
 
-describe('Phase 3 Job Order screens render', () => {
+describe('Phase 3 Work Order screens render', () => {
   it('orders list shows the open order with its deadline', () => {
     const html = render('/orders', '/orders', <OrdersPage />);
     expect(html).toContain('JO-77');
@@ -172,9 +172,9 @@ describe('Phase 3 Job Order screens render', () => {
     expect(html).toContain('items-list'); // products at a glance at the top
     expect(html).toContain('?tab=products&amp;line=l1');
   });
-  it('the new Job Order form renders', () => {
+  it('the new Work Order form renders', () => {
     const html = render('/orders/new', '/orders/:id', <JobOrderPage />);
-    expect(html).toContain('New Job Order');
+    expect(html).toContain('New Work Order');
     expect(html).toContain('Save as draft');
   });
   it('home is the planned-vs-actual dashboard', () => {
@@ -299,7 +299,7 @@ describe('Reports', () => {
     expect(html).toContain('Today');
     expect(html).toContain('Share summary');
     expect(html).toContain('Daily summary (PDF)');
-    expect(html).toContain('Job Order performance');
+    expect(html).toContain('Work Order performance');
     expect(html).toContain('To buy — all confirmed orders (PDF)');
     expect(html).toContain('href="/history"');
     // My report and Look ahead (27 Oct 2026)
@@ -329,13 +329,13 @@ describe('Plan document', () => {
     expect(jo).toContain('Working plan (details, for you)');
     expect(jo).toContain('Add your name and designation in Settings');
     const reports = render('/reports', '/reports', <ReportsPage />);
-    expect(reports).toContain('Plan of a Job Order');
+    expect(reports).toContain('Plan of a Work Order');
     expect(reports).toContain('JO-88 · Buyer GmbH · confirmed');
   });
   it('the products tab shows planning as the first stage', () => {
     const html = render('/orders/j2', '/orders/:id', <JobOrderPage />);
     expect(html).toContain('Planning');
-    expect(html).toContain('Received → confirmed · benchmark 1 working day');
+    expect(html).toContain('WO date → confirmed · benchmark 1 working day');
   });
 });
 
@@ -388,8 +388,8 @@ describe('Reports layout', () => {
   it('shows each report as one closed row with a short status', () => {
     const html = render('/reports', '/reports', <ReportsPage />);
     expect(html).toMatch(/setting-title">Today<\/span><span class="setting-sum">[^<]+/);
-    expect(html).toMatch(/setting-title">Plan of a Job Order<\/span>/);
-    expect(html).toMatch(/setting-title">Job Order performance<\/span>/);
+    expect(html).toMatch(/setting-title">Plan of a Work Order<\/span>/);
+    expect(html).toMatch(/setting-title">Work Order performance<\/span>/);
     expect(html).toMatch(/setting-title">To buy — all orders<\/span><span class="setting-sum">\d+ items?/);
     expect(html).not.toContain('<details class="card setting" open');
   });
@@ -468,7 +468,7 @@ describe('ERP import aids (4 Nov 2026)', () => {
   });
 });
 
-describe('Orders → Import a Job Order', () => {
+describe('Orders → Import a Work Order', () => {
   const store = new Map<string, string>();
   const fakeSession = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
   it('starts with Excel / CSV first and the photo as an extra', () => {
@@ -495,11 +495,11 @@ describe('Orders → Import a Job Order', () => {
     expect(html).toContain('+ New product with this name');
     expect(html).toContain('read “5l6”');
     expect(html).toContain('2 items · 2706 pcs');
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Create draft JO/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Create draft WO/);
     vi.unstubAllGlobals();
     store.clear();
   });
-  it('the New Job Order form is filled from the import and says to check it', () => {
+  it('the New Work Order form is filled from the import and says to check it', () => {
     vi.stubGlobal('sessionStorage', fakeSession);
     store.set(IMPORT_DRAFT_KEY, JSON.stringify({ joNumber: 'WO 12/2026', customerId: 'c1', poNumber: 'PO-1', receivedDate: '2026-11-01', deliveryDate: '2026-12-30', notes: 'Imported from wo.xlsx', lines: [{ productId: 'p1', qtyText: '2190', unit: 'pcs', supply: 'MAKE' }] }));
     const html = render('/orders/new?from=import', '/orders/:id', <JobOrderPage />);

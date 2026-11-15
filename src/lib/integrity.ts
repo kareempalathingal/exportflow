@@ -89,13 +89,13 @@ export function checkIntegrity(args: {
     if (missing) out.push({ severity: 'warn', text: `${s.name}: ${missing} linked item${missing === 1 ? ' is' : 's are'} missing`, link: `/masters/suppliers/${s.id}` });
   }
 
-  // Job Orders.
+  // Work Orders.
   const seen = new Map<string, string>();
   for (const jo of args.jobOrders) {
     const link = `/orders/${jo.id}`;
     if (jo.status !== 'CANCELLED') {
       const n = normalizeJoNumber(jo.joNumber);
-      if (seen.has(n)) out.push({ severity: 'warn', text: `JO number ${jo.joNumber} is used by two open orders`, link });
+      if (seen.has(n)) out.push({ severity: 'warn', text: `WO No. ${jo.joNumber} is used by two open orders`, link });
       seen.set(n, jo.id);
     }
     if (!customerIds.has(jo.customerId)) out.push({ severity: 'warn', text: `${jo.joNumber}: customer record is missing (${jo.customerName || 'unknown'})`, link });
@@ -108,15 +108,15 @@ export function checkIntegrity(args: {
     for (const k of Object.keys(jo.stock ?? {})) {
       if (!itemExists(k)) out.push({ severity: 'warn', text: `${jo.joNumber}: stock is set aside for a missing item`, link: `${link}?tab=materials` });
     }
-    if (jo.deadline.internalDeadline >= jo.deliveryDate) out.push({ severity: 'error', text: `${jo.joNumber}: internal deadline is not before the delivery date`, link });
+    if (jo.deadline.internalDeadline >= jo.deliveryDate) out.push({ severity: 'error', text: `${jo.joNumber}: internal deadline is not before the cargo ready date`, link });
   }
-  // Tasks: links to a missing department or Job Order.
+  // Tasks: links to a missing department or Work Order.
   const deptIds = new Set((args.departments ?? []).map((d) => d.id));
   const joIds = new Set(args.jobOrders.map((j) => j.id));
   for (const t of args.tasks ?? []) {
     if (t.status === 'DONE' || t.status === 'DROPPED') continue;
     if (t.departmentId && args.departments && !deptIds.has(t.departmentId)) out.push({ severity: 'warn', text: `Task "${t.title}": department is missing`, link: `/work/${t.id}` });
-    if (t.joId && !joIds.has(t.joId)) out.push({ severity: 'warn', text: `Task "${t.title}": Job Order ${t.joNumber || ''} is missing`, link: `/work/${t.id}` });
+    if (t.joId && !joIds.has(t.joId)) out.push({ severity: 'warn', text: `Task "${t.title}": Work Order ${t.joNumber || ''} is missing`, link: `/work/${t.id}` });
   }
   return out.sort((a, b) => (a.severity === b.severity ? a.text.localeCompare(b.text) : a.severity === 'error' ? -1 : 1));
 }

@@ -44,7 +44,7 @@ export function FormShell(props: {
         {!props.isNew && (
           <label className="check">
             <input type="checkbox" checked={props.active} onChange={(e) => props.onActiveChange(e.target.checked)} /> Active
-            <span className="muted small"> — inactive items are hidden from new Job Orders; history is kept</span>
+            <span className="muted small"> — inactive items are hidden from new Work Orders; history is kept</span>
           </label>
         )}
         {!props.isNew && (

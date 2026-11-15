@@ -1,9 +1,9 @@
 /**
- * Job Order import (confirmed 5 Nov 2026, mockup canvas "JO import · Excel and
+ * Work Order import (confirmed 5 Nov 2026, mockup canvas "WO import · Excel and
  * photo"): any Excel / CSV layout, or a photo read on the phone. The app guesses
  * which column is what from the headings; the user corrects it once and the
  * layout is remembered on the phone. Every product is matched against Masters
- * (or created); the result only fills the normal "New Job Order" form, which the
+ * (or created); the result only fills the normal "New Work Order" form, which the
  * user saves as a draft. Prices are never read. Pure functions, no I/O.
  */
 import { normalizeName } from './masters';
@@ -28,11 +28,11 @@ export const ITEM_FIELDS: { id: ItemField; label: string }[] = [
   { id: 'pack', label: 'Pack quantity' },
 ];
 export const ORDER_FIELDS: { id: OrderField; label: string }[] = [
-  { id: 'joNumber', label: 'JO / WO number' },
+  { id: 'joNumber', label: 'WO No.' },
   { id: 'customer', label: 'Customer' },
-  { id: 'poNumber', label: 'Buyer PO' },
-  { id: 'receivedDate', label: 'Received / issued' },
-  { id: 'deliveryDate', label: 'Delivery / cargo ready' },
+  { id: 'poNumber', label: 'Customer PO No.' },
+  { id: 'receivedDate', label: 'WO date' },
+  { id: 'deliveryDate', label: 'Cargo ready date' },
 ];
 
 /** A remembered layout (kept on the phone). */

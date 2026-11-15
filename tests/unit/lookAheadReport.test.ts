@@ -91,7 +91,7 @@ describe('my report (confirmed 27 Oct 2026)', () => {
       const m = /^(\d+)% → (\d+)%$/.exec(o.progress);
       if (m) expect(Number(m[1])).toBeLessThanOrEqual(Number(m[2]));
     }
-    expect(r.kpis.map((k) => k.label)).toEqual(['Steps on time', 'Efficiency (planned ÷ actual time)', 'Planning within benchmark', 'On-time delivery (orders completed)']);
+    expect(r.kpis.map((k) => k.label)).toEqual(['Steps on time', 'Efficiency (planned ÷ actual time)', 'Planning within benchmark', 'On time for cargo ready (orders completed)']);
   });
   it('suggests highlights from the records; the PDF uses the edited ones', () => {
     expect(r.highlights.some((h) => /DEMO-103 .*planned and confirmed/.test(h))).toBe(true);

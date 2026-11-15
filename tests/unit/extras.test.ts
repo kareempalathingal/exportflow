@@ -45,7 +45,7 @@ describe('DEMO sample data', () => {
       if (name) expect(name).toMatch(/\(sample\)$/);
     }
   });
-  it('moves Job Orders only through allowed status changes, one revision at a time', () => {
+  it('moves Work Orders only through allowed status changes, one revision at a time', () => {
     const revs = new Map<string, { rev: number; status: JoStatus }>();
     for (const w of writes.filter((x) => x.collection === 'jobOrders')) {
       const prev = revs.get(w.docId);
@@ -78,7 +78,7 @@ describe('DEMO sample data', () => {
     expect(final.get('DEMO-099')!.status).toBe('COMPLETED');
     expect(final.get('DEMO-102')!.lines.map((l) => l.steps!.map((s) => s.label))).toEqual([
       ['Spinning (sample)', 'Weaving (sample)', 'Bleaching (sample)', 'Dyeing (sample)', 'Latex backing (sample)', 'Packing (sample)'],
-      ['Ordered', 'Received', 'Labelling (sample)', 'Packing (sample)'],
+      ['Ordered', 'Landing', 'Labelling (sample)', 'Packing (sample)'],
     ]);
     expect(overrunningSteps(final.get('DEMO-101')!, today, ctx).length).toBeGreaterThan(0);
     expect(planMaterials(final.get('DEMO-104')!, md).errors[0]).toMatch(/BOM missing/);

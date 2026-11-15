@@ -1,6 +1,6 @@
 /**
- * JO performance report (confirmed 20–21 Oct 2026). Pure and deterministic:
- * the caller passes the orders, the plan context and the Job Order history.
+ * WO performance report (confirmed 20–21 Oct 2026). Pure and deterministic:
+ * the caller passes the orders, the plan context and the Work Order history.
  * Day counts are working days. Benchmark suggestions are suggestions only —
  * nothing here changes a product route.
  */
@@ -96,9 +96,9 @@ export interface PerformanceReport {
 
 const CHANGE_LABEL: Record<string, string> = {
   lines: 'Products / quantities',
-  deliveryDate: 'Delivery date',
-  receivedDate: 'Received date',
-  deliveryDateType: 'Delivery date type',
+  deliveryDate: 'Cargo ready date',
+  receivedDate: 'WO date',
+  deliveryDateType: 'Cargo ready date means',
   deadline: 'Internal deadline',
   bomSnapshot: 'BOMs',
   stock: 'Stock set aside',

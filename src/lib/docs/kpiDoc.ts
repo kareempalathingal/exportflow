@@ -18,7 +18,7 @@ interface Row {
 export function kpiRows(t: KpiTargets): Row[] {
   return [
     { label: 'Orders completed', get: (f) => f.completed, fmt: (n) => (n === null ? '—' : String(n)), higher: true, unit: '' },
-    { label: 'On-time delivery', get: (f) => f.onTimeDeliveryPct, fmt: fmtPct, target: t.onTimeDeliveryPct, higher: true, unit: ' pts' },
+    { label: 'On time for cargo ready', get: (f) => f.onTimeDeliveryPct, fmt: fmtPct, target: t.onTimeDeliveryPct, higher: true, unit: ' pts' },
     { label: 'Done by internal deadline', get: (f) => f.onTimeInternalPct, fmt: fmtPct, target: t.onTimeInternalPct, higher: true, unit: ' pts' },
     { label: 'Steps on time', get: (f) => f.onTimeStepPct, fmt: fmtPct, target: t.onTimeStepPct, higher: true, unit: ' pts' },
     { label: 'Efficiency (planned ÷ actual time)', get: (f) => f.efficiencyPct, fmt: fmtPct, target: t.efficiencyPct, higher: true, unit: ' pts' },
@@ -73,7 +73,7 @@ export function kpiDoc(r: KpiReport, targets: KpiTargets, opts: { company: strin
       },
       {
         title: `Planning - orders confirmed in the period (benchmark ${r.planningBenchmark === null ? 'not set' : `${formatQty(r.planningBenchmark)} working day${r.planningBenchmark === 1 ? '' : 's'}`})`,
-        columns: [{ label: 'Job Order' }, { label: 'Received' }, { label: 'Confirmed' }, { label: 'Planning days', align: 'right' }, { label: 'Within benchmark' }],
+        columns: [{ label: 'Work Order' }, { label: 'WO date' }, { label: 'Confirmed' }, { label: 'Planning days', align: 'right' }, { label: 'Within benchmark' }],
         rows: r.planning.map((p) => [p.joNumber, formatDay(p.received), formatDay(p.confirmed), formatQty(p.days), r.planningBenchmark === null ? '-' : p.over ? 'No' : 'Yes']),
         empty: 'No orders confirmed in this period.',
       },
@@ -117,7 +117,7 @@ export function kpiDoc(r: KpiReport, targets: KpiTargets, opts: { company: strin
       'Steps on time = finished within their planned working days. Efficiency = planned days ÷ actual days (a step finished the same day counts as half a day). Avg delay = working days over plan per step (early = 0).',
       `Wait = days between the previous step finishing and this step starting; recorded for ${Math.round(coverage * 100)}% of steps. Where the start was not recorded, the step time includes waiting.`,
       '"Main delay in late orders" = late orders whose biggest overrun was in this department. Plans and targets are your own benchmarks; nothing is invented.',
-      'Planning = received to confirmed, in working days, for every order confirmed in the period (completed or not).',
+      'Planning = WO date to confirmed, in working days, for every order confirmed in the period (completed or not).',
       'Working days exclude the weekly off and company holidays.',
     ],
     provisional: false,

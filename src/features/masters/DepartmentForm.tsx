@@ -170,7 +170,7 @@ export function DepartmentForm() {
           </select>
         </label>
         <p className="muted small">
-          Steps of these processes show this department’s contacts on each Job Order. <Link to="/masters?tab=processes">All processes</Link>
+          Steps of these processes show this department’s contacts on each Work Order. <Link to="/masters?tab=processes">All processes</Link>
         </p>
       </fieldset>
 

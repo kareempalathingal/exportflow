@@ -71,7 +71,7 @@ interface Draft {
   lines: LineDraft[];
 }
 
-const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'bought', BOTH: 'made/bought' } as const;
+const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'outright purchase', BOTH: 'made / outright purchase' } as const;
 
 /** A draft handed over by Orders → Import (removed after the form has opened). */
 function importedDraft(today: string): Draft | null {
@@ -79,14 +79,14 @@ function importedDraft(today: string): Draft | null {
     const raw = globalThis.sessionStorage?.getItem(IMPORT_DRAFT_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw) as ImportDraft;
-    return { joNumber: d.joNumber, customerId: d.customerId, poNumber: d.poNumber, receivedDate: d.receivedDate || today, deliveryDate: d.deliveryDate, deliveryDateType: 'UNCONFIRMED', notes: d.notes, lines: d.lines.map((l) => ({ id: newLineId(), ...l })) };
+    return { joNumber: d.joNumber, customerId: d.customerId, poNumber: d.poNumber, receivedDate: d.receivedDate || today, deliveryDate: d.deliveryDate, deliveryDateType: 'FACTORY_DISPATCH', notes: d.notes, lines: d.lines.map((l) => ({ id: newLineId(), ...l })) };
   } catch {
     return null;
   }
 }
 
 function draftFrom(jo: JobOrder | null, today: string): Draft {
-  if (!jo) return { joNumber: '', customerId: '', poNumber: '', receivedDate: today, deliveryDate: '', deliveryDateType: 'UNCONFIRMED', notes: '', lines: [] };
+  if (!jo) return { joNumber: '', customerId: '', poNumber: '', receivedDate: today, deliveryDate: '', deliveryDateType: 'FACTORY_DISPATCH', notes: '', lines: [] };
   return {
     joNumber: jo.joNumber,
     customerId: jo.customerId,
@@ -159,7 +159,7 @@ export function JobOrderPage() {
 
   if (!isNew && loading) return <p className="muted">{t('loading')}</p>;
   if (!isNew && loadError) return <p className="error">{permissionHint(loadError)}</p>;
-  if (!isNew && !item) return <p className="error">Job Order not found.</p>;
+  if (!isNew && !item) return <p className="error">Work Order not found.</p>;
 
   const status: JoStatus = item?.status ?? 'DRAFT';
   const tab: 'products' | 'order' | 'materials' = isNew
@@ -201,7 +201,7 @@ export function JobOrderPage() {
   /** Validate and save the form with the given status. Returns true when saved. */
   function save(next: JoStatus, why: string, opts: { freshSnapshot?: boolean; deadline?: Deadline } = {}): boolean {
     if (!workspaceId) return false;
-    if (!d.joNumber.trim()) return setError('JO number is required'), false;
+    if (!d.joNumber.trim()) return setError('WO No. is required'), false;
     if (!d.customerId) return setError('Choose a customer'), false;
     const deadline = opts.deadline ?? deadlineNow;
     if (!deadline) return setError(deadlineError ?? 'Check the dates'), false;
@@ -257,7 +257,7 @@ export function JobOrderPage() {
       workspaceId,
       collectionName: COLLECTION_JOB_ORDERS,
       docId,
-      entity: `Job Order: ${data.joNumber}`,
+      entity: `Work Order: ${data.joNumber}`,
       before: isNew ? null : item,
       data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>,
       reason: why,
@@ -288,8 +288,8 @@ export function JobOrderPage() {
     const check = checkForConfirm({ lines, deliveryDateType: d.deliveryDateType, deadline: deadlineNow }, md, today);
     if (check.blocking.length) return setError(`Cannot confirm yet:\n• ${check.blocking.join('\n• ')}`);
     const msg = check.warnings.length
-      ? `Confirm this Job Order?\n\nPlease note:\n• ${check.warnings.join('\n• ')}\n\nThe current BOMs will be saved with the order.`
-      : 'Confirm this Job Order? The current BOMs will be saved with the order.';
+      ? `Confirm this Work Order?\n\nPlease note:\n• ${check.warnings.join('\n• ')}\n\nThe current BOMs will be saved with the order.`
+      : 'Confirm this Work Order? The current BOMs will be saved with the order.';
     if (window.confirm(msg)) save('CONFIRMED', reason);
   }
 
@@ -311,7 +311,7 @@ export function JobOrderPage() {
   }
 
   function guard(e: MouseEvent<HTMLAnchorElement>) {
-    if (dirty && !window.confirm('You have unsaved changes on this Job Order. Leave without saving them?')) e.preventDefault();
+    if (dirty && !window.confirm('You have unsaved changes on this Work Order. Leave without saving them?')) e.preventDefault();
   }
   const here = isNew ? '/orders/new' : `/orders/${id}`;
   const changed = item && status === 'CONFIRMED' ? changedBoms(item.bomSnapshot, md, bomRev) : [];
@@ -327,7 +327,7 @@ export function JobOrderPage() {
       </p>
       {isNew ? (
         <>
-          <h2>New Job Order</h2>
+          <h2>New Work Order</h2>
           {fromImport && <p className="notice warn small">Filled from the import. Check every field against the original, then Save — it is saved as a Draft.</p>}
         </>
       ) : (
@@ -338,7 +338,7 @@ export function JobOrderPage() {
           </div>
           <p className="muted small">
             {item!.customerName}
-            {item!.poNumber && ` · PO ${item!.poNumber}`}
+            {item!.poNumber && ` · Customer PO ${item!.poNumber}`}
             {item!.confirmedOn && ` · confirmed ${formatDay(item!.confirmedOn)}`}
             {item!.completedOn && ` · completed ${formatDay(item!.completedOn)}`}
           </p>
@@ -350,7 +350,7 @@ export function JobOrderPage() {
               </span>
             </div>
             <div>
-              <span className="kicker">Customer delivery</span>
+              <span className="kicker">Cargo ready</span>
               <span>{formatDay(item!.deliveryDate)}</span>
               <span className="muted small">{DELIVERY_DATE_TYPES.find((x) => x.id === item!.deliveryDateType)?.label}</span>
             </div>
@@ -408,7 +408,7 @@ export function JobOrderPage() {
               </button>
             )}
             {status === 'CONFIRMED' && (
-              <button type="button" className="primary" onClick={() => cleanFirst() && window.confirm('Mark this Job Order as completed?') && save('COMPLETED', reason)}>
+              <button type="button" className="primary" onClick={() => cleanFirst() && window.confirm('Mark this Work Order as completed?') && save('COMPLETED', reason)}>
                 Mark completed
               </button>
             )}
@@ -470,7 +470,7 @@ export function JobOrderPage() {
       )}
       {!isNew && item && tab === 'order' && (
         <div className="card doc-card">
-          <DocButtons label="Job Order summary" build={() => joSummaryDoc(item, md, { company, today, cal, generatedAt: `${formatDateTime(new Date())} IST` })} />
+          <DocButtons label="Work Order summary" build={() => joSummaryDoc(item, md, { company, today, cal, generatedAt: `${formatDateTime(new Date())} IST` })} />
         </div>
       )}
       {!isNew && item && tab === 'products' && <ProductsTab jo={item} md={md} processes={processMap} />}
@@ -483,8 +483,8 @@ export function JobOrderPage() {
         <fieldset className="plain" disabled={!editable}>
           {!editable && <p className="muted small">This order is {status.toLowerCase()} and read-only. Reopen it to make changes.</p>}
           <div className="grid2">
-            <TextField label="JO number" required value={d.joNumber} onChange={(joNumber) => set({ joNumber })} max={60} placeholder="as on the company Job Order" />
-            <TextField label="Customer PO number (optional)" value={d.poNumber} onChange={(poNumber) => set({ poNumber })} max={60} />
+            <TextField label="WO No." required value={d.joNumber} onChange={(joNumber) => set({ joNumber })} max={60} placeholder="as on the company Work Order" />
+            <TextField label="Customer PO No. (optional)" value={d.poNumber} onChange={(poNumber) => set({ poNumber })} max={60} />
           </div>
           <label>
             Customer<span className="req"> *</span>
@@ -509,16 +509,16 @@ export function JobOrderPage() {
           )}
           <div className="grid2">
             <label>
-              JO received on<span className="req"> *</span>
+              WO date<span className="req"> *</span>
               <input type="date" value={d.receivedDate} onChange={(e) => set({ receivedDate: e.target.value })} />
             </label>
             <label>
-              Customer delivery date<span className="req"> *</span>
+              Cargo ready date<span className="req"> *</span>
               <input type="date" value={d.deliveryDate} onChange={(e) => set({ deliveryDate: e.target.value })} />
             </label>
           </div>
           <label>
-            Delivery date means
+            Cargo ready date means
             <select value={d.deliveryDateType} onChange={(e) => set({ deliveryDateType: e.target.value as DeliveryDateType })}>
               {DELIVERY_DATE_TYPES.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -528,7 +528,7 @@ export function JobOrderPage() {
             </select>
           </label>
           {deadlineError && d.deliveryDate && <p className="error small">{deadlineError}</p>}
-          {deliveryOff?.off && <p className="warn small">The delivery date is a day off ({deliveryOff.reason}). It is kept as entered; the internal deadline is always a working day.</p>}
+          {deliveryOff?.off && <p className="warn small">The cargo ready date is a day off ({deliveryOff.reason}). It is kept as entered; the internal deadline is always a working day.</p>}
           {deadlineNow && (
             <p className="muted small">
               10% {bufferText(deadlineNow)} → internal deadline{' '}
@@ -575,16 +575,16 @@ export function JobOrderPage() {
                 </div>
                 {p?.supplyType === 'BOTH' ? (
                   <label>
-                    Make or buy?<span className="req"> *</span>
-                    {p.usualSupply && <span className="muted"> (usually {p.usualSupply === 'MAKE' ? 'made' : 'bought'})</span>}
+                    Make or outright purchase?<span className="req"> *</span>
+                    {p.usualSupply && <span className="muted"> (usually {p.usualSupply === 'MAKE' ? 'made' : 'outright purchase'})</span>}
                     <select value={l.supply ?? ''} onChange={(e) => setLine(i, { supply: (e.target.value || null) as SupplyMethod | null })}>
                       <option value="">— decide —</option>
                       <option value="MAKE">Make in our factory</option>
-                      <option value="BUY">Buy from outside</option>
+                      <option value="BUY">Outright purchase</option>
                     </select>
                   </label>
                 ) : (
-                  p && <p className="muted small">{p.supplyType === 'MANUFACTURED' ? 'Make (manufactured product)' : 'Buy (traded product)'}</p>
+                  p && <p className="muted small">{p.supplyType === 'MANUFACTURED' ? 'Make (manufactured product)' : 'Outright purchase (traded product)'}</p>
                 )}
                 {r && r.problem && <p className="warn small">{r.problem}</p>}
                 {r && r.baseQty !== null && l.unit !== r.baseUnit && (
@@ -629,7 +629,7 @@ export function JobOrderPage() {
             </label>
           )}
         </fieldset>
-        {dup && <p className="warn small">Another Job Order already uses the number “{dup.joNumber}”.</p>}
+        {dup && <p className="warn small">Another Work Order already uses the number “{dup.joNumber}”.</p>}
         {error && (
           <p className="error pre" role="alert">
             {error}

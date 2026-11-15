@@ -138,7 +138,7 @@ export function buildSampleData(today: string): SampleWrite[] {
   const count: StockCount = { itemType: 'RAW_MATERIAL', itemId: 'sample_rm_fibre', qty: 800, unit: 'kg', countedOn: d(-3), notes: SRC };
   create('stockCounts', 'RAW_MATERIAL_sample_rm_fibre', 'Stock count: Coir fibre (sample)', count);
 
-  // Job Orders: created as Draft, then moved through their statuses like real ones.
+  // Work Orders: created as Draft, then moved through their statuses like real ones.
   const md: MasterData = { products: new Map(Object.entries(products)), rawMaterials: new Map(Object.entries(rawMaterials)), boms: new Map(Object.entries(boms)) };
   const processMap = new Map(Object.entries(processes));
   const stock = (baseQty: number, unit: string, daysAgo: number): StockEntry => ({ qty: baseQty, unit, baseQty, location: 'Godown (sample)', remarks: '', changedAt: at(-daysAgo), prevBaseQty: null });
@@ -176,10 +176,10 @@ export function buildSampleData(today: string): SampleWrite[] {
       deliveryDateType: o.type, deadline: dl, status: 'DRAFT', lines: o.lines, notes: SRC, bomSnapshot: null, confirmedOn: null,
       stock: {}, progress: null, progressLog: [], completedOn: null,
     };
-    create('jobOrders', o.id, `Job Order: ${o.no}`, base);
+    create('jobOrders', o.id, `Work Order: ${o.no}`, base);
     let current: JobOrder = base;
     const step = (next: JobOrder) => {
-      writes.push({ collection: 'jobOrders', docId: o.id, entity: `Job Order: ${o.no}`, before: { ...(current as unknown as Record<string, unknown>), rev }, data: JSON.parse(JSON.stringify(next)) as Record<string, unknown> });
+      writes.push({ collection: 'jobOrders', docId: o.id, entity: `Work Order: ${o.no}`, before: { ...(current as unknown as Record<string, unknown>), rev }, data: JSON.parse(JSON.stringify(next)) as Record<string, unknown> });
       rev += 1;
       current = next;
     };

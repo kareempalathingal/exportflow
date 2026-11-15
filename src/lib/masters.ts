@@ -84,7 +84,7 @@ export interface Product extends MasterBase, ItemExtras {
   gsm: Tracked<number>;
   weightPerPieceKg: Tracked<number>;
   customUnits: CustomUnit[];
-  /** For BOTH only: what usually happens; pre-fills Make/Buy on Job Order lines. */
+  /** For BOTH only: what usually happens; pre-fills Make/Buy on Work Order lines. */
   usualSupply?: 'MAKE' | 'BUY' | null;
   /** Processes / treatments this product goes through, in order (Phase 4). */
   route?: RouteStep[];
@@ -326,7 +326,7 @@ export interface ExplodedLine {
 
 export interface Explosion {
   productBaseQty: number | null;
-  /** Manufactured sub-products that must be made (BOTH is assumed made; decided per Job Order later). */
+  /** Manufactured sub-products that must be made (BOTH is assumed made; decided per Work Order later). */
   toProduce: ExplodedLine[];
   /** Raw materials and traded products to buy. */
   toBuy: ExplodedLine[];

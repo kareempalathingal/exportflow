@@ -189,7 +189,7 @@ function ProfileForm() {
         </label>
       </div>
       <label>
-        Planning time benchmark (working days from JO received to confirmed)
+        Planning time benchmark (working days from WO date to confirmed)
         <input inputMode="decimal" value={planningText} onChange={(e) => setPlanningText(e.target.value)} placeholder="not set" />
       </label>
       <p className="muted small">Your own benchmark; drafts older than this show as late in planning. Empty = not set.</p>

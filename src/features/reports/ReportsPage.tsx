@@ -111,11 +111,11 @@ export function ReportsPage() {
 
           <FollowUpSection tasks={tasks.items} departments={departments.items} company={company} today={today} generatedAt={generatedAt} />
 
-          <SettingSection title="Plan of a Job Order" summary="To submit · PDF">
+          <SettingSection title="Plan of a Work Order" summary="To submit · PDF">
             <div className="card">
               <p className="muted small">A clean plan to submit (schedule, timeline, materials, open points, “Prepared by / Approved by”), and a working plan with all calculations for you.</p>
               <label>
-                Job Order
+                Work Order
                 <select value={planJo} onChange={(e) => setPlanJo(e.target.value)}>
                   <option value="">— choose —</option>
                   {planChoices.map((j) => (
@@ -159,7 +159,7 @@ export function ReportsPage() {
           </Link>
 
           <Link to="/reports/performance" className="card setting-link">
-            <span className="setting-title">Job Order performance</span>
+            <span className="setting-title">Work Order performance</span>
             <span className="setting-sum">Any period · PDF</span>
             <span className="setting-chev" aria-hidden="true">
               ›
@@ -192,7 +192,7 @@ export function ReportsPage() {
 
           <Link to="/orders?tab=awaited" className="card setting-link">
             <span className="setting-title">Awaited from outside</span>
-            <span className="setting-sum">Job work, bought items, materials · late first · PDF by supplier</span>
+            <span className="setting-sum">Job work, outright purchases, materials · late first · PDF by supplier</span>
             <span className="setting-chev" aria-hidden="true">
               ›
             </span>

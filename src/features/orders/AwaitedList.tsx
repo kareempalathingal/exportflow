@@ -24,7 +24,7 @@ export function AwaitedList(props: { jos: (JobOrder & { id: string })[]; ctx: Pl
 
   return (
     <section>
-      <p className="muted small">Job work sent out, bought items and materials still to come in, from every confirmed order. Dates are the ones the supplier or vendor gave.</p>
+      <p className="muted small">Job work dispatched, outright purchases and materials still to land, from every confirmed order. Dates are the ones the supplier or vendor gave.</p>
       <div className="chips" role="group" aria-label="Filter">
         <button type="button" className={kind === 'ALL' ? 'chip on' : 'chip'} onClick={() => setKind('ALL')}>
           All {all.length}
@@ -71,7 +71,7 @@ export function AwaitedList(props: { jos: (JobOrder & { id: string })[]; ctx: Pl
 }
 
 function AwaitedRow({ i, supplier, name, today }: { i: AwaitedItem; supplier: Supplier | undefined; name: string; today: string }) {
-  const title = `Follow up: ${i.what}${i.product && i.product !== i.what ? ` (${i.product})` : ''} - ${name}${i.poNo ? ` PO ${i.poNo}` : ''}`;
+  const title = `Follow up: ${i.what}${i.product && i.product !== i.what ? ` (${i.product})` : ''} - ${name}${i.poNo ? ` ${i.kind === 'JOB_WORK' ? 'Vendor' : 'Supplier'} PO ${i.poNo}` : ''}`;
   const task = `/work/new?${new URLSearchParams({ title, person: supplier?.contactPerson || supplier?.name || '', due: today, jo: i.joId, joNo: i.joNumber }).toString()}`;
   return (
     <li>
@@ -87,7 +87,7 @@ function AwaitedRow({ i, supplier, name, today }: { i: AwaitedItem; supplier: Su
       <span className="small block">
         <Link to={i.link}>{i.joNumber}</Link>
         {i.product && i.product !== i.what && ` · ${i.product}`} · {i.outstanding}
-        {i.poNo && ` · PO ${i.poNo}`}
+        {i.poNo && ` · ${i.kind === 'JOB_WORK' ? 'Vendor' : 'Supplier'} PO ${i.poNo}`}
         {i.promisedFirst && <span className="muted"> · first said {formatDay(i.promisedFirst)}</span>}
         {i.note && <span className="muted"> · {i.note}</span>}
       </span>

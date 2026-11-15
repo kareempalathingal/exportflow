@@ -8,7 +8,7 @@ import { formatQty, unitLabel } from '../../lib/units';
 
 const SHOW = 5;
 
-/** Top of a Job Order: each product with its quantity and its own progress (tap → Products tab). */
+/** Top of a Work Order: each product with its quantity and its own progress (tap → Products tab). */
 export function ItemsCard({ jo, id, md, ctx, today }: { jo: JobOrder; id: string; md: MasterData; ctx: PlanContext; today: string }) {
   const [all, setAll] = useState(false);
   const rows = lineSummaries(jo, md, today, ctx);
@@ -28,7 +28,7 @@ export function ItemsCard({ jo, id, md, ctx, today }: { jo: JobOrder; id: string
                     {formatQty(r.qty)} {unitLabel(r.unit)}
                   </strong>
                   {r.baseText && ` (${r.baseText})`}
-                  {r.supply && ` · ${r.supply === 'MAKE' ? 'Make' : 'Buy'}`}
+                  {r.supply && ` · ${r.supply === 'MAKE' ? 'Make' : 'Outright purchase'}`}
                   {r.now && !r.done && ` · now ${r.now}`}
                 </span>
               </span>

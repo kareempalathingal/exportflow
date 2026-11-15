@@ -194,7 +194,7 @@ export function ProductForm() {
             Supply type
             <select value={supplyType} onChange={(e) => setSupplyType(e.target.value as SupplyType)}>
               <option value="MANUFACTURED">Manufactured (own factory)</option>
-              <option value="TRADED">Traded (bought from outside)</option>
+              <option value="TRADED">Traded (outright purchase)</option>
               <option value="BOTH">Both</option>
             </select>
           </label>
@@ -203,11 +203,11 @@ export function ProductForm() {
           <label>
             Usually
             <select value={usualSupply} onChange={(e) => setUsualSupply(e.target.value as 'MAKE' | 'BUY' | '')}>
-              <option value="">Not set — decide on each Job Order</option>
+              <option value="">Not set — decide on each Work Order</option>
               <option value="MAKE">Made in our factory</option>
-              <option value="BUY">Bought from outside</option>
+              <option value="BUY">Outright purchase</option>
             </select>
-            <span className="muted small block">Pre-fills Make/Buy on new Job Order lines; you can still change it per order.</span>
+            <span className="muted small block">Pre-fills Make / outright purchase on new Work Order lines; you can still change it per order.</span>
           </label>
         )}
         {guessed && <UnitGuess type="PRODUCT" id={id} savedUnit={item?.baseUnit ?? null} unit={baseUnit} confirmed={confirmUnit} onConfirm={setConfirmUnit} />}

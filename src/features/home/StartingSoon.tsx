@@ -38,7 +38,7 @@ export function StartingSoon(props: {
       workspaceId,
       collectionName: COLLECTION_JOB_ORDERS,
       docId: jo.id,
-      entity: `Job Order: ${jo.joNumber}`,
+      entity: `Work Order: ${jo.joNumber}`,
       before: jo,
       data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), lines })) as Record<string, unknown>,
       reason: `${c.label} (${c.product}): "${item}" ${on ? 'ready' : 'not ready'}`,

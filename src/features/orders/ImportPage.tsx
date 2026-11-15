@@ -1,7 +1,7 @@
 /**
- * Orders → Import a Job Order (confirmed 5 Nov 2026, mockup canvas "JO import ·
+ * Orders → Import a Work Order (confirmed 5 Nov 2026, mockup canvas "WO import ·
  * Excel and photo"): A · choose a file / photo, B · which column is what,
- * C · check before the draft is made. The result only fills the "New Job Order"
+ * C · check before the draft is made. The result only fills the "New Work Order"
  * form; nothing is saved here except the layouts and "this text means that
  * product", which stay on the phone. Prices are never read.
  */
@@ -49,7 +49,7 @@ import { withReturnTo } from '../masters/returnTo';
 const LAYOUTS_KEY = 'importLayouts';
 const aliasesKey = (ws: string) => `importAliases:${ws}`;
 const SESSION_KEY = 'exportflow:importSession';
-/** Read by the New Job Order form (`?from=import`). */
+/** Read by the New Work Order form (`?from=import`). */
 export const IMPORT_DRAFT_KEY = 'exportflow:importDraft';
 
 export interface ImportDraft {
@@ -262,7 +262,7 @@ export function ImportPage() {
   return (
     <section>
       <div className="row between">
-        <h2>Import a Job Order</h2>
+        <h2>Import a Work Order</h2>
         <Link to="/orders" className="muted small">
           Back to orders
         </Link>
@@ -550,7 +550,7 @@ function ReviewStep({
       <div className="card">
         <div className="grid2">
           <label>
-            JO number
+            WO No.
             <input value={s.order.joNumber} maxLength={60} onChange={(e) => setOrder({ joNumber: e.target.value })} />
           </label>
           <label>
@@ -573,7 +573,7 @@ function ReviewStep({
             <input type="date" value={s.order.deliveryDate} onChange={(e) => setOrder({ deliveryDate: e.target.value })} />
           </label>
           <label>
-            Buyer PO
+            Customer PO No.
             <input value={s.order.poNumber} maxLength={60} onChange={(e) => setOrder({ poNumber: e.target.value })} />
           </label>
         </div>
@@ -649,7 +649,7 @@ function ReviewStep({
                   = {formatQty(resolved.baseQty)} {unitLabel(resolved.baseUnit!)}
                 </p>
               )}
-              {p && <p className="muted small">{p.supplyType === 'MANUFACTURED' ? 'Make' : p.supplyType === 'TRADED' ? 'Buy' : 'Make or buy: decide in the order form'}{r.pack ? ` · pack ${r.pack}` : ''}</p>}
+              {p && <p className="muted small">{p.supplyType === 'MANUFACTURED' ? 'Make' : p.supplyType === 'TRADED' ? 'Outright purchase' : 'Make or outright purchase: decide in the order form'}{r.pack ? ` · pack ${r.pack}` : ''}</p>}
               {r.productId && r.by !== 'remembered' && r.by !== 'code' && r.by !== 'name' && (
                 <label className="inline small">
                   <input type="checkbox" checked={r.remember} onChange={(e) => setRow(i, { remember: e.target.checked })} /> Remember: this text means that product
@@ -673,13 +673,13 @@ function ReviewStep({
 
       <div className="row gap wrap">
         <button type="button" className="primary" disabled={bad} onClick={onCreate}>
-          Create draft JO
+          Create draft WO
         </button>
         <button type="button" className="secondary" onClick={onBack}>
           Back to columns
         </button>
       </div>
-      {bad && <p className="muted small">“Create draft JO” works once every row has a product, a quantity and a unit. The draft opens for you to check and save as usual.</p>}
+      {bad && <p className="muted small">“Create draft WO” works once every row has a product, a quantity and a unit. The draft opens for you to check and save as usual.</p>}
     </>
   );
 }

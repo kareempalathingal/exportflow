@@ -1,11 +1,11 @@
 /**
- * Phase 4 (skeleton): process routes and step tracking per Job Order line.
+ * Phase 4 (skeleton): process routes and step tracking per Work Order line.
  *
  * A product's route lists its processes in order, each with a benchmark:
  * output per working day and/or fixed days. When an order is confirmed, each
  * line gets its own copy of the steps (with the benchmark): made sub-products
  * first (their own routes, deepest first), then the product's route. Bought
- * lines start with "Ordered" and "Received", then the product's own steps.
+ * lines start with "Ordered" and "Landing", then the product's own steps.
  *
  * Planned days are worked out from the order every time they are shown, so
  * quantity, stock and holiday changes are reflected at once:
@@ -26,7 +26,13 @@ const FIRM = ['VERIFIED', 'USER_PROVIDED'];
 /** Estimates are used too (confirmed 21 Oct 2026), but every plan marks them. */
 const USABLE = [...FIRM, 'ESTIMATED'];
 
-export const PURCHASE_STEPS = ['Ordered', 'Received'] as const;
+/** Steps of an outright-purchase line. "Landing" was called "Received" before 15 Nov 2026; old orders keep that label. */
+export const PURCHASE_STEPS = ['Ordered', 'Landing'] as const;
+const OLD_LANDING_LABEL = 'Received';
+/** The second purchase step, under its current or its old name. */
+export function isLandingStep(label: string): boolean {
+  return label === PURCHASE_STEPS[1] || label === OLD_LANDING_LABEL;
+}
 
 export interface PlanContext {
   md: MasterData;
@@ -43,7 +49,7 @@ export function unitsMap(processes: Map<string, Process> | (Process & { id: stri
   return new Map(entries.map(([id, p]) => [id, processUnits(p)]));
 }
 
-/** The order clock starts when the JO is received; planning (received → confirmed) is its first stage. */
+/** The order clock starts when the WO is received; planning (received → confirmed) is its first stage. */
 export const PLANNING_KEY = '__planning';
 export const DEFAULT_PLANNING_DAYS = 1;
 
@@ -517,7 +523,7 @@ export function planningStep(jo: Pick<JobOrder, 'status' | 'confirmedOn' | 'rece
     plannedDays: days,
     qty: null,
     qtyUnit: null,
-    basis: days === null ? null : `Received → confirmed · benchmark ${formatQty(days)} working day${days === 1 ? '' : 's'}`,
+    basis: days === null ? null : `WO date → confirmed · benchmark ${formatQty(days)} working day${days === 1 ? '' : 's'}`,
     note: days === null ? 'Planning benchmark not set (Settings)' : null,
   };
 }
@@ -563,7 +569,7 @@ export function materialsStep(
     const last = received.sort().at(-1)!;
     const plannedDone = planning.doneAt ? dayOf(planning.doneAt) : null;
     const at = plannedDone && plannedDone > last ? planning.doneAt! : `${last}T06:30:00.000Z`;
-    return { ...base, doneAt: planning.doneAt ? at : null, note: `Received: ${names(dates)}` };
+    return { ...base, doneAt: planning.doneAt ? at : null, note: `Landed: ${names(dates)}` };
   }
   const missing = dates.filter((x) => !x.d?.receivedOn && !x.d?.expectedOn);
   if (missing.length) return { ...base, plannedDays: null, workDays: undefined, note: `Expected date not entered: ${names(missing)}` };
@@ -829,7 +835,7 @@ export function withPromises(ss: PlannedStep[]): PlannedStep[] {
     if (s.processId === null && !s.outsideOf && s.label === PURCHASE_STEPS[0]) {
       if (s.plannedDays === null) out[i] = { ...s, plannedDays: 0, workDays: 0 };
       const r = out[i + 1];
-      if (r && !r.doneAt && r.processId === null && r.label === PURCHASE_STEPS[1]) out[i + 1] = { ...r, readyBy: s.expectedOn, ...(r.plannedDays === null ? { plannedDays: 0, workDays: 0 } : {}) };
+      if (r && !r.doneAt && r.processId === null && isLandingStep(r.label)) out[i + 1] = { ...r, readyBy: s.expectedOn, ...(r.plannedDays === null ? { plannedDays: 0, workDays: 0 } : {}) };
     }
   });
   return out;

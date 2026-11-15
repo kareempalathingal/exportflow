@@ -3,7 +3,7 @@
 ## Project goal
 
 Build ExportFlow as a mobile-first PWA and management-intelligence
-assistant that coordinates each Job Order through final delivery,
+assistant that coordinates each Work Order (WO) through final delivery,
 produces daily manager action plans, detects risks early, explains
 recommendations, and prepares management communications.
 
@@ -49,6 +49,61 @@ report the discrepancy and ask; do not silently choose.
     No Cloud Functions or Storage until a Blaze-plan decision is made.
 -   The user works from a phone only; give setup steps that can be done
     on a phone.
+
+## Company terms (confirmed 15 Nov 2026)
+
+-   The app uses the company's own names wherever the user sees them
+    (screens, PDFs, Excel, share texts, import). Taken from the
+    company's WO file; display text only. Data names stay as they are
+    (`jobOrders` collection, `JobOrder` type, `joNumber`, routes, enum
+    ids such as `BUY`, `deliveryDate`), so no data migration.
+-   In this file, older sections still say "JO" / "Job Order" for the
+    order: read them as WO / Work Order.
+-   Job Order → **Work Order**, JO → **WO**, JO number → **WO No.**
+-   JO received on → **WO date** (the order clock starts on it).
+-   Customer delivery date → **Cargo ready date**; "Delivery date
+    means" → "Cargo ready date means". New WOs (also from import)
+    default to "Factory dispatch (ex-factory)"; saved orders keep their
+    choice. Road-map stop "Customer delivery" → "Cargo ready";
+    "On-time delivery" KPI → "On time for cargo ready".
+-   Customer PO number / import "Buyer PO" → **Customer PO No.**
+-   Buy / bought items / traded → **Outright purchase**; Make or buy →
+    Make or outright purchase.
+-   PO of a supplier (materials, outright purchases) → **Supplier PO**;
+    PO of a job-work vendor → **Vendor PO** (so the two are never
+    mixed up). Messages to suppliers / vendors keep plain "PO".
+-   Outside work: sent out → **Dispatched**, received back →
+    **Landed**; outright purchases and materials: Received → **Landed**.
+    The second purchase step is now "Landing" (`PURCHASE_STEPS`); old
+    orders keep "Received", and `isLandingStep()` accepts both.
+-   Kept: Order period (time AVAILABLE, WO date → cargo ready, working
+    days). The company's "Lead time" (WO 95: 28 days = WO date →
+    planned packing end in calendar days, i.e. the time the plan NEEDS)
+    is a different figure: add "Lead time (planned)" later with the
+    company WO planning sheet round, after asking how the company counts
+    it. Also kept: Internal deadline, Draft / Confirmed / Completed, To
+    buy, To produce, Stock allocation, Product.
+-   "Job Order" is reserved for the company's Job Order form (a check
+    form inside a WO: stock, QC, cost confirmed, packaging requirements;
+    to build after seeing a filled one). `tests/unit/terminology.test.ts`
+    fails if an old term appears in non-comment source.
+-   Later (not now): PI No., PI confirmed date, Customer Code, Revision.
+
+## Data rule (confirmed 13 Nov 2026; replaces "no prices in the app" and "accounting, payroll and HR records never in this app")
+
+-   Amounts and figures may be read and taken into the app ONLY for
+    cross-checks (e.g. quotation vs PO vs goods received vs bill). They
+    are not kept long-term.
+-   A mismatch is recorded with its full details: document, item, field
+    and the figure on each side. When everything matches, only the
+    result (matched, document numbers, dates) is kept.
+-   HR: process steps only (payroll ready, statutory payments done,
+    joining / exit formalities, due dates). Personal employee data
+    (individual salary, ID numbers, bank details, health) stays in the
+    company's systems.
+-   Original documents stay where they are (mail, company systems).
+-   Still: never import prices or rates from company files into masters,
+    and never put company data into this public repo.
 
 ## Phase plan changes (confirmed 19 Oct 2026, supersede Tech Plan §16)
 
@@ -559,7 +614,8 @@ report the discrepancy and ask; do not silently choose.
 -   Other departments (design, finance, HR…) may come under the user. Same
     app, separate "Work" section, for the user only (no other users).
     Accounting, payroll and personal HR records stay in the company's own
-    systems — never in this app.
+    systems — never in this app. (Refined 13 Nov 2026 by "Data rule"
+    below: amounts may be read for cross-checks; HR = process steps only.)
 -   Bottom menu: Home · Orders · Work · Reports · Settings; Masters opens
     from Settings (link row; back link on Masters).
 -   Tasks (`tasks` collection, `src/lib/tasks.ts`): title, department

@@ -107,7 +107,7 @@ export function lookAheadDoc(la: LookAhead, opts: { company: string; generatedAt
       title: 'Key dates',
       columns: [{ label: 'Date' }, { label: 'What' }],
       rows: la.dates.map((d) => [formatDay(d.date), d.text]),
-      empty: 'No deadlines, deliveries or company holidays in this period.',
+      empty: 'No deadlines, cargo ready dates or company holidays in this period.',
     },
     {
       title: 'Recurring and planned work (Work)',
@@ -124,7 +124,7 @@ export function lookAheadDoc(la: LookAhead, opts: { company: string; generatedAt
     },
   ];
   if (la.bought.length)
-    tables.push({ title: 'Bought items', columns: [{ label: 'Order' }, { label: 'Item' }, { label: 'Step' }], rows: la.bought.map((b) => [b.joNumber, b.product, b.text]), empty: '' });
+    tables.push({ title: 'Outright purchases', columns: [{ label: 'Order' }, { label: 'Item' }, { label: 'Step' }], rows: la.bought.map((b) => [b.joNumber, b.product, b.text]), empty: '' });
   const notes = [
     'Confirmed orders only. Dates follow the step plans (working days; Sundays and company holidays are off).',
     'Orders = orders with a step in that department in the period; avg / peak = jobs (one product step each) running at the same time on an average / the busiest day. Relative only: department capacity is not known yet, so busy means busier than its other weeks, not overloaded.',

@@ -160,7 +160,7 @@ export function buildMyReport(args: {
     row('Steps on time', f.onTimeStepPct, p.onTimeStepPct, args.targets.onTimeStepPct, fmtPct),
     row('Efficiency (planned ÷ actual time)', f.efficiencyPct, p.efficiencyPct, args.targets.efficiencyPct, fmtPct),
     row('Planning within benchmark', f.planningOnTimePct, p.planningOnTimePct, args.targets.planningOnTimePct, fmtPct),
-    row('On-time delivery (orders completed)', f.onTimeDeliveryPct, p.onTimeDeliveryPct, args.targets.onTimeDeliveryPct, fmtPct),
+    row('On time for cargo ready (orders completed)', f.onTimeDeliveryPct, p.onTimeDeliveryPct, args.targets.onTimeDeliveryPct, fmtPct),
   ];
 
   // Highlights: suggestions from the records; the user edits them before sending.

@@ -180,7 +180,7 @@ function stepStats(list: KpiStep[]) {
 }
 
 function groupOf(processId: string | null, departments: (Department & { id: string })[]): { id: string; name: string }[] {
-  if (processId === null) return [{ id: PURCHASE, name: 'Bought items (ordered / received)' }];
+  if (processId === null) return [{ id: PURCHASE, name: 'Outright purchases (ordered / landed)' }];
   const ds = departmentsFor(processId, departments);
   return ds.length ? ds.map((d) => ({ id: d.id, name: d.name })) : [{ id: NO_DEPT, name: 'No department linked' }];
 }
@@ -231,7 +231,7 @@ function periodKpi(args: { jobOrders: Jo[]; ctx: PlanContext; from: string; to: 
 
   const byGroup = new Map<string, { name: string; list: KpiStep[] }>();
   for (const st of steps) for (const g of groupOf(st.processId, departments)) byGroup.set(g.id, { name: g.name, list: [...(byGroup.get(g.id)?.list ?? []), st] });
-  for (const [id] of running) if (!byGroup.has(id)) byGroup.set(id, { name: id === NO_DEPT ? 'No department linked' : id === PURCHASE ? 'Bought items (ordered / received)' : (departments.find((d) => d.id === id)?.name ?? id), list: [] });
+  for (const [id] of running) if (!byGroup.has(id)) byGroup.set(id, { name: id === NO_DEPT ? 'No department linked' : id === PURCHASE ? 'Outright purchases (ordered / landed)' : (departments.find((d) => d.id === id)?.name ?? id), list: [] });
 
   const groups: GroupKpi[] = [...byGroup.entries()].map(([id, { name, list }]) => {
     const st = stepStats(list);
@@ -354,7 +354,7 @@ export function kpiText(r: KpiReport, company: string, fmtDay: (d: string) => st
     `KPIs · ${company ? `${company} · ` : ''}${fmtDay(r.from)} - ${fmtDay(r.to)}`,
     '',
     `Orders completed: ${f.completed}`,
-    `On-time delivery: ${fmtPct(f.onTimeDeliveryPct)}${d(f.onTimeDeliveryPct, r.prev.onTimeDeliveryPct, ' pts')}`,
+    `On time for cargo ready: ${fmtPct(f.onTimeDeliveryPct)}${d(f.onTimeDeliveryPct, r.prev.onTimeDeliveryPct, ' pts')}`,
     `By internal deadline: ${fmtPct(f.onTimeInternalPct)}${d(f.onTimeInternalPct, r.prev.onTimeInternalPct, ' pts')}`,
     `Steps on time: ${fmtPct(f.onTimeStepPct)}${d(f.onTimeStepPct, r.prev.onTimeStepPct, ' pts')}`,
     `Efficiency (planned ÷ actual time): ${fmtPct(f.efficiencyPct)}`,

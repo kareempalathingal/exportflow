@@ -5,7 +5,7 @@
  * is written as a NEW revision with its own history entry ("Restored from
  * backup …"), so the restore itself can be seen and undone the same way.
  * Records that exist now but not in the backup are kept. History (audit
- * events) is never rewritten. Job Orders follow the normal status rules, so
+ * events) is never rewritten. Work Orders follow the normal status rules, so
  * a status the rules do not allow in one step goes through the allowed path
  * (e.g. Completed → Confirmed → Completed), each step with the restore reason.
  *
@@ -119,7 +119,7 @@ const ENTITY: Record<string, string> = {
   suppliers: 'Supplier',
   processes: 'Process',
   departments: 'Department',
-  jobOrders: 'Job Order',
+  jobOrders: 'Work Order',
   stockCounts: 'Stock count',
 };
 
@@ -175,7 +175,7 @@ export function planRestore(
         else counts.create++;
         continue;
       }
-      // Job Orders: only allowed status changes, one revision per step.
+      // Work Orders: only allowed status changes, one revision per step.
       const to = data.status;
       if (!isStatus(to)) {
         skip('unknown status in the backup');

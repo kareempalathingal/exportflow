@@ -32,10 +32,10 @@ const KIND: Record<AttentionItem['kind'], { title: string; hint: string; cls: st
 };
 
 const JO_KIND: Record<JoAttention['kind'], { title: string; cls: string }> = {
-  DELIVERY_PASSED: { title: 'Delivery date passed', cls: 'bad' },
+  DELIVERY_PASSED: { title: 'Cargo ready date passed', cls: 'bad' },
   OVERDUE: { title: 'Internal deadline passed', cls: 'bad' },
   DUE_SOON: { title: 'Deadline near', cls: 'warn' },
-  UNDECIDED: { title: 'Make or buy?', cls: 'warn' },
+  UNDECIDED: { title: 'Make or outright purchase?', cls: 'warn' },
   CONVERSION: { title: 'Conversion needed', cls: 'warn' },
   BOM_CHANGED: { title: 'BOM changed', cls: 'warn' },
 };
@@ -104,7 +104,7 @@ export function HomePage() {
     for (const o of open) {
       if (o.jo.status !== 'CONFIRMED') continue;
       events.push({ date: o.jo.deadline.internalDeadline, label: `${o.jo.joNumber} internal deadline`, color: o.color, strong: true });
-      events.push({ date: o.jo.deliveryDate, label: `${o.jo.joNumber} delivery`, color: o.color, strong: false });
+      events.push({ date: o.jo.deliveryDate, label: `${o.jo.joNumber} cargo ready`, color: o.color, strong: false });
     }
     const inRange = events.filter((e) => e.date >= today && e.date <= days[days.length - 1]!).sort((a, b) => a.date.localeCompare(b.date));
     const cells = days.map((d) => {
@@ -183,7 +183,7 @@ export function HomePage() {
             🧮
           </Link>
           <Link className="button primary small" to="/orders/new">
-            + New JO
+            + New WO
           </Link>
         </div>
       </div>
@@ -215,7 +215,7 @@ export function HomePage() {
           ))}
         </div>
         {strip.events.length === 0 ? (
-          <p className="muted small">No deadlines or deliveries in the next 3 weeks.</p>
+          <p className="muted small">No deadlines or cargo ready dates in the next 3 weeks.</p>
         ) : (
           <ul className="strip-list small">
             {strip.events.slice(0, 5).map((e) => (

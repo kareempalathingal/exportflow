@@ -234,7 +234,7 @@ describe('versioned records with audit', () => {
       const b = writeBatch(db);
       b.set(doc(db, `workspaces/${ws}/jobOrders/j1`), { ...data, rev, updatedAt: serverTimestamp(), updatedBy: ALICE, lastAuditId: ev });
       b.set(doc(db, `workspaces/${ws}/auditEvents/${ev}`), {
-        entity: 'Job Order', entityPath: `workspaces/${ws}/jobOrders/j1`, entityId: 'j1', action: rev === 1 ? 'CREATE' : 'UPDATE',
+        entity: 'Work Order', entityPath: `workspaces/${ws}/jobOrders/j1`, entityId: 'j1', action: rev === 1 ? 'CREATE' : 'UPDATE',
         rev, changes: [], reason, actorUid: ALICE, at: serverTimestamp(),
       });
       return b.commit();

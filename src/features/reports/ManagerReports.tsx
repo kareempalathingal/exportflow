@@ -154,10 +154,10 @@ export function DeliverySection({ jos, ctx, today, company, generatedAt }: Commo
   const due = head.rows.length - passed;
   return (
     <SettingSection
-      title="Delivery schedule"
+      title="Cargo ready schedule"
       summary={`${due} in 30 days${passed ? ` · ${passed} passed` : ''}${notInTime ? ` · ${notInTime} not in time` : ''}`}
       flag={passed ? 'bad' : notInTime ? 'warn' : null}
-      flagLabel="Delivery passed or not in time"
+      flagLabel="Cargo ready date passed or not in time"
     >
       <div className="card">
         <Segmented
@@ -179,7 +179,7 @@ export function DeliverySection({ jos, ctx, today, company, generatedAt }: Commo
               {formatDay(s.from)} – {formatDay(s.to)} · {plural(s.rows.length, 'order')}
             </p>
             {s.rows.length === 0 ? (
-              <p className="muted small">No deliveries in this period.</p>
+              <p className="muted small">No cargo ready dates in this period.</p>
             ) : (
               <ul className="today-list report-list">
                 {s.rows.map((r) => (
@@ -188,7 +188,7 @@ export function DeliverySection({ jos, ctx, today, company, generatedAt }: Commo
                     {r.status === 'DRAFT' && <span className="pill neutral">Draft</span>}
                     <span className="muted small"> · {r.customer || '—'}</span>
                     <span className="small block">
-                      {r.daysLeft < 0 ? <span className="error">Delivery date passed · </span> : null}
+                      {r.daysLeft < 0 ? <span className="error">Cargo ready date passed · </span> : null}
                       Internal deadline {formatDay(r.internalDeadline)} · {r.progress}
                     </span>
                     <span className="small block">
@@ -199,7 +199,7 @@ export function DeliverySection({ jos, ctx, today, company, generatedAt }: Commo
                 ))}
               </ul>
             )}
-            <DocButtons label="Delivery schedule (PDF)" build={() => deliveryDoc(s, { company, today, generatedAt: generatedAt() })} />
+            <DocButtons label="Cargo ready schedule (PDF)" build={() => deliveryDoc(s, { company, today, generatedAt: generatedAt() })} />
           </>
         )}
       </div>
@@ -254,14 +254,14 @@ export function SummarySection({ jos, ctx, today, company, generatedAt, redAt }:
               <dd>
                 {s.completed.count}
                 {s.completed.count > 0 &&
-                  ` · by internal deadline ${s.completed.onTimeInternal}${pct(s.completed.onTimeInternal, s.completed.count)} · before delivery ${s.completed.onTimeDelivery}${pct(s.completed.onTimeDelivery, s.completed.count)}`}
+                  ` · by internal deadline ${s.completed.onTimeInternal}${pct(s.completed.onTimeInternal, s.completed.count)} · before cargo ready ${s.completed.onTimeDelivery}${pct(s.completed.onTimeDelivery, s.completed.count)}`}
               </dd>
               <dt>Open today</dt>
               <dd>
                 {s.openNow.onTrack} on track · {s.openNow.behind} behind · {s.openNow.late} late · {s.openNow.notTracked} not tracked · {s.openNow.drafts} in planning
               </dd>
               <dt>Next {NEXT_DELIVERY_DAYS} days</dt>
-              <dd>{s.nextDeliveries.length ? s.nextDeliveries.map((r) => `${r.joNumber} ${formatDay(r.deliveryDate)}`).join(' · ') : 'No deliveries'}</dd>
+              <dd>{s.nextDeliveries.length ? s.nextDeliveries.map((r) => `${r.joNumber} ${formatDay(r.deliveryDate)}`).join(' · ') : 'No cargo ready dates'}</dd>
               <dt>Risks</dt>
               <dd>{s.riskTotal ? `${s.riskTotal} (top ${s.risks.length} in the summary)` : 'None'}</dd>
             </dl>

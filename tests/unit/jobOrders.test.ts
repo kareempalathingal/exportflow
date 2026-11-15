@@ -139,8 +139,8 @@ describe('order lines', () => {
     const deadline = computeDeadline('2026-11-01', '2026-12-30');
     if (!deadline.ok) throw new Error();
     const c = checkForConfirm({ lines: [line('both'), line('mat', 0)], deliveryDateType: 'UNCONFIRMED', deadline }, md(), '2026-11-02');
-    expect(c.blocking).toEqual(['Line 1 (both): choose Make or Buy', 'Line 2: quantity must be more than 0']);
-    expect(c.warnings).toContain('Delivery date type is not confirmed yet');
+    expect(c.blocking).toEqual(['Line 1 (both): choose Make or Outright purchase', 'Line 2: quantity must be more than 0']);
+    expect(c.warnings).toContain('What the cargo ready date means is not confirmed yet');
     const ok = checkForConfirm({ lines: [line('both', 5, 'pcs', 'BUY'), line('traded')], deliveryDateType: 'PORT', deadline }, md(), '2026-11-02');
     expect(ok).toEqual({ blocking: [], warnings: [] });
     expect(checkForConfirm({ lines: [], deliveryDateType: 'PORT', deadline }, md(), '2026-11-02').blocking).toHaveLength(1);

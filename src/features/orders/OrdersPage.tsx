@@ -56,13 +56,13 @@ export function OrdersPage() {
   return (
     <section>
       <div className="row between">
-        <h2>Job Orders</h2>
+        <h2>Work Orders</h2>
         <span className="row gap">
           <Link className="button secondary small" to="/orders/import">
             Import
           </Link>
           <Link className="button primary small" to="/orders/new">
-            + New JO
+            + New WO
           </Link>
         </span>
       </div>
@@ -78,10 +78,10 @@ export function OrdersPage() {
       {tab.id === 'to-buy' && !jos.loading && !jos.error && <ToBuyList jos={jos.items} md={master.md} counts={counts.items} company={profile?.companyName?.value ?? ''} suppliers={suppliers.items} />}
       {tab.id === 'awaited' && !jos.loading && !jos.error && <AwaitedList jos={jos.items} ctx={ctx} suppliers={suppliers.items} today={today} alertDays={profile?.alertDays ?? DEFAULT_ALERT_DAYS} company={profile?.companyName?.value ?? ''} />}
       {tab.id !== 'to-buy' && tab.id !== 'awaited' && (
-        <input className="search" type="search" placeholder="Search JO number, customer, PO" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="search" type="search" placeholder="Search WO No., customer, PO" value={q} onChange={(e) => setQ(e.target.value)} />
       )}
       {tab.id !== 'to-buy' && tab.id !== 'awaited' && !jos.loading && !jos.error && list.length === 0 && (
-        <p className="muted">{q ? 'No matching Job Orders.' : tab.id === 'open' ? 'No open Job Orders. Tap “+ New JO” to add one.' : 'None.'}</p>
+        <p className="muted">{q ? 'No matching Work Orders.' : tab.id === 'open' ? 'No open Work Orders. Tap “+ New WO” to add one.' : 'None.'}</p>
       )}
       <ul className="master-list">
         {list.map((j) => (

@@ -72,7 +72,7 @@ export function buildToday(args: {
       items.push({ when: w, date: d, text: `${jo.joNumber}: internal deadline passed ${n} day${n === 1 ? '' : 's'} ago (${formatDay(d)})`, link });
     } else if (w) items.push({ when: w, date: d, text: `${jo.joNumber}: internal deadline ${day(d)}`, link });
     const dw = when(jo.deliveryDate);
-    if (dw && dw !== 'OVERDUE') items.push({ when: dw, date: jo.deliveryDate, text: `${jo.joNumber}: customer delivery ${day(jo.deliveryDate)}`, link });
+    if (dw && dw !== 'OVERDUE') items.push({ when: dw, date: jo.deliveryDate, text: `${jo.joNumber}: cargo ready ${day(jo.deliveryDate)}`, link });
 
     for (const { line, lp } of lineProgresses(jo, today, ctx)) {
       const cur = lp.current;

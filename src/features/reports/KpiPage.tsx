@@ -285,7 +285,7 @@ export function KpiStrip() {
         <p className="muted small">{r ? 'No steps finished in the last 30 days yet — KPIs appear as orders move.' : 'Loading…'}</p>
       ) : (
         <div className="kpi-mini-row">
-          {tile('On-time delivery', fmtPct(r.factory.onTimeDeliveryPct), toneFor(r.factory.onTimeDeliveryPct, targets.onTimeDeliveryPct, true))}
+          {tile('On time for cargo ready', fmtPct(r.factory.onTimeDeliveryPct), toneFor(r.factory.onTimeDeliveryPct, targets.onTimeDeliveryPct, true))}
           {tile('Steps on time', fmtPct(r.factory.onTimeStepPct), toneFor(r.factory.onTimeStepPct, targets.onTimeStepPct, true))}
           {tile('Efficiency', fmtPct(r.factory.efficiencyPct), toneFor(r.factory.efficiencyPct, targets.efficiencyPct, true))}
           {tile('Needs attention', r.worstGroup ?? 'None', r.worstGroup ? 'warn' : null)}

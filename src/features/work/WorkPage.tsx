@@ -197,7 +197,7 @@ export function WorkPage() {
           Add
         </button>
         <span className="muted small">
-          More details (person, priority, repeat, Job Order): <Link to="/work/new">full form</Link>.
+          More details (person, priority, repeat, Work Order): <Link to="/work/new">full form</Link>.
         </span>
         </div>
       </details>

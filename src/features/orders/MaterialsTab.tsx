@@ -28,7 +28,7 @@ interface EntryDraft {
   remarks: string;
 }
 
-/** The business fields of a Job Order record (without sync metadata). */
+/** The business fields of a Work Order record (without sync metadata). */
 export function jobOrderData(jo: JobOrder): JobOrder {
   return {
     joNumber: jo.joNumber,
@@ -120,7 +120,7 @@ export function MaterialsTab(props: {
       workspaceId,
       collectionName: COLLECTION_JOB_ORDERS,
       docId: jo.id,
-      entity: `Job Order: ${jo.joNumber}`,
+      entity: `Work Order: ${jo.joNumber}`,
       before: jo,
       data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), stock: preview.stock })) as Record<string, unknown>,
       reason,
@@ -138,7 +138,7 @@ export function MaterialsTab(props: {
       workspaceId,
       collectionName: COLLECTION_JOB_ORDERS,
       docId: jo.id,
-      entity: `Job Order: ${jo.joNumber}`,
+      entity: `Work Order: ${jo.joNumber}`,
       before: jo,
       data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), materialDates })) as Record<string, unknown>,
       reason: what,
@@ -273,7 +273,7 @@ export function MaterialsTab(props: {
   return (
     <section>
       <p className="muted small">
-        Enter the stock you have checked and set aside for this order. Balances are made or bought.
+        Enter the stock you have checked and set aside for this order. Balances are made or purchased.
         {jo.status !== 'DRAFT' && jo.bomSnapshot ? ' BOMs: the copy saved at confirmation.' : ' BOMs: current versions (a copy is saved when the order is confirmed).'}
       </p>
       {plan.errors.length > 0 && (
@@ -424,7 +424,7 @@ function MaterialArrival(props: { dates: MaterialDates | undefined; editable: bo
   const [po, setPo] = useState(d.poNo ?? '');
   const first = firstPromise(d);
   const status = d.receivedOn
-    ? { text: `Received ${formatDay(d.receivedOn)}`, cls: 'ok' }
+    ? { text: `Landed ${formatDay(d.receivedOn)}`, cls: 'ok' }
     : d.expectedOn
       ? { text: `Expected ${formatDay(d.expectedOn)}${d.expectedOn < today ? ' · late' : ''}`, cls: d.expectedOn < today ? 'error' : '' }
       : d.orderedOn
@@ -470,14 +470,14 @@ function MaterialArrival(props: { dates: MaterialDates | undefined; editable: bo
           </select>
         </label>
         <label className="small">
-          PO number (optional)
-          <input value={po} maxLength={40} disabled={!editable} onChange={(e) => setPo(e.target.value)} onBlur={() => po.trim() !== (d.poNo ?? '') && props.onChange({ ...d, poNo: po.trim() }, `PO ${po.trim() || 'cleared'}`)} />
+          Supplier PO No. (optional)
+          <input value={po} maxLength={40} disabled={!editable} onChange={(e) => setPo(e.target.value)} onBlur={() => po.trim() !== (d.poNo ?? '') && props.onChange({ ...d, poNo: po.trim() }, `Supplier PO ${po.trim() || 'cleared'}`)} />
         </label>
       </div>
       <div className="grid3">
         {field('orderedOn', 'Ordered on', true)}
         {field('expectedOn', 'Expected', false)}
-        {field('receivedOn', 'Received', true)}
+        {field('receivedOn', 'Landed', true)}
       </div>
     </div>
   );

@@ -59,7 +59,7 @@ describe('building steps for an order line', () => {
   });
   it('bought products: Ordered, Received, then their own steps; pending benchmarks are not copied', () => {
     const s = buildLineSteps(line('b', 'door', 10, 'BUY'), md, processes);
-    expect(s.map((x) => x.label)).toEqual(['Ordered', 'Received', 'Packing']);
+    expect(s.map((x) => x.label)).toEqual(['Ordered', 'Landing', 'Packing']);
     expect(s[2]).toMatchObject({ perDay: null, fixedDays: null });
   });
 });

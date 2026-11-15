@@ -49,7 +49,7 @@ describe('promised dates', () => {
     const l = line('1', 'w', 516, 'BUY');
     const ordered = { ...l, steps: setPromise(completeCurrent(l.steps!, '2026-11-03T06:30:00.000Z')!, 0, { supplierId: 'v1', poNo: '123', expectedOn: '2026-11-13' }, 't')! };
     const p = orderPlan(order([ordered]), '2026-11-04', ctx);
-    const rec = p.lines[0]!.lp.schedule!.find((s) => s.view.step.label === 'Received')!;
+    const rec = p.lines[0]!.lp.schedule!.find((s) => s.view.step.label === 'Landing')!;
     expect(rec.finish).toBe('2026-11-13');
     expect(p.lines[0]!.lp.schedule!.at(-1)!.finish).not.toBeNull(); // packing is dated now
   });

@@ -96,7 +96,7 @@ export function ProcessForm() {
         <legend>Ready to start? (checklist)</legend>
         <p className="muted small">
           What must be in place before this process starts on an order (e.g. mould ready, stencil plate ready). Asked on Home a few working days before each start (Settings → profile). The app
-          itself checks materials, the step before, and the supplier / vendor and dates of outside work and bought items.
+          itself checks materials, the step before, and the supplier / vendor and dates of outside work and outright purchases.
         </p>
         {ready.length > 0 && (
           <ul className="plain-list">

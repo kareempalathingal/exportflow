@@ -10,7 +10,7 @@ export function StatusPill({ status }: { status: JoStatus }) {
 export function DeadlinePill({ jo, today }: { jo: Pick<JobOrder, 'status' | 'deadline' | 'deliveryDate'>; today: string }) {
   const st = deadlineState(jo, today);
   if (st === 'CLOSED') return null;
-  if (st === 'DELIVERY_PASSED') return <span className="pill bad">Delivery date passed</span>;
+  if (st === 'DELIVERY_PASSED') return <span className="pill bad">Cargo ready date passed</span>;
   if (st === 'OVERDUE') return <span className="pill bad">Internal deadline passed</span>;
   const left = daysBetween(today, jo.deadline.internalDeadline) ?? 0;
   const text = left === 0 ? 'Due today' : `${left} day${left === 1 ? '' : 's'} left`;
@@ -20,6 +20,6 @@ export function DeadlinePill({ jo, today }: { jo: Pick<JobOrder, 'status' | 'dea
 export function permissionHint(error: string | null): string | null {
   if (!error) return null;
   return error === 'permission-denied'
-    ? 'No access to Job Orders. If the app was just updated, publish the new Firestore rules in the Firebase console.'
-    : `Could not load Job Orders (${error}).`;
+    ? 'No access to Work Orders. If the app was just updated, publish the new Firestore rules in the Firebase console.'
+    : `Could not load Work Orders (${error}).`;
 }

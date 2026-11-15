@@ -31,7 +31,7 @@ export function presetRange(p: Preset, today: string): { from: string; to: strin
   return null;
 }
 
-/** Job Order history (all orders) for "changes after confirmation"; read once per visit. */
+/** Work Order history (all orders) for "changes after confirmation"; read once per visit. */
 export function useJoHistory(workspaceId: string | null) {
   const [events, setEvents] = useState<JoHistoryEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,7 +102,7 @@ export function PerformancePage() {
           ← Reports
         </Link>
       </p>
-      <h2>Job Order performance</h2>
+      <h2>Work Order performance</h2>
       <div className="segmented wrap" role="radiogroup" aria-label="Period">
         {(
           [
@@ -153,7 +153,7 @@ export function PerformancePage() {
               <span className="mono tile-num">{report.summary.completed ? `${report.summary.onTimeInternal}/${report.summary.completed}` : '—'}</span>
             </div>
             <div className="card">
-              <span className="muted small">On time · delivery</span>
+              <span className="muted small">On time · cargo ready</span>
               <span className="mono tile-num">{report.summary.completed ? `${report.summary.onTimeDelivery}/${report.summary.completed}` : '—'}</span>
             </div>
             <div className="card">

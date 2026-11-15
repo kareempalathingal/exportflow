@@ -190,7 +190,7 @@ export function buildLookAhead(args: {
   for (const jo of jos) {
     const dl = jo.deadline.internalDeadline;
     if (dl >= from && dl <= to) dates.push({ date: dl, text: `${jo.joNumber} internal deadline` });
-    if (jo.deliveryDate >= from && jo.deliveryDate <= to) dates.push({ date: jo.deliveryDate, text: `${jo.joNumber} customer delivery` });
+    if (jo.deliveryDate >= from && jo.deliveryDate <= to) dates.push({ date: jo.deliveryDate, text: `${jo.joNumber} cargo ready` });
   }
   for (const [d, name] of Object.entries(cal.holidays)) if (d >= from && d <= to) dates.push({ date: d, text: `${name || 'Company holiday'} (no work)` });
   dates.sort((a, b) => a.date.localeCompare(b.date) || a.text.localeCompare(b.text));

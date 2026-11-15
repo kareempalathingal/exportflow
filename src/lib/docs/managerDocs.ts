@@ -33,7 +33,7 @@ function deliveryWhen(r: DeliveryRow): string {
 function deliveryTable(title: string, rows: DeliveryRow[], empty: string): DocTable {
   return {
     title,
-    columns: [{ label: 'Delivery' }, { label: 'Job Order' }, { label: 'Basis' }, { label: 'Internal deadline' }, { label: 'Progress' }, { label: 'Expected finish' }, { label: 'In time?' }],
+    columns: [{ label: 'Cargo ready' }, { label: 'Work Order' }, { label: 'Basis' }, { label: 'Internal deadline' }, { label: 'Progress' }, { label: 'Expected finish' }, { label: 'In time?' }],
     rows: rows.map((r) => [
       deliveryWhen(r),
       `${r.joNumber}${r.status === 'DRAFT' ? ' (draft)' : ''}\n${r.customer || '-'}`,
@@ -51,17 +51,17 @@ export function deliveryDoc(s: { from: string; to: string; rows: DeliveryRow[] }
   const passed = s.rows.filter((r) => r.daysLeft < 0);
   const coming = s.rows.filter((r) => r.daysLeft >= 0);
   return {
-    title: 'Delivery Schedule',
+    title: 'Cargo Ready Schedule',
     reference: `${formatDay(s.from)} - ${formatDay(s.to)}`,
     company: opts.company,
     meta: [
       ['Status as of', formatDay(opts.today)],
-      ['Orders', `${coming.length} due in the period${passed.length ? ` · ${passed.length} past the delivery date and still open` : ''}`],
+      ['Orders', `${coming.length} due in the period${passed.length ? ` · ${passed.length} past the cargo ready date and still open` : ''}`],
       ['Not in time', String(s.rows.filter((r) => r.outlook.fits === 'NO').length)],
     ],
     tables: [
-      ...(passed.length ? [deliveryTable('Delivery date passed - still open', passed, '')] : []),
-      deliveryTable('Deliveries in the period', coming, 'No deliveries in this period.'),
+      ...(passed.length ? [deliveryTable('Cargo ready date passed - still open', passed, '')] : []),
+      deliveryTable('Cargo ready dates in the period', coming, 'No cargo ready dates in this period.'),
     ],
     notes: [
       '"In time?" compares the expected finish with the internal deadline. Unknown = some step time is not known yet; (estimate) = some step times are approximate.',
@@ -71,14 +71,14 @@ export function deliveryDoc(s: { from: string; to: string; rows: DeliveryRow[] }
     provisional: false,
     provisionalReasons: [],
     generatedAt: opts.generatedAt,
-    fileName: `delivery-schedule_${s.from}_${s.to}.pdf`,
+    fileName: `cargo-ready-schedule_${s.from}_${s.to}.pdf`,
   };
 }
 
 function riskTable(items: RiskItem[], title: string, empty: string): DocTable {
   return {
     title,
-    columns: [{ label: 'Level' }, { label: 'Job Order' }, { label: 'Internal deadline' }, { label: 'Delivery' }, { label: 'Why' }],
+    columns: [{ label: 'Level' }, { label: 'Work Order' }, { label: 'Internal deadline' }, { label: 'Cargo ready' }, { label: 'Why' }],
     rows: items.map((i) => [RISK_LABEL[i.level], `${i.joNumber}\n${i.customer || '-'}`, formatDay(i.internalDeadline), formatDay(i.deliveryDate), i.reasons.map((r) => `- ${r}`).join('\n')]),
     empty,
   };
@@ -112,20 +112,20 @@ export function summaryDoc(s: ManagementSummary, opts: { company: string; genera
       ['Orders confirmed', String(s.confirmed)],
       ['Orders completed', String(c.count)],
       ['By internal deadline', c.count ? `${c.onTimeInternal} of ${c.count} (${pctOf(c.onTimeInternal, c.count)})` : '-'],
-      ['Before delivery date', c.count ? `${c.onTimeDelivery} of ${c.count} (${pctOf(c.onTimeDelivery, c.count)})` : '-'],
+      ['Before cargo ready date', c.count ? `${c.onTimeDelivery} of ${c.count} (${pctOf(c.onTimeDelivery, c.count)})` : '-'],
       ['Open orders today', `${o.onTrack} on track · ${o.behind} behind · ${o.late} late · ${o.notTracked} not tracked · ${o.drafts} in planning`],
     ],
     tables: [
       {
         title: 'Completed in the period',
-        columns: [{ label: 'Job Order' }, { label: 'Customer' }, { label: 'Completed' }, { label: 'Internal deadline' }, { label: 'Delivery' }, { label: 'On time' }],
+        columns: [{ label: 'Work Order' }, { label: 'Customer' }, { label: 'Completed' }, { label: 'Internal deadline' }, { label: 'Cargo ready' }, { label: 'On time' }],
         rows: c.list.map((x) => [x.joNumber, x.customer || '-', formatDay(x.completedOn), formatDay(x.internal), formatDay(x.delivery), x.completedOn <= x.internal ? 'Yes' : x.completedOn <= x.delivery ? 'Within buffer' : 'No']),
         empty: 'No orders completed in this period.',
       },
-      deliveryTable(`Deliveries in the next ${NEXT_DELIVERY_DAYS} days (from ${formatDay(s.today)})`, s.nextDeliveries, 'No deliveries in the next 7 days.'),
+      deliveryTable(`Cargo ready dates in the next ${NEXT_DELIVERY_DAYS} days (from ${formatDay(s.today)})`, s.nextDeliveries, 'No cargo ready dates in the next 7 days.'),
       riskTable(s.risks, s.riskTotal > s.risks.length ? `Main risks (${s.risks.length} of ${s.riskTotal} - see "Orders at risk")` : 'Main risks', 'No open order is late or at risk.'),
     ],
-    notes: ['Open orders, deliveries and risks are as of the date the summary was made.', WORKING_DAYS_NOTE],
+    notes: ['Open orders, cargo ready dates and risks are as of the date the summary was made.', WORKING_DAYS_NOTE],
     provisional: false,
     provisionalReasons: [],
     generatedAt: opts.generatedAt,
@@ -141,7 +141,7 @@ export function workDoc(groups: WorkGroup[], opts: { company: string; today: str
     meta: [['Steps', `${groups.reduce((a, g) => a + g.rows.length, 0)} running now or starting in the period`]],
     tables: groups.map((g) => ({
       title: g.name,
-      columns: [{ label: 'Job Order' }, { label: 'Product' }, { label: 'Step' }, { label: 'Quantity', align: 'right' as const }, { label: 'When' }],
+      columns: [{ label: 'Work Order' }, { label: 'Product' }, { label: 'Step' }, { label: 'Quantity', align: 'right' as const }, { label: 'When' }],
       rows: g.rows.map((r) => [r.joNumber, r.product, r.step, r.quantity ?? '-', workRowWhen(r)]),
       empty: 'Nothing.',
     })),
@@ -258,7 +258,7 @@ export function awaitedDoc(items: AwaitedItem[], opts: { company: string; today:
     ],
     tables: keys.map((k) => ({
       title: k ? opts.supplierName(k) : 'No supplier recorded',
-      columns: [{ label: 'Order' }, { label: 'Item' }, { label: 'Type' }, { label: 'PO' }, { label: 'Outstanding' }, { label: 'Expected' }],
+      columns: [{ label: 'Order' }, { label: 'Item' }, { label: 'Type' }, { label: 'Supplier / Vendor PO' }, { label: 'Outstanding' }, { label: 'Expected' }],
       rows: groups.get(k)!.map((i) => [i.joNumber, `${i.what}${i.product && i.product !== i.what ? ` (${i.product})` : ''}`, AWAITED_KIND_LABEL[i.kind], i.poNo || '-', i.outstanding, when(i)]),
       rowTones: groups.get(k)!.map((i) => (i.bucket === 'LATE' ? 'late' : i.bucket === 'SOON' ? 'tight' : i.bucket === 'UNKNOWN' ? 'unknown' : null)),
       empty: '',

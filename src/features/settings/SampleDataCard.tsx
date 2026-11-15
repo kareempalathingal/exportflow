@@ -22,7 +22,7 @@ export function SampleDataCard() {
 
   function load() {
     if (!workspaceId || modeOfWorkspace(workspaceId) !== 'DEMO') return; // never into ACTUAL
-    if (!window.confirm('Add sample products, BOMs, suppliers and 5 Job Orders to DEMO? They are marked "(sample)"; "Clear DEMO" below removes everything in DEMO.')) return;
+    if (!window.confirm('Add sample products, BOMs, suppliers and 5 Work Orders to DEMO? They are marked "(sample)"; "Clear DEMO" below removes everything in DEMO.')) return;
     const writes = buildSampleData(istDateKey(new Date()));
     for (const w of writes) saveRecord({ workspaceId, collectionName: w.collection, docId: w.docId, entity: w.entity, before: w.before, data: w.data, reason: w.reason });
     setMsg(`Added ${writes.length} sample records. Open Home to see the dashboard.`);
@@ -80,7 +80,7 @@ export function SampleDataCard() {
     <div className="card">
       <h3>Sample data (DEMO)</h3>
       <p className="muted small">
-        Fills DEMO with sample products, a multi-level BOM, suppliers, a stock count and 5 Job Orders in different states (late, ahead, behind, draft,
+        Fills DEMO with sample products, a multi-level BOM, suppliers, a stock count and 5 Work Orders in different states (late, ahead, behind, draft,
         completed), so every screen and PDF can be tried. Names end in “(sample)”. Nothing goes to ACTUAL. After an app update, “Add new sample records” adds only what is new (e.g. Work tasks); existing records stay as they are.
       </p>
       <button type="button" className="secondary small" disabled={loaded || master.loading} onClick={load}>

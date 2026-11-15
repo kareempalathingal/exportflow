@@ -49,7 +49,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
     const next = { ...jobOrderData(jo), lines };
     const p = orderStepProgress(next, today, ctx);
     const data = p ? { ...next, progress: { pct: p.actual, on: today, at: new Date().toISOString() }, progressLog: appendProgress(jo.progressLog, { pct: p.actual, on: today, at: new Date().toISOString() }) } : next;
-    saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Job Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>, reason: what });
+    saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Work Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>, reason: what });
   }
 
   function setUp() {
@@ -175,7 +175,7 @@ function LineCard(props: {
   const [promiseFor, setPromiseFor] = useState<string | null>(null);
   const start = orderStart(jo);
   const lp = props.lp;
-  const supply = line.supply === 'BUY' ? 'Buy' : 'Make';
+  const supply = line.supply === 'BUY' ? 'Outright purchase' : 'Make';
   const head = (
     <div className="row between">
       <span>
@@ -217,11 +217,11 @@ function LineCard(props: {
     if (s.outside || (s.processId === null && !s.outsideOf && s.label === 'Ordered')) {
       const who = supplierName(s.supplierId);
       if (who) parts.push(who);
-      if (s.poNo) parts.push(`PO ${s.poNo}`);
-      if (s.orderedOn) parts.push(`ordered ${formatDay(s.orderedOn)}`);
+      if (s.poNo) parts.push(`${s.outside ? 'Vendor' : 'Supplier'} PO ${s.poNo}`);
+      if (s.orderedOn) parts.push(`${s.outside ? 'dispatched' : 'ordered'} ${formatDay(s.orderedOn)}`);
       if (s.expectedOn) {
         const first = firstPromise(s);
-        parts.push(`${s.outside ? 'back by' : 'expected'} ${formatDay(s.expectedOn)}${first && first !== s.expectedOn ? ` (first said ${formatDay(first)})` : ''}`);
+        parts.push(`${s.outside ? 'all landed by' : 'expected'} ${formatDay(s.expectedOn)}${first && first !== s.expectedOn ? ` (first said ${formatDay(first)})` : ''}`);
       }
     }
     let out: string | null = null;
@@ -252,7 +252,7 @@ function LineCard(props: {
     const doneMin = v.startedOn ?? v.startOn;
     const isReceipt = v.step.processId === null && !isBuiltIn(v.step);
     const canOutput = (v.state === 'NOW' || v.step.startedAt || isReceipt) && v.step.qty !== null && (isReceipt || !v.step.passThrough) && v.step.label !== 'Ordered';
-    const outLabel = v.step.outsideOf && v.step.passThrough && v.step.label.startsWith('Dispatch') ? '+ Dispatched' : v.step.outsideOf ? '+ Received back' : isReceipt ? '+ Received' : "+ Day's output";
+    const outLabel = v.step.outsideOf && v.step.passThrough && v.step.label.startsWith('Dispatch') ? '+ Dispatched' : v.step.outsideOf ? '+ Landed' : isReceipt ? '+ Landed' : "+ Day's output";
     const holdsPromise = v.step.outside || (v.step.processId === null && !v.step.outsideOf && v.step.label === 'Ordered');
     const label = v.step.label;
     const btns: ReactNode[] = [];
@@ -271,7 +271,7 @@ function LineCard(props: {
     if (holdsPromise)
       btns.push(
         <button key="prom" type="button" className="secondary small" onClick={() => setPromiseFor(promiseFor === v.step.key ? null : v.step.key)}>
-          {promiseFor === v.step.key ? 'Close' : v.step.supplierId ? 'Supplier & dates' : v.step.outside ? '+ Vendor, PO, date' : '+ Supplier, PO, date'}
+          {promiseFor === v.step.key ? 'Close' : v.step.supplierId ? 'Supplier & dates' : v.step.outside ? '+ Vendor, Vendor PO, date' : '+ Supplier, Supplier PO, date'}
         </button>,
       );
     if (isFirst)
@@ -745,16 +745,16 @@ function PromiseEditor(props: { step: JoStep; outside: boolean; suppliers: (Supp
         </select>
       </label>
       <label className="small">
-        PO number (optional)
+        {outside ? 'Vendor PO No. (optional)' : 'Supplier PO No. (optional)'}
         <input value={poNo} maxLength={40} onChange={(e) => setPoNo(e.target.value)} />
       </label>
       <div className="grid2">
         <label className="small">
-          {outside ? 'PO / sent on' : 'Ordered on'}
+          {outside ? 'Vendor PO / dispatched on' : 'Ordered on'}
           <input type="date" value={orderedOn} max={today} onChange={(e) => setOrderedOn(e.target.value)} />
         </label>
         <label className="small">
-          {outside ? 'Vendor says: all back by' : 'Supplier says: by'}
+          {outside ? 'Vendor says: all landed by' : 'Supplier says: by'}
           <input type="date" value={expectedOn} onChange={(e) => setExpectedOn(e.target.value)} />
         </label>
       </div>
@@ -765,7 +765,7 @@ function PromiseEditor(props: { step: JoStep; outside: boolean; suppliers: (Supp
         className="primary small"
         disabled={!!bad}
         onClick={() => {
-          const what = [supplierId !== (step.supplierId ?? '') && (supplierId ? 'supplier set' : 'supplier cleared'), poNo !== (step.poNo ?? '') && `PO ${poNo || 'cleared'}`, expectedOn !== (step.expectedOn ?? '') && (expectedOn ? `expected ${formatDay(expectedOn)}` : 'expected date cleared'), orderedOn !== (step.orderedOn ?? '') && orderedOn && `ordered ${formatDay(orderedOn)}`].filter(Boolean).join(', ') || 'details saved';
+          const what = [supplierId !== (step.supplierId ?? '') && (supplierId ? 'supplier set' : 'supplier cleared'), poNo !== (step.poNo ?? '') && `${outside ? 'Vendor' : 'Supplier'} PO ${poNo || 'cleared'}`, expectedOn !== (step.expectedOn ?? '') && (expectedOn ? `expected ${formatDay(expectedOn)}` : 'expected date cleared'), orderedOn !== (step.orderedOn ?? '') && orderedOn && `ordered ${formatDay(orderedOn)}`].filter(Boolean).join(', ') || 'details saved';
           props.onSave({ supplierId: supplierId || null, poNo: poNo.trim(), orderedOn: orderedOn || null, expectedOn: expectedOn || null }, what);
         }}
       >

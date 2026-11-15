@@ -31,7 +31,7 @@ export function ToBuyList({ jos, md, counts, company, suppliers }: { jos: WithMe
       </label>
       {ordersWithErrors.length > 0 && (
         <p className="warn small">
-          Incomplete for {ordersWithErrors.join(', ')} (missing BOM, conversion or Make/Buy) — open the order’s Materials tab.
+          Incomplete for {ordersWithErrors.join(', ')} (missing BOM, conversion or Make / outright purchase) — open the order’s Materials tab.
         </p>
       )}
       <div className="card doc-card">
@@ -84,7 +84,7 @@ function BuyRow({ r, jos, countMap, suppliers, others, grouped }: { r: BuyTotal;
         </strong>
       </div>
       <span className="muted small block">
-        {r.type === 'PRODUCT' ? 'Bought product' : 'Raw material'}
+        {r.type === 'PRODUCT' ? 'Outright purchase' : 'Raw material'}
         {r.provisional && ' · provisional (estimated data)'}
         {a.state === 'OVER' && <span className="error"> · stock over-allocated</span>}
       </span>

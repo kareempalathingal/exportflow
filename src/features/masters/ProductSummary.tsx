@@ -35,7 +35,7 @@ export function ProductSummary({ product, bomStatus, bomVersion }: { product: Pr
       <h2>{product.name}</h2>
       <p className="muted small">
         {SUPPLY[product.supplyType]}
-        {product.supplyType === 'BOTH' && product.usualSupply && ` (usually ${product.usualSupply === 'MAKE' ? 'made' : 'bought'})`} · base unit {unitLabel(product.baseUnit)}
+        {product.supplyType === 'BOTH' && product.usualSupply && ` (usually ${product.usualSupply === 'MAKE' ? 'made' : 'outright purchase'})`} · base unit {unitLabel(product.baseUnit)}
         {product.code && ` · ${product.code}`}
         {product.active === false && ' · Inactive'}
         {size && ` · ${formatQty(size.rows[0]!.width)} × ${formatQty(size.rows[0]!.length)} ${unitLabel(size.rows[0]!.unit)}`}

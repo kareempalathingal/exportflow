@@ -80,7 +80,7 @@ describe('material plan with stock', () => {
     m.boms.delete('yarn');
     const p = planMaterials(jo([line('mat', 10), line('both', 1)]), m);
     expect(p.errors).toContain('BOM missing for Yarn — its materials cannot be calculated');
-    expect(p.errors).toContain('Both mat: choose Make or Buy');
+    expect(p.errors).toContain('Both mat: choose Make or Outright purchase');
     expect(p.provisional).toBe(true);
   });
   it('uses the BOM saved at confirmation, not later edits', () => {

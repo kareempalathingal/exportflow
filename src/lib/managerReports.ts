@@ -133,7 +133,7 @@ export function atRiskOrders(args: { jobOrders: Jo[]; ctx: PlanContext; today: s
   for (const jo of args.jobOrders) {
     if (!open(jo)) continue;
     const reasons: { level: RiskLevel; text: string }[] = [];
-    if (jo.deliveryDate < today) reasons.push({ level: 'LATE', text: `Customer delivery date passed (${formatDay(jo.deliveryDate)})` });
+    if (jo.deliveryDate < today) reasons.push({ level: 'LATE', text: `Cargo ready date passed (${formatDay(jo.deliveryDate)})` });
     if (jo.status === 'DRAFT') {
       const used = workingDaysBetween(jo.receivedDate, today, cal) ?? 0;
       if (planningDays !== null && used > planningDays) reasons.push({ level: 'HIGH', text: `Still in planning after ${plural(used, 'working day')} (benchmark ${formatQty(planningDays)})` });
@@ -255,11 +255,11 @@ export function summaryText(s: ManagementSummary, company: string): string {
     '',
     `Orders received: ${s.received.count}${s.received.cancelledSince ? ` (${s.received.cancelledSince} since cancelled)` : ''}`,
     `Orders confirmed: ${s.confirmed}`,
-    `Orders completed: ${s.completed.count}${s.completed.count ? ` · by internal deadline ${pctOf(s.completed.onTimeInternal, s.completed.count)} · before delivery ${pctOf(s.completed.onTimeDelivery, s.completed.count)}` : ''}`,
+    `Orders completed: ${s.completed.count}${s.completed.count ? ` · by internal deadline ${pctOf(s.completed.onTimeInternal, s.completed.count)} · before cargo ready ${pctOf(s.completed.onTimeDelivery, s.completed.count)}` : ''}`,
     '',
     `Open now (${formatDay(s.today)}): ${o.onTrack} on track · ${o.behind} behind · ${o.late} late · ${o.notTracked} not tracked · ${o.drafts} in planning`,
   ];
-  out.push('', `Deliveries in the next ${NEXT_DELIVERY_DAYS} days:`);
+  out.push('', `Cargo ready dates in the next ${NEXT_DELIVERY_DAYS} days:`);
   if (!s.nextDeliveries.length) out.push('• None');
   for (const r of s.nextDeliveries) out.push(`• ${formatDay(r.deliveryDate)}: ${r.joNumber} (${r.customer || '—'}) · ${r.progress}`);
   out.push('', `Main risks${s.riskTotal > s.risks.length ? ` (${s.risks.length} of ${s.riskTotal})` : ''}:`);
@@ -333,7 +333,7 @@ export function departmentWork(args: { jobOrders: Jo[]; ctx: PlanContext; today:
   };
   for (const r of rows) {
     if (r.processId === null) {
-      put(PURCHASE_GROUP, 'Bought items (ordered / received)', r);
+      put(PURCHASE_GROUP, 'Outright purchases (ordered / landed)', r);
       continue;
     }
     const ds = departmentsFor(r.processId, args.departments);

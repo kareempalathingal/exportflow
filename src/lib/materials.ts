@@ -140,7 +140,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
     }
     const supply = effectiveSupply(line, r.product);
     if (!supply) {
-      errors.push(`${name}: choose Make or Buy`);
+      errors.push(`${name}: choose Make or Outright purchase`);
       provisional = true;
       continue;
     }
@@ -149,7 +149,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
   }
   for (const id of buyRoots)
     if (makeRoots.has(id)) {
-      notes.push(`${md.products.get(id)?.name ?? id} is both made and bought in this order; it is treated as made`);
+      notes.push(`${md.products.get(id)?.name ?? id} is both made and an outright purchase in this order; it is treated as made`);
       buyRoots.delete(id);
     }
 

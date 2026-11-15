@@ -85,7 +85,7 @@ describe('KPIs', () => {
     const r = kpis('2026-07-01', TODAY);
     expect(kpiText(r, 'Co', (d) => d)).toMatch(/^KPIs · Co/);
     const doc = kpiDoc(r, { onTimeDeliveryPct: 90 }, { company: 'Co', generatedAt: 'now' });
-    expect(doc.tables[0]!.rows.find((x) => x[0] === 'On-time delivery')).toEqual(['On-time delivery', '100%', '—', '—', '>= 90%', 'Met']);
+    expect(doc.tables[0]!.rows.find((x) => x[0] === 'On time for cargo ready')).toEqual(['On time for cargo ready', '100%', '—', '—', '>= 90%', 'Met']);
     expect(doc.charts!.length).toBe(1);
   });
 });

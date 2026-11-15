@@ -18,7 +18,7 @@ const LABEL: Record<string, string> = {
   boms: 'BOMs',
   suppliers: 'Suppliers',
   processes: 'Processes',
-  jobOrders: 'Job Orders',
+  jobOrders: 'Work Orders',
   departments: 'Departments',
   stockCounts: 'Stock counts',
   tasks: 'Tasks',

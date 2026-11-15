@@ -1,5 +1,5 @@
 /**
- * Job Order core (Phase 3a): shapes and pure, deterministic calculations.
+ * Work Order core (Phase 3a): shapes and pure, deterministic calculations.
  * Requirements v1.9 §31.4 (10% buffer) and CLAUDE.md phase-plan decisions.
  */
 import type { ProgressEntry } from './progress';
@@ -30,7 +30,7 @@ import { addWorkingDays, DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar
 
 /** v1 (calendar days) — kept for orders saved before 20 Oct 2026. */
 export const DEADLINE_RULE_V1 = 'buffer-10pct-ceil-min1/v1';
-/** Stored on every Job Order; a later rule change never rewrites old orders silently. */
+/** Stored on every Work Order; a later rule change never rewrites old orders silently. */
 export const DEADLINE_RULE_VERSION = 'buffer-10pct-ceil-min1-workdays/v2';
 
 export interface Deadline {
@@ -54,11 +54,11 @@ export function isWorkingDayRule(d: Pick<Deadline, 'ruleVersion'>): boolean {
  * always a working day). Integer arithmetic only.
  */
 export function computeDeadline(receivedDate: string, deliveryDate: string, cal: WorkCalendar = DEFAULT_CALENDAR): DeadlineResult {
-  if (dayNumber(receivedDate) === null) return { ok: false, error: 'Enter the date the Job Order was received' };
-  if (dayNumber(deliveryDate) === null) return { ok: false, error: 'Enter the customer delivery date' };
-  if (daysBetween(receivedDate, deliveryDate)! <= 0) return { ok: false, error: 'The delivery date must be after the received date' };
+  if (dayNumber(receivedDate) === null) return { ok: false, error: 'Enter the WO date' };
+  if (dayNumber(deliveryDate) === null) return { ok: false, error: 'Enter the cargo ready date' };
+  if (daysBetween(receivedDate, deliveryDate)! <= 0) return { ok: false, error: 'The cargo ready date must be after the WO date' };
   const period = workingDaysBetween(receivedDate, deliveryDate, cal)!;
-  if (period <= 0) return { ok: false, error: 'There are no working days between the received date and the delivery date' };
+  if (period <= 0) return { ok: false, error: 'There are no working days between the WO date and the cargo ready date' };
   const buffer = Math.max(1, Math.floor((period + 9) / 10));
   return {
     ok: true,
@@ -89,7 +89,7 @@ export function deadlineUpdate(jo: Pick<JobOrder, 'receivedDate' | 'deliveryDate
 }
 
 // ---------------------------------------------------------------------------
-// Job Order shapes
+// Work Order shapes
 // ---------------------------------------------------------------------------
 
 export type DeliveryDateType = 'UNCONFIRMED' | 'FACTORY_DISPATCH' | 'PORT' | 'CUSTOMER_DESTINATION';
@@ -254,7 +254,7 @@ export function completedOnAfter(from: JoStatus | null, to: JoStatus, previous: 
   return previous ?? null;
 }
 
-/** Stock earmarked for one Job Order (Requirements §31.3), confirmed manually. */
+/** Stock earmarked for one Work Order (Requirements §31.3), confirmed manually. */
 export interface StockEntry {
   qty: number; // as entered
   unit: string; // as entered
@@ -306,7 +306,7 @@ export interface ConfirmCheck {
   warnings: string[];
 }
 
-/** What stops a Job Order from being confirmed, and what only needs a warning. */
+/** What stops a Work Order from being confirmed, and what only needs a warning. */
 export function checkForConfirm(jo: Pick<JobOrder, 'lines' | 'deliveryDateType' | 'deadline'>, md: MasterData, today: string): ConfirmCheck {
   const blocking: string[] = [];
   const warnings: string[] = [];
@@ -317,7 +317,7 @@ export function checkForConfirm(jo: Pick<JobOrder, 'lines' | 'deliveryDateType' 
     if (!p) return void blocking.push(`${n}: choose a product`);
     if (!(l.qty > 0)) blocking.push(`${n}: quantity must be more than 0`);
     const supply = effectiveSupply(l, p);
-    if (!supply) blocking.push(`${n} (${p.name}): choose Make or Buy`);
+    if (!supply) blocking.push(`${n} (${p.name}): choose Make or Outright purchase`);
     const r = resolveLine(l, md);
     if (r.problem) warnings.push(`${n} (${p.name}): ${r.problem}`);
     if (supply === 'MAKE') {
@@ -326,7 +326,7 @@ export function checkForConfirm(jo: Pick<JobOrder, 'lines' | 'deliveryDateType' 
       if (s === 'PROVISIONAL') warnings.push(`${n} (${p.name}): BOM not fully confirmed`);
     }
   });
-  if (jo.deliveryDateType === 'UNCONFIRMED') warnings.push('Delivery date type is not confirmed yet');
+  if (jo.deliveryDateType === 'UNCONFIRMED') warnings.push('What the cargo ready date means is not confirmed yet');
   if (jo.deadline.internalDeadline < today) warnings.push('The internal deadline has already passed');
   return { blocking, warnings };
 }
@@ -411,14 +411,14 @@ export function jobOrderAttention(
     if (!isEditable(jo.status)) continue;
     const base = { joId: jo.id, joNumber: jo.joNumber };
     const st = deadlineState(jo, today);
-    if (st === 'DELIVERY_PASSED') out.push({ ...base, kind: st, detail: `Delivery date was ${formatDay(jo.deliveryDate)}` });
+    if (st === 'DELIVERY_PASSED') out.push({ ...base, kind: st, detail: `Cargo ready date was ${formatDay(jo.deliveryDate)}` });
     if (st === 'OVERDUE') out.push({ ...base, kind: st, detail: `Internal deadline was ${formatDay(jo.deadline.internalDeadline)}` });
     if (st === 'DUE_SOON') {
       const left = daysBetween(today, jo.deadline.internalDeadline)!;
       out.push({ ...base, kind: st, detail: left === 0 ? 'Internal deadline is today' : `Internal deadline in ${left} day${left === 1 ? '' : 's'}` });
     }
     const undecided = jo.lines.filter((l) => !effectiveSupply(l, md.products.get(l.productId))).length;
-    if (undecided) out.push({ ...base, kind: 'UNDECIDED', detail: `${undecided} line${undecided === 1 ? '' : 's'} need Make or Buy` });
+    if (undecided) out.push({ ...base, kind: 'UNDECIDED', detail: `${undecided} line${undecided === 1 ? '' : 's'} need Make or Outright purchase` });
     const conv = jo.lines.filter((l) => resolveLine(l, md).problem).length;
     if (conv) out.push({ ...base, kind: 'CONVERSION', detail: `${conv} line${conv === 1 ? '' : 's'} cannot be converted to the base unit` });
     if (jo.status === 'CONFIRMED' && changedBoms(jo.bomSnapshot, md, revOf).length)

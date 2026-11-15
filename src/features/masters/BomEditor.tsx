@@ -50,7 +50,7 @@ function splitKey(key: string): { type: ComponentType; id: string } | null {
   return { type: key.slice(0, i) as ComponentType, id: key.slice(i + 1) };
 }
 
-const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'bought', BOTH: 'made/bought' } as const;
+const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'outright purchase', BOTH: 'made / outright purchase' } as const;
 
 export function BomEditor({ product }: { product: WithMeta<Product> }) {
   const { workspaceId, t } = useApp();
@@ -333,8 +333,8 @@ function BomCalculator({ product, productId, md }: { product: Product; productId
         </ul>
       )}
       {result?.provisional && <p className="warn small">Provisional: some data is missing, estimated or not yet verified.</p>}
-      {hasBoth && <p className="muted small">Sub-products marked “made/bought” are assumed made here; the choice is made per Job Order.</p>}
-      <p className="muted small">Includes wastage. Stock is not deducted yet — stock confirmation per Job Order comes in Phase 3.</p>
+      {hasBoth && <p className="muted small">Sub-products marked “made / outright purchase” are assumed made here; the choice is made per Work Order.</p>}
+      <p className="muted small">Includes wastage. Stock is not deducted yet — stock confirmation per Work Order comes in Phase 3.</p>
     </div>
   );
 }

@@ -194,7 +194,7 @@ export function TaskForm() {
           </p>
         )}
         <label>
-          Job Order (optional)
+          Work Order (optional)
           <select
             value={t.joId ?? ''}
             onChange={(e) => {
@@ -203,7 +203,7 @@ export function TaskForm() {
             }}
           >
             <option value="">— none —</option>
-            {t.joId && !openJos.some((j) => j.id === t.joId) && <option value={t.joId}>{t.joNumber || 'Job Order'}</option>}
+            {t.joId && !openJos.some((j) => j.id === t.joId) && <option value={t.joId}>{t.joNumber || 'Work Order'}</option>}
             {openJos.map((j) => (
               <option key={j.id} value={j.id}>
                 {j.joNumber} · {j.customerName}
@@ -271,7 +271,7 @@ export function TaskForm() {
         )}
         {!isNew && item?.joId && (
           <p className="small">
-            <Link to={`/orders/${item.joId}`}>Open {item.joNumber || 'the Job Order'} →</Link>
+            <Link to={`/orders/${item.joId}`}>Open {item.joNumber || 'the Work Order'} →</Link>
           </p>
         )}
         {dept && isActive(t) && t.title.trim() && (
