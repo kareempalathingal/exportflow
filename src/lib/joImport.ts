@@ -217,11 +217,12 @@ export function findOrderFields(grid: Grid, headerRow: number | null): OrderValu
       const label = t.replace(/[:#-]\s*.+$/, '');
       for (const [field, re] of LABEL) {
         if (!re.test(label)) continue;
-        if (out[field]) break;
-        // "Buyer PO" is the PO, not the customer; a WO date is not the WO number.
+        // "Buyer PO" is the PO, not the customer; a WO date is not the WO number. Checked before
+        // "already found" (15 Nov 2026): "Work Order Date" after "Work Order No" is still the WO date.
         if (field === 'customer' && LABEL[0]![1].test(label)) continue;
         if (field === 'joNumber' && /date/i.test(label)) continue;
         if ((field === 'receivedDate' || field === 'deliveryDate') && !/date|ready|deliver|ship|etd|dispatch/i.test(label)) continue;
+        if (out[field]) break;
         const v = valueAt(grid, r, c);
         if (v && !onlyLabel(v.value)) {
           out[field] = v;

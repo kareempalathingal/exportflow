@@ -55,6 +55,17 @@ describe('JO import: headings and order details', () => {
     expect(o.deliveryDate?.value).toBe('10-Oct-26');
     expect(cellName(o.joNumber!.at)).toBe('C3');
   });
+  it('"Work Order Date" next to "Work Order No" is the WO date (company layout, 15 Nov 2026)', () => {
+    const g = [
+      ['Customer Code', ':', 'C-01', 'Customer PO NO.', ':', 'TBA'],
+      ['Work Order No', ':', '12 / 2026', 'Work Order Date', ':', '05-09-2026', 'Cargo Ready Date', ':', '10-10-2026'],
+    ];
+    const o = findOrderFields(g, null);
+    expect(o.joNumber?.value).toBe('12 / 2026');
+    expect(o.receivedDate?.value).toBe('05-09-2026');
+    expect(o.deliveryDate?.value).toBe('10-10-2026');
+    expect(o.poNumber?.value).toBe('TBA');
+  });
   it('reads "Label: value" in one cell', () => {
     expect(findOrderFields([['WO No: 95'], ['Date: 05.11.2026']], null).joNumber?.value).toBe('95');
   });

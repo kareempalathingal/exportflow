@@ -223,7 +223,8 @@ report the discrepancy and ask; do not silently choose.
     most fields), item columns guessed from the headings (name, code, size,
     quantity, unit, pack quantity; "QTY (NOS)" gives the unit), order details
     found next to their labels with the cell shown (WO no., customer,
-    buyer PO, issued / received, delivery / cargo ready). Price / rate /
+    buyer PO, issued / received, delivery / cargo ready; "Work Order Date"
+    next to "Work Order No" is the WO date, fixed 15 Nov 2026). Price / rate /
     amount columns are never mapped or read. First rows as read. "Remember
     this layout" (name; phone only, `exportflow:importLayouts`, max 20): a
     file whose sheet and headings match is set up the same way next time.
