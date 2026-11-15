@@ -210,6 +210,15 @@ describe('plan overview: road map and steps as landmarks (confirmed 26 Oct 2026)
       if (tone === null) expect(cell).toMatch(/^\d+ days?$|^done$/);
     });
   });
+  it('both plans state the item order; only the working plan compares with the listed order', async () => {
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    const base = { jo: { ...finalJo.get('sample_jo_105')!, rev: 1 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' } };
+    const submit = productionPlanDoc(base).meta.find((m) => m[0] === 'Item order')!;
+    expect(submit[1]).toBe('Rush first, then the item with more work left.');
+    const working = productionPlanDoc({ ...base, variant: 'working' }).meta.find((m) => m[0] === 'Item order')!;
+    expect(working[1]).toMatch(/listed order/i);
+    expect(working[1]).toMatch(/\n1\. .+ left/);
+  });
 });
 
 describe('step colours follow the benchmark (confirmed 27 Oct 2026)', () => {

@@ -19,6 +19,47 @@ import { useCollection, type WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { jobOrderData } from './MaterialsTab';
 import { TrackBar } from './TrackBar';
+import { daysLeftText, gainText, itemOrderRule } from '../../lib/itemOrder';
+import type { ItemOrder } from '../../lib/route';
+
+/** Item order (15 Nov 2026): who goes first at a shared process, and what it changes against the listed order. */
+function ItemOrderCard({ io, editable, onRush }: { io: ItemOrder; editable: boolean; onRush: (lineId: string, on: boolean) => void }) {
+  const gain = gainText(io.gainDays);
+  return (
+    <div className="card">
+      <strong>Item order</strong>
+      <p className="small">{itemOrderRule(io)}</p>
+      <p className="small">
+        {io.ready ? (
+          <>
+            WO ready <strong>{formatDay(io.ready)}</strong>
+            {io.readyListed && ` · in listed order: ${formatDay(io.readyListed)}`}
+          </>
+        ) : (
+          'WO ready date to be confirmed (a step has no time yet)'
+        )}
+        {gain && gain.tone !== 'neutral' && <span className={`pill ${gain.tone} inline-pill`}>{gain.text}</span>}
+        {gain && gain.tone === 'neutral' && <span className="muted"> · {gain.text}</span>}
+      </p>
+      <ol className="small plain-list">
+        {io.items.map((i, n) => (
+          <li key={i.lineId} className="row between">
+            <span>
+              {n + 1}. {i.product}
+              {i.rush && <span className="pill warn inline-pill">Rush</span>}
+              <span className="muted"> · {daysLeftText(i)}</span>
+            </span>
+            {editable && (
+              <button type="button" className="secondary small" onClick={() => onRush(i.lineId, !i.rush)}>
+                {i.rush ? 'Rush off' : 'Rush'}
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 /** Per-product progress: a bar like the dashboard, and every process step from first to last. */
 export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md: MasterData; processes: Map<string, Process> }) {
@@ -52,6 +93,19 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
     saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Work Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>, reason: what });
   }
 
+  function setRush(lineId: string, on: boolean) {
+    const name = jo.lines.find((l) => l.id === lineId)?.productName ?? 'item';
+    saveLines(
+      jo.lines.map((l) => {
+        if (l.id !== lineId) return l;
+        const { rush: _old, ...rest } = l;
+        void _old;
+        return on ? { ...rest, rush: true } : rest;
+      }),
+      on ? `Rush on: ${name}` : `Rush off: ${name}`,
+    );
+  }
+
   function setUp() {
     saveLines(
       jo.lines.map((l) => (l.steps && l.steps.length ? l : { ...l, steps: buildLineSteps(l, md, processes) })),
@@ -74,6 +128,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
           </button>
         </div>
       )}
+      {oplan && oplan.itemOrder.items.length > 1 && <ItemOrderCard io={oplan.itemOrder} editable={editable} onRush={setRush} />}
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>
@@ -88,7 +143,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
         <span>○ to do</span>
         <span className="warn">time pending = benchmark not known yet</span>
         <span>days and dates are working days (Sundays and company holidays left out)</span>
-        <span>items of this order share each process (first come, first served); a step can start once the previous one has a day of its work ready; waiting behind other orders is not included yet</span>
+        <span>items of this order share each process (when several wait for the same one: Rush first, then the item with more work left); a step can start once the previous one has a day of its work ready; waiting behind other orders is not included yet</span>
       </p>
     </section>
   );

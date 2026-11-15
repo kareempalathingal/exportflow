@@ -23,7 +23,8 @@ import {
   type RiskItem,
   type RiskLevel,
 } from '../../lib/managerReports';
-import type { Department, MasterData } from '../../lib/masters';
+import type { Department, MasterData, Process } from '../../lib/masters';
+import { ITEM_ORDER_RULE, itemPriorityDoc, itemPriorityRows, itemPrioritySummary, itemPriorityText } from '../../lib/itemOrder';
 import type { StockCount } from '../../lib/materials';
 import type { PlanContext } from '../../lib/route';
 import { readPref, writePref } from '../../lib/storage';
@@ -459,6 +460,55 @@ export function FollowUpSection({ tasks, departments, company, today, generatedA
         <p className="muted small">
           The working list is in <Link to="/work">Work</Link>.
         </p>
+      </div>
+    </SettingSection>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Item priority: effect (15 Nov 2026)
+// ---------------------------------------------------------------------------
+
+export function ItemPrioritySection({ jos, ctx, today, company, generatedAt, processes }: Common & { processes: Map<string, Process> }) {
+  const rows = useMemo(() => itemPriorityRows(jos, today, ctx, processes), [jos, today, ctx, processes]);
+  const later = rows.filter((r) => r.gainDays !== null && r.gainDays < 0).length;
+  const diff = (g: number | null) => (g === null ? <span className="muted">not known yet</span> : g === 0 ? <span className="muted">same</span> : g > 0 ? <span className="ok">−{g}</span> : <span className="error">+{-g}</span>);
+  return (
+    <SettingSection title="Item priority: effect" summary={itemPrioritySummary(rows)} flag={later ? 'warn' : null} flagLabel="Priority makes a WO later">
+      <div className="card">
+        <p className="muted small">{ITEM_ORDER_RULE}. Each open WO with two or more items: the day its last item is ready in listed order and with the priority (working days).</p>
+        {rows.length > 0 && (
+          <div className="table-scroll">
+            <table className="small">
+              <thead>
+                <tr>
+                  <th>WO</th>
+                  <th>Listed</th>
+                  <th>Priority</th>
+                  <th className="num">Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <Link to={`/orders/${r.id}?tab=products`}>{r.joNumber}</Link>
+                      {r.draft && <span className="muted"> · draft</span>}
+                    </td>
+                    <td>{r.readyListed ? formatDay(r.readyListed) : '?'}</td>
+                    <td>{r.ready ? formatDay(r.ready) : '?'}</td>
+                    <td className="num">{diff(r.gainDays)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="row gap wrap">
+          <ShareTextButton title="Item priority: effect" text={() => itemPriorityText(rows, today)} />
+        </div>
+        <DocButtons label="Item priority: effect (PDF)" build={() => itemPriorityDoc(rows, { company, today, generatedAt: generatedAt() })} />
+        <p className="muted small">−3 = ready 3 working days earlier with the priority; +2 = later (then Rush on the WO can set the order you want).</p>
       </div>
     </SettingSection>
   );

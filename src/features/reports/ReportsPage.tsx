@@ -20,7 +20,7 @@ import { permissionHint } from '../orders/OrderBits';
 import { useProfile } from '../settings/useProfile';
 import { TodayCard } from './TodayCard';
 import { SettingSection } from '../settings/SettingSection';
-import { DeliverySection, FollowUpSection, RiskSection, StockSection, SummarySection, WorkSection } from './ManagerReports';
+import { DeliverySection, FollowUpSection, ItemPrioritySection, RiskSection, StockSection, SummarySection, WorkSection } from './ManagerReports';
 import { LookAheadSection, MyReportSection } from './MyReports';
 import { useKpiTargets } from './KpiPage';
 
@@ -108,6 +108,7 @@ export function ReportsPage() {
           <DeliverySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} />
           <SummarySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} redAt={redAt} />
           <WorkSection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} departments={departments.items} />
+          <ItemPrioritySection jos={jos.items} ctx={ctx} today={today} company={company} generatedAt={generatedAt} processes={processMap} />
 
           <FollowUpSection tasks={tasks.items} departments={departments.items} company={company} today={today} generatedAt={generatedAt} />
 

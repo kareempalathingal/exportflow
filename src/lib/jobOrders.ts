@@ -142,6 +142,8 @@ export interface JoLine {
   supply: SupplyMethod | null;
   /** Process steps for this line, set when the order is confirmed (Phase 4). */
   steps?: JoStep[];
+  /** Rush (15 Nov 2026): this item goes first when items wait for the same process. */
+  rush?: boolean;
 }
 
 /** One process step of an order line, copied from the product route at confirmation. */

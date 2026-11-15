@@ -107,3 +107,85 @@ describe('exact times in the queue (5 Nov 2026)', () => {
     expect(workingDaysBetween('2026-11-02', tuftRow.finish!, DEFAULT_CALENDAR)).toBe(8);
   });
 });
+
+describe('item priority (15 Nov 2026)', () => {
+  const wait = (processId: string, perDay: number): RouteStep => ({ ...step(processId, perDay), waitAll: true });
+  const pmd: MasterData = {
+    products: new Map([
+      ['short', product('Short', [step('tuft', 100), step('pack', 400)])],
+      ['long', product('Long', [step('tuft', 100), wait('shear', 100), wait('pack', 50)])],
+      ['x', product('X', [wait('print', 100)])],
+      ['a', product('A', [step('tuft', 100), wait('print', 100)])],
+      ['b', product('B', [step('tuft', 100), wait('print', 100), wait('pack', 100)])],
+    ]),
+    rawMaterials: new Map(),
+    boms: new Map(),
+  };
+  const pproc = new Map<string, Process>([...processes, ['print', { name: 'Printing', active: true, notes: '' }]]);
+  const pline = (id: string, productId: string, qty: number, rush = false): JoLine => {
+    const l: JoLine = { id, productId, productName: productId, qty, unit: 'pcs', supply: 'MAKE', ...(rush ? { rush: true } : {}) };
+    return { ...l, steps: buildLineSteps(l, pmd, pproc) };
+  };
+  const pctx = (units?: Record<string, number>) => ({ md: pmd, cal: DEFAULT_CALENDAR, planningDays: null, ...(units ? { units: new Map(Object.entries(units)) } : {}) });
+  const at = (p: ReturnType<typeof orderPlan>, i: number, label: string) => p.lines[i]!.lp.schedule!.find((s) => s.view.step.label === label)!;
+  const off = (d: string | null) => workingDaysBetween('2026-11-02', d!, DEFAULT_CALENDAR);
+
+  it('the item with more work left gets the shared process first, even when listed second', () => {
+    const p = orderPlan(order([pline('1', 'short', 300), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    expect(off(at(p, 1, 'Tufting').start)).toBe(0);
+    expect(at(p, 0, 'Tufting').start).toBe(at(p, 1, 'Tufting').finish);
+    expect(p.itemOrder.items.map((i) => i.lineId)).toEqual(['2', '1']);
+    expect(p.itemOrder.gainDays! >= 0).toBe(true);
+  });
+  it('Rush goes first whatever the work left', () => {
+    const p = orderPlan(order([pline('1', 'short', 300, true), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    expect(off(at(p, 0, 'Tufting').start)).toBe(0);
+    expect(p.itemOrder.items[0]).toMatchObject({ lineId: '1', rush: true });
+  });
+  it('items waiting for the same unit are chosen by priority, not by who was ready first', () => {
+    // Printing is busy with X until day 6; A is ready for it on day 3, B on day 4 (two tufting units).
+    const lines = [pline('0', 'x', 600), pline('1', 'a', 300), pline('2', 'b', 400)];
+    const p = orderPlan(order(lines), '2026-11-02', pctx({ tuft: 2 }));
+    expect(off(at(p, 2, 'Printing').start)).toBe(6); // B has more work left
+    expect(off(at(p, 1, 'Printing').start)).toBe(10);
+    expect(p.itemOrder.readyListed).not.toBeNull();
+    // In listed order A (ready first) would take the unit at day 6: the order ends 3 working days later.
+    expect(p.itemOrder.gainDays).toBe(3);
+  });
+  it('an idle unit is never kept for a more urgent item', () => {
+    const lines = [pline('1', 'a', 300), pline('2', 'b', 400)];
+    const p = orderPlan(order(lines), '2026-11-02', pctx({ tuft: 2 }));
+    expect(off(at(p, 0, 'Printing').start)).toBe(3); // A is ready first and printing is free
+    expect(off(at(p, 1, 'Printing').start)).toBe(6);
+  });
+  it('days left and "part unknown" per item', () => {
+    const p = orderPlan(order([pline('1', 'short', 300), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    const long = p.itemOrder.items.find((i) => i.lineId === '2')!;
+    expect(long).toMatchObject({ daysLeft: 12, partUnknown: false });
+  });
+});
+
+describe('item priority: texts, effect list and plan line', () => {
+  it('gain text in working days, both ways', async () => {
+    const { gainText, itemPrioritySummary } = await import('../../src/lib/itemOrder');
+    expect(gainText(3)).toEqual({ text: '3 working days earlier', tone: 'ok' });
+    expect(gainText(-1)).toEqual({ text: '1 working day later', tone: 'warn' });
+    expect(gainText(0)!.tone).toBe('neutral');
+    expect(gainText(null)).toBeNull();
+    expect(itemPrioritySummary([])).toBe('No open WO with two or more items');
+  });
+  it('the effect list covers drafts (steps from the routes) and confirmed WOs with two or more items', async () => {
+    const { itemPriorityRows, itemPriorityText } = await import('../../src/lib/itemOrder');
+    const base = { customerId: 'c', customerName: 'C', poNumber: '', deliveryDate: '2026-12-30', deliveryDateType: 'FACTORY_DISPATCH' as const, notes: '', deadline: { orderPeriodDays: 40, bufferDays: 4, internalDeadline: '2026-12-24', ruleVersion: 'v2' }, progressLog: [] };
+    const raw = (id: string, productId: string, qty: number): JoLine => ({ id, productId, productName: productId, qty, unit: 'pcs', supply: 'MAKE' });
+    const jos = [
+      { id: 'd', joNumber: 'WO-D', ...order([raw('1', 'a', 300), raw('2', 'b', 300)]), status: 'DRAFT' as const, ...base },
+      { id: 'c', joNumber: 'WO-C', ...order([line('1', 'a', 300), line('2', 'c', 300)]), ...base },
+      { id: 's', joNumber: 'WO-S', ...order([line('1', 'a', 300)]), ...base },
+    ] as unknown as Parameters<typeof itemPriorityRows>[0];
+    const rows = itemPriorityRows(jos, '2026-11-02', ctx(), processes);
+    expect(rows.map((r) => r.joNumber).sort()).toEqual(['WO-C', 'WO-D']);
+    expect(rows.find((r) => r.joNumber === 'WO-D')!.draft).toBe(true);
+    expect(itemPriorityText(rows, '2026-11-02')).toContain('WO-D (draft): listed order');
+  });
+});

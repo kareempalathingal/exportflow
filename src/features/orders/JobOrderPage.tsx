@@ -58,6 +58,7 @@ interface LineDraft {
   qtyText: string;
   unit: string;
   supply: SupplyMethod | null;
+  rush?: boolean;
 }
 
 interface Draft {
@@ -95,7 +96,7 @@ function draftFrom(jo: JobOrder | null, today: string): Draft {
     deliveryDate: jo.deliveryDate,
     deliveryDateType: jo.deliveryDateType,
     notes: jo.notes,
-    lines: jo.lines.map((l) => ({ id: l.id, productId: l.productId, qtyText: String(l.qty), unit: l.unit, supply: l.supply })),
+    lines: jo.lines.map((l) => ({ id: l.id, productId: l.productId, qtyText: String(l.qty), unit: l.unit, supply: l.supply, ...(l.rush ? { rush: true } : {}) })),
   };
 }
 
@@ -193,7 +194,7 @@ export function JobOrderPage() {
       const qty = parseNum(l.qtyText);
       if (qty === null || !Number.isFinite(qty) || qty <= 0) return `Line ${i + 1}: enter a quantity above 0`;
       const p = md.products.get(l.productId);
-      out.push({ id: l.id, productId: l.productId, productName: p?.name ?? item?.lines.find((x) => x.id === l.id)?.productName ?? '', qty, unit: l.unit, supply: p ? (fixedSupply(p) ?? l.supply) : l.supply });
+      out.push({ id: l.id, productId: l.productId, productName: p?.name ?? item?.lines.find((x) => x.id === l.id)?.productName ?? '', qty, unit: l.unit, supply: p ? (fixedSupply(p) ?? l.supply) : l.supply, ...(l.rush ? { rush: true } : {}) });
     }
     return out;
   }
@@ -592,6 +593,12 @@ export function JobOrderPage() {
                     = {formatQty(r.baseQty)} {unitLabel(r.baseUnit!)}
                     {r.provisional && <span className="pill warn"> estimated conversion</span>}
                   </p>
+                )}
+                {d.lines.length > 1 && (
+                  <label className="check small">
+                    <input type="checkbox" checked={!!l.rush} disabled={!editable} onChange={(e) => setLine(i, { rush: e.target.checked || undefined })} /> Rush: plan this item first
+                    <span className="muted small block">Otherwise the item with more work left goes first.</span>
+                  </label>
                 )}
                 {editable && (
                   <button type="button" className="secondary small" onClick={() => set({ lines: d.lines.filter((_, j) => j !== i) })}>

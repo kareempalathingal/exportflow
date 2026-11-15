@@ -4,7 +4,8 @@
  */
 import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from '../calendar';
-import { buildLineSteps, isLandingStep, DEFAULT_PLANNING_DAYS, isBuiltIn, lineProgress, MATERIALS_KEY, lineSchedule, orderPlan, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, processPlanRows, type PlanContext } from '../route';
+import { ITEM_ORDER_RULE, daysLeftText, gainText } from '../itemOrder';
+import { buildLineSteps, isLandingStep, DEFAULT_PLANNING_DAYS, isBuiltIn, lineProgress, MATERIALS_KEY, lineSchedule, orderPlan, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, processPlanRows, type ItemOrder, type PlanContext } from '../route';
 import type { Department, MasterData, Process } from '../masters';
 import { departmentsFor } from '../contacts';
 import { planMaterials, type BuyTotal, type MaterialPlan, type PlanRow } from '../materials';
@@ -671,6 +672,16 @@ export function planOverview(o: OverviewInput): { roadMap: DocRoadMap; table: Do
   };
 }
 
+/** Plan PDFs (15 Nov 2026): the item order rule; the working plan adds the listed-order comparison and work left per item. */
+function itemOrderMeta(io: ItemOrder, clean: boolean): [string, string][] {
+  if (io.items.length < 2) return [];
+  if (clean) return [['Item order', `${ITEM_ORDER_RULE}.`]];
+  const gain = gainText(io.gainDays);
+  const vs = io.readyListed ? `In listed order: ${formatDay(io.readyListed)}${gain ? ` (with the priority ${gain.text})` : ''}` : 'Listed order: date not known yet';
+  const items = io.items.map((i, n) => `${n + 1}. ${i.product}${i.rush ? ' [Rush]' : ''} - ${daysLeftText(i)}`).join('\n');
+  return [['Item order', `${ITEM_ORDER_RULE}. ${vs}.\n${items}`]];
+}
+
 export function productionPlanDoc(input: PlanDocInput): DocModel {
   const { jo, md, ctx, today } = input;
   const cal = ctx.cal;
@@ -795,6 +806,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
           : 'Not known yet - some steps have no time',
     ],
     ...(track && track.actual !== null ? ([['Progress', clean ? `${track.actual}% complete (planned ${track.planned}% by today)` : `${track.actual}% done · should be ${track.planned}% today`]] as [string, string][]) : []),
+    ...itemOrderMeta(oplan.itemOrder, clean),
   ];
 
   // Timeline (Gantt): one row per step, grouped by product.

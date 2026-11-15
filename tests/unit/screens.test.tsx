@@ -300,6 +300,7 @@ describe('Reports', () => {
     expect(html).toContain('Share summary');
     expect(html).toContain('Daily summary (PDF)');
     expect(html).toContain('Work Order performance');
+    expect(html).toContain('Item priority: effect');
     expect(html).toContain('To buy — all confirmed orders (PDF)');
     expect(html).toContain('href="/history"');
     // My report and Look ahead (27 Oct 2026)

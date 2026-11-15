@@ -296,6 +296,36 @@ report the discrepancy and ask; do not silently choose.
     less, late, or "to be confirmed" with the step missing a time). Each
     order is planned as if alone (no shared capacity yet).
 
+## Item priority (confirmed 15 Nov 2026)
+
+-   Within one WO (`scheduleOrder()` in `src/lib/route.ts`, rule
+    `PRIORITY`): the step that can REALLY start earliest is placed next
+    (its start on a free unit, `earliestSlot()`), so a unit never waits
+    idle for a more urgent item. Items waiting for the same unit at the
+    same moment go: Rush first → more work left → listed order. Work left
+    = planned work days of the item's remaining steps (`workLeft()`; a
+    promised date counts until that date; steps without a time count 0 and
+    are flagged "part unknown"). The earlier rule (step ready first, ties
+    in listed order) stays as `LISTED`, used only for the comparison.
+    Valid also when shared capacity across WOs comes.
+-   Rush: optional `JoLine.rush` (true or absent). Set on the WO form
+    ("Rush: plan this item first", shown when the WO has 2+ lines) and on
+    the Products tab (Item order card, confirmed WOs); each change is a
+    history entry ("Rush on / off: <product>"). No rules change.
+-   `orderPlan()` returns `itemOrder` (`ItemOrder`): items in priority
+    order with days left, WO ready (last item) with the priority and in
+    listed order, and `gainDays` (working days; positive = earlier).
+-   Shown: Products tab "Item order" card (rule, WO ready vs listed order
+    with "N working days earlier / later", items with Rush and days left);
+    Reports → "Item priority: effect" (`src/lib/itemOrder.ts`): every open
+    WO (drafts planned from the product routes, marked) with 2+ items,
+    listed vs priority ready date and the difference (−N earlier, +N
+    later, amber flag when any is later), text share, PDF / Excel. Plan
+    PDFs: "Item order" key fact; "to submit" = the rule only, working plan
+    adds the listed-order comparison and days left per item.
+-   Not verified yet against the real WO 95 test order (its data stays
+    outside the repo): check Reports → Item priority after the update.
+
 ## Departments and contacts (skeleton, confirmed 21 Oct 2026)
 
 -   Departments master (`departments`, label "Departments"): name, notes,
@@ -345,9 +375,9 @@ report the discrepancy and ask; do not silently choose.
 -   Within one order (confirmed 5 Nov 2026, `orderPlan()` /
     `scheduleOrder()` in `src/lib/route.ts`): the items of the order share
     each process. A process has "Parallel units" (`parallelUnits`, default
-    1; output per day in routes is per unit). First come, first served
-    (changed 5 Nov 2026): the step that can start earliest is placed next,
-    ties in the order the lines are listed; a free gap is used. Finished steps keep their real
+    1; output per day in routes is per unit). Who goes first: see "Item
+    priority" below (15 Nov 2026; before that, first come first served with
+    ties in listed order); a free gap is used. Finished steps keep their real
     dates and free the unit then; a started step holds its unit. A running
     step still waiting for a unit is "next" (`queued`, "Waiting: X is busy
     with other items of this order"), never counted as over plan. Planned %
