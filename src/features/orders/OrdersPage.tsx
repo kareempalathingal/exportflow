@@ -38,7 +38,7 @@ export function OrdersPage() {
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const { cal } = useWorkCalendar();
   const units = useProcessUnits();
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays: profile?.planningDays, units }), [master.md, cal, profile?.planningDays, units]);
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, units }), [master.md, cal, profile?.planningDays, profile?.materialsDays, profile?.purchaseDays, units]);
 
   const list = useMemo(() => {
     const n = normalizeName(q);

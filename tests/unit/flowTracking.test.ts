@@ -67,13 +67,30 @@ describe('materials ready', () => {
     const p = orderPlan(order([line('1', 'a', 100)]), '2026-11-02', ctx);
     expect(p.lines[0]!.lp.steps.map((v) => v.step.key)).not.toContain(MATERIALS_KEY);
   });
-  it('no dates entered: production dates are to be confirmed', () => {
-    const p = orderPlan(order([line('1', 'a', 100)], { materialDates: {} }), '2026-11-02', ctx);
+  it('no dates entered and no benchmark: production dates are to be confirmed', () => {
+    const p = orderPlan(order([line('1', 'a', 100)], { materialDates: {} }), '2026-11-02', { ...ctx, materialsDays: null });
     const m = p.lines[0]!.lp.schedule![1]!;
     expect(m.view.step.label).toBe('Materials ready');
     expect(m.view.step.note).toBe('Expected date not entered: Yarn');
     expect(at(p, 'Tufting').start).toBeNull();
     expect(p.lines[0]!.lp.current!.step.key).toBe(MATERIALS_KEY);
+  });
+  it('no dates entered: the materials benchmark (default 5 working days after confirmation) gives approx. dates (15 Nov 2026)', () => {
+    const p = orderPlan(order([line('1', 'a', 100)], { materialDates: {} }), '2026-11-02', ctx);
+    const m = p.lines[0]!.lp.schedule![1]!;
+    expect(m.view.step).toMatchObject({ label: 'Materials ready', readyBy: '2026-11-07', estimated: true });
+    expect(m.view.step.leadNote).toBe('arrival of Yarn to be confirmed with purchase (planned 5 working days after confirmation)');
+    expect(at(p, 'Tufting').start).toBe('2026-11-07');
+    expect(m.view.lateDays).toBeUndefined();
+    // Own benchmark, and a later entered date wins over it.
+    expect(at(orderPlan(order([line('1', 'a', 100)], { materialDates: {} }), '2026-11-02', { ...ctx, materialsDays: 2 }), 'Tufting').start).toBe('2026-11-04');
+    const later = orderPlan(order([line('1', 'a', 100)], { materialDates: { 'RAW_MATERIAL:yarn': { expectedOn: '2026-11-12' } } }), '2026-11-02', ctx);
+    expect(at(later, 'Tufting').start).toBe('2026-11-12');
+    expect(later.lines[0]!.lp.schedule![1]!.view.step.leadNote).toBeUndefined();
+    // Past the benchmark date and still not landed: never "late", the date simply moves to today.
+    const past = orderPlan(order([line('1', 'a', 100)], { materialDates: {} }), '2026-11-16', ctx);
+    expect(past.lines[0]!.lp.steps[1]!.lateDays).toBeUndefined();
+    expect(at(past, 'Tufting').start).toBe('2026-11-16');
   });
   it('expected date: production starts when the material is expected', () => {
     const p = orderPlan(order([line('1', 'a', 100)], { materialDates: { 'RAW_MATERIAL:yarn': { orderedOn: '2026-11-02', expectedOn: '2026-11-06' } } }), '2026-11-02', ctx);

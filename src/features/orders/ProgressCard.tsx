@@ -23,7 +23,7 @@ export function ProgressCard({ jo, md }: { jo: WithMeta<JobOrder>; md: MasterDat
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
   const units = useProcessUnits();
-  const fromSteps = orderStepProgress(jo, today, { md, cal, planningDays: profile?.planningDays, units });
+  const fromSteps = orderStepProgress(jo, today, { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, units });
   const track = trackOf(jo, today, fromSteps, cal);
   const color = gapColor(track, readRedAt());
   const editable = jo.status === 'CONFIRMED' && !fromSteps;

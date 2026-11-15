@@ -30,7 +30,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const editable = jo.status === 'CONFIRMED';
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
-  const ctx: PlanContext = { md, cal, planningDays: profile?.planningDays, units: unitsMap(processes) };
+  const ctx: PlanContext = { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, units: unitsMap(processes) };
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const [params] = useSearchParams();
@@ -227,9 +227,12 @@ function LineCard(props: {
     const holdsPromise = v.step.outside || (v.step.processId === null && !v.step.outsideOf && v.step.label === 'Ordered');
     const label = v.step.label;
     const btns: ReactNode[] = [];
-    let main: ReactNode = null;
+    const mainBtns: ReactNode[] = [];
+    // "X started" stays in view (15 Nov 2026) on the running step not started yet and on the next
+    // step: recording the start splits wait (e.g. moving goods) from work in the KPIs.
+    const startInView = startable && ((v.state === 'NOW' && !v.step.startedAt) || lp.steps.indexOf(v) === nextTodo);
     if (startable)
-      btns.push(
+      (startInView ? mainBtns : btns).push(
         <button key="start" type="button" className="secondary small" disabled={when > today || (startMin !== null && when < startMin)} onClick={() => props.onSteps(startStepAt(rawSteps, i, stepTime(when, today))!, `${label} started ${when === today ? 'today' : formatDay(when)} (${line.productName})`)}>
           {label} started
         </button>,
@@ -247,7 +250,7 @@ function LineCard(props: {
         </button>,
       );
     if (isFirst)
-      main = (
+      mainBtns.push(
         <button
           key="done"
           type="button"
@@ -259,7 +262,7 @@ function LineCard(props: {
           }}
         >
           {label} done{nextStep ? ` → ${nextStep.step.label}` : ''}
-        </button>
+        </button>,
       );
     else if (v.step.startedAt) btns.push(<span key="wait" className="muted small">“Done” after {rawSteps[i - 1]?.label ?? 'the step before'} is done</span>);
     if (v.step.startedAt && undoStartAt(rawSteps, i))
@@ -269,7 +272,7 @@ function LineCard(props: {
         </button>,
       );
     return {
-      main,
+      main: mainBtns.length ? <>{mainBtns}</> : null,
       actions: btns.length > 0 ? <span className="row gap step-actions">{btns}</span> : null,
       forms: (
       <>

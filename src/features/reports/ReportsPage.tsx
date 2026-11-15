@@ -39,8 +39,10 @@ export function ReportsPage() {
   const { cal } = useWorkCalendar();
   const today = istDateKey(new Date());
   const planningDays = profile?.planningDays;
+  const materialsDays = profile?.materialsDays;
+  const purchaseDays = profile?.purchaseDays;
   const units = useProcessUnits();
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, materialsDays, purchaseDays, units }), [master.md, cal, planningDays, materialsDays, purchaseDays, units]);
   const tasks = useCollection<Task>(workspaceId, COLLECTION_TASKS);
   const deptName = useMemo(() => {
     const m = new Map(departments.items.map((d) => [d.id, d.name]));

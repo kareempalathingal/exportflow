@@ -11,6 +11,9 @@ export interface Profile extends VersionedRecord {
   preparedByDesignation?: string;
   /** Planning benchmark (received → confirmed), working days; missing = 1, null = not set. */
   planningDays?: number | null;
+  /** Benchmarks (15 Nov 2026): raw materials landed N working days after confirmation; outright purchase N working days after ordering. */
+  materialsDays?: number | null;
+  purchaseDays?: number | null;
   /** Working days before a step starts that "Ready to start?" and supplier follow-ups are shown (default 2). */
   alertDays?: number;
 }

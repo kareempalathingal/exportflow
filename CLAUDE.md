@@ -565,6 +565,28 @@ report the discrepancy and ask; do not silently choose.
         (`JoStep.readiness`, history entry). Not ready → Today (Overdue on
         the start day). Contact buttons of the department, "+ Follow-up task".
     -   Not yet: supplier / vendor delay KPIs against the first promise.
+-   Lead-time benchmarks (confirmed 15 Nov 2026; the user's own values,
+    Settings → profile, like the planning benchmark; empty = not set):
+    "Raw materials landed" `materialsDays` (default 5 working days after
+    confirmation) and "Outright purchase landed" `purchaseDays` (default
+    10 working days after ordering, or after confirmation while not
+    ordered; for drafts after the expected end of planning). Used ONLY
+    where no date was entered (`materialsStep()`, `withPromises()`): the
+    step gets `readyBy` from the benchmark, `estimated: true` (shown
+    "approx.") and a `leadNote` that both plan PDFs list as an open point
+    ("arrival of … to be confirmed with purchase (planned N working days
+    after confirmation)" once for the order's raw materials; "supplier
+    landing date to be confirmed …" per bought product). An entered
+    expected / landed date always wins. A benchmark date that passes is
+    never "late" (the plan moves to today). The "Ordered" step is never
+    over plan. Defaults come from the one WO seen (WO 95: indent on the
+    2nd working day after the WO date, production a week later; handwoven
+    PO → landing 10 days); to be checked after joining.
+-   "X started" stays in view (15 Nov 2026) on the running step not
+    started yet and on the next step to do, next to "X done": recording
+    the start splits wait (e.g. moving goods between units) from work in
+    the KPIs. A planned move time per route step is NOT built (needs the
+    company's figures).
 -   Working days: Sunday is the weekly off (editable); company holidays
     are added on the dashboard calendar (large type; tap a day to add or
     remove). Doc `settings/calendar` {weeklyOff, holidays} lives in the

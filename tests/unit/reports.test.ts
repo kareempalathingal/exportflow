@@ -196,7 +196,12 @@ describe('plan overview: road map and steps as landmarks (confirmed 26 Oct 2026)
   const processes = new Map(writes.filter((w) => w.collection === 'processes').map((w) => [w.docId, w.data as unknown as import('../../src/lib/masters').Process]));
   it('marks tight, late and unknown products and says what is still to be confirmed', async () => {
     const { productionPlanDoc, TIGHT_DAYS } = await import('../../src/lib/docs/model');
-    const m = productionPlanDoc({ jo: { ...finalJo.get('sample_jo_105')!, rev: 1 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' } });
+    // With the default outright-purchase benchmark the door mat gets approx. dates and an open point.
+    const withBench = productionPlanDoc({ jo: { ...finalJo.get('sample_jo_105')!, rev: 1 }, md, processes, ctx, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' } });
+    const open = withBench.tables.find((x) => x.title === 'Open points')!.rows.map((r) => r[0]);
+    expect(open.some((r) => /^Printed door mat .*: supplier landing date to be confirmed \(planned 10 working days after (confirmation|the order)\)$/.test(String(r)))).toBe(true);
+    // Without the outright-purchase benchmark (null = not set) the supplier dates stay unknown.
+    const m = productionPlanDoc({ jo: { ...finalJo.get('sample_jo_105')!, rev: 1 }, md, processes, ctx: { ...ctx, purchaseDays: null }, today: TODAY, company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' } });
     const door = m.stepRoads!.items.find((i) => i.name.startsWith('Printed door mat'))!;
     expect(door).toMatchObject({ dashed: true, badge: { tone: 'unknown', text: 'supplier dates to be confirmed' }, ready: { text: 'Ready ?' } });
     expect(m.roadMap!.summary).toMatch(/Still to be confirmed: Printed door mat 45×75 \(sample\)\.$/);

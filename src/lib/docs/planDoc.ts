@@ -288,6 +288,13 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
         points.push(`${line.productName}: ${s.note.replace('Expected date not entered: ', 'arrival date of ')} to be confirmed with purchase`);
         provisional.push(`Material arrival date missing (${line.productName})`);
       }
+      if (s.leadNote && st.view.state !== 'DONE') {
+        // A date from the lead-time benchmark (15 Nov 2026), not entered: an open point in both versions.
+        // Materials are shared by the order's products: one point (the same text is listed once).
+        points.push(s.key === MATERIALS_KEY ? `Raw materials: ${s.leadNote}` : `${line.productName}: ${s.leadNote}`);
+        provisional.push(`${s.label} date from the benchmark, not entered (${line.productName})`);
+        continue;
+      }
       if (isBuiltIn(s)) continue;
       if (s.estimated && s.plannedDays !== null && st.view.state !== 'DONE') {
         risks.push(`${line.productName} · ${s.label}: time is my estimate`);

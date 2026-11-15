@@ -44,6 +44,13 @@ export interface PlanContext {
   planningDays?: number | null;
   /** Parallel units per process id (default 1 when missing). Items of an order queue for a process. */
   units?: Map<string, number>;
+  /**
+   * Lead-time benchmarks of the user (15 Nov 2026), in working days; undefined = default,
+   * null = not set. Used only where no date was entered, always marked approximate.
+   * materialsDays: confirmation → raw materials landed; purchaseDays: order → outright purchase landed.
+   */
+  materialsDays?: number | null;
+  purchaseDays?: number | null;
 }
 
 /** Parallel units per process for a plan context (from the Processes master). */
@@ -55,6 +62,10 @@ export function unitsMap(processes: Map<string, Process> | (Process & { id: stri
 /** The order clock starts when the WO is received; planning (received → confirmed) is its first stage. */
 export const PLANNING_KEY = '__planning';
 export const DEFAULT_PLANNING_DAYS = 1;
+/** User benchmarks (15 Nov 2026, from the one WO seen so far; changed in Settings → profile). */
+export const DEFAULT_MATERIALS_DAYS = 5;
+export const DEFAULT_PURCHASE_DAYS = 10;
+const bench = (v: number | null | undefined, d: number): number | null => (v === undefined ? d : v === null ? null : Math.max(0, v));
 
 const pos = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null);
 
@@ -194,6 +205,11 @@ export interface PlannedStep extends JoStep {
   note: string | null;
   /** "Materials ready" stage: the date the last material is expected (not all received yet). */
   readyBy?: string;
+  /**
+   * Set when `readyBy` comes from a lead-time benchmark, not from an entered date (15 Nov 2026):
+   * plain words for the plan's open points. Never counted as late.
+   */
+  leadNote?: string;
   /** Output recorded so far, in `qtyUnit` (null = none recorded, or it cannot be converted). */
   outputQty?: number | null;
 }
@@ -318,7 +334,8 @@ export function isBuiltIn(s: Pick<JoStep, 'key'>): boolean {
 
 /** actual − planned, when it means something (never for "Materials ready" or a step without a time of its own). */
 function overrunOf(s: PlannedStep, actualDays: number): number | null {
-  if (s.plannedDays === null || s.key === MATERIALS_KEY || s.passThrough || s.readyBy) return null;
+  // Placing a purchase order has no time of its own (its 0 days only let the plan go on).
+  if (s.plannedDays === null || s.key === MATERIALS_KEY || s.passThrough || s.readyBy || (s.processId === null && !s.outsideOf && s.label === PURCHASE_STEPS[0])) return null;
   return actualDays - s.plannedDays;
 }
 
@@ -545,6 +562,7 @@ export function materialsStep(
   line: Pick<JoLine, 'productId' | 'productName'>,
   toBuy: { key: string; name: string; net: number; ordered: boolean; usedForIds: string[] }[],
   planning: PlannedStep,
+  lead?: { days: number | null; cal: WorkCalendar },
 ): PlannedStep {
   const need = toBuy.filter((r) => r.net > 1e-9 && !r.ordered && r.usedForIds.includes(line.productId));
   const base: PlannedStep = {
@@ -575,6 +593,21 @@ export function materialsStep(
     return { ...base, doneAt: planning.doneAt ? at : null, note: `Landed: ${names(dates)}` };
   }
   const missing = dates.filter((x) => !x.d?.receivedOn && !x.d?.expectedOn);
+  const from = planning.doneAt ? dayOf(planning.doneAt) : null;
+  if (missing.length && lead && lead.days !== null && from) {
+    // Benchmark (15 Nov 2026): materials without a date are planned N working days after confirmation.
+    const benchDate = addWorkingDays(from, lead.days, lead.cal) ?? from;
+    const known = dates.filter((x) => x.d?.receivedOn || x.d?.expectedOn).map((x) => x.d!.receivedOn ?? x.d!.expectedOn!);
+    const readyBy = [benchDate, ...known].sort().at(-1)!;
+    const n = `${formatQty(lead.days)} working day${lead.days === 1 ? '' : 's'}`;
+    return {
+      ...base,
+      readyBy,
+      estimated: true,
+      leadNote: `arrival of ${names(missing)} to be confirmed with purchase (planned ${n} after confirmation)`,
+      note: `Expected date not entered: ${names(missing)} · planned ${n} after confirmation (approx.)`,
+    };
+  }
   if (missing.length) return { ...base, plannedDays: null, workDays: undefined, note: `Expected date not entered: ${names(missing)}` };
   const readyBy = dates.map((x) => x.d!.receivedOn ?? x.d!.expectedOn!).sort().at(-1)!;
   const waiting = dates.filter((x) => !x.d?.receivedOn);
@@ -639,10 +672,28 @@ export interface OrderPlan {
  * "Received" lasts until the date on its "Ordered" step ("Ordered" itself takes no time
  * once that date is known); an outside step lasts until the vendor's return date.
  */
-export function withPromises(ss: PlannedStep[]): PlannedStep[] {
+export function withPromises(ss: PlannedStep[], lead?: { days: number | null; cal: WorkCalendar; from: string | null }): PlannedStep[] {
   const out = ss.map((s) => ({ ...s }));
   out.forEach((s, i) => {
-    if (!s.expectedOn) return;
+    if (!s.expectedOn) {
+      // Benchmark (15 Nov 2026): an outright purchase without the supplier's date lands N working
+      // days after it was ordered (or after confirmation while not ordered yet), marked approximate.
+      const r = out[i + 1];
+      if (!lead || lead.days === null || s.outside || s.processId !== null || s.outsideOf || s.label !== PURCHASE_STEPS[0]) return;
+      if (!r || r.doneAt || r.processId !== null || !isLandingStep(r.label)) return;
+      const from = s.orderedOn ?? (s.doneAt ? dayOf(s.doneAt) : lead.from);
+      if (!from) return;
+      const n = `${formatQty(lead.days)} working day${lead.days === 1 ? '' : 's'}`;
+      if (s.plannedDays === null) out[i] = { ...s, plannedDays: 0, workDays: 0 };
+      out[i + 1] = {
+        ...r,
+        readyBy: addWorkingDays(from, lead.days, lead.cal) ?? from,
+        estimated: true,
+        leadNote: `supplier landing date to be confirmed (planned ${n} after ${s.orderedOn || s.doneAt ? 'the order' : 'confirmation'})`,
+        ...(r.plannedDays === null ? { plannedDays: 0, workDays: 0 } : {}),
+      };
+      return;
+    }
     if (s.outside) {
       if (!s.doneAt) out[i] = { ...s, readyBy: s.expectedOn, ...(s.plannedDays === null ? { plannedDays: 0, workDays: 0 } : {}) };
       return;
@@ -668,7 +719,8 @@ const planCache = new WeakMap<object, WeakMap<object, Map<string, OrderPlan>>>()
 const PLAN_CACHE_PER_RECORD = 8;
 function planKey(today: string, ctx: PlanContext): string {
   const units = ctx.units ? [...ctx.units].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join(',') : '';
-  return `${today}|${ctx.planningDays === undefined ? 'd' : ctx.planningDays}|${JSON.stringify(ctx.cal)}|${units}`;
+  const b = (v: number | null | undefined) => (v === undefined ? 'd' : String(v));
+  return `${today}|${b(ctx.planningDays)}|${b(ctx.materialsDays)}|${b(ctx.purchaseDays)}|${JSON.stringify(ctx.cal)}|${units}`;
 }
 
 export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): OrderPlan {
@@ -691,16 +743,24 @@ export function orderPlanUncached(jo: StepOrder, today: string, ctx: PlanContext
   const base = orderStart(jo);
   const planned = planLines(jo, ctx.md);
   const toBuy = planned.some((l) => l.steps?.length) ? planMaterials(jo, ctx.md).toBuy : [];
+  // Where an outright purchase without a date is counted from: confirmation, or for a draft the
+  // expected end of planning (not before today).
+  const purchaseFrom = (planning: PlannedStep | undefined): string | null => {
+    if (!planning) return null;
+    if (planning.doneAt) return dayOf(planning.doneAt);
+    const due = addWorkingDays(jo.receivedDate, bench(ctx.planningDays, DEFAULT_PLANNING_DAYS) ?? 0, cal) ?? jo.receivedDate;
+    return due > today ? due : today;
+  };
   const steps = planned.map((line) => {
     const ss = withPlanning(line.steps, jo, ctx);
     // Only orders that track material arrivals (confirmed from 5 Nov 2026, or switched on).
     if (!ss || !jo.materialDates || effectiveSupply(line, ctx.md.products.get(line.productId)) !== 'MAKE') return ss;
-    let mat = materialsStep(jo, line, toBuy, ss[0]!);
+    let mat = materialsStep(jo, line, toBuy, ss[0]!, { days: bench(ctx.materialsDays, DEFAULT_MATERIALS_DAYS), cal });
     // Production already started or finished: the materials were there by then.
     const moved = ss.slice(1).flatMap((x) => [x.startedAt, x.doneAt]).filter((x): x is string => !!x).sort()[0];
     if (!mat.doneAt && moved) mat = { ...mat, doneAt: moved, readyBy: undefined, plannedDays: 0, workDays: 0, note: 'Production has started' };
     return [ss[0]!, mat, ...ss.slice(1)];
-  }).map((ss) => (ss ? withPromises(ss) : ss));
+  }).map((ss) => (ss ? withPromises(ss, { days: bench(ctx.purchaseDays, DEFAULT_PURCHASE_DAYS), cal, from: purchaseFrom(ss[0]) }) : ss));
   const at = (o: number) => (o <= 0 ? base : addWorkingDays(base, o, cal)!);
   const rush = planned.map((l) => !!l.rush);
   const rule = itemOrderRuleOf(jo);
@@ -732,7 +792,7 @@ export function orderPlanUncached(jo: StepOrder, today: string, ctx: PlanContext
     });
     lp.steps = lp.steps.map((v) => {
       const by = v.step.readyBy;
-      if (v.state === 'DONE' || !by || by >= today || v.step.key === MATERIALS_KEY) return v;
+      if (v.state === 'DONE' || !by || by >= today || v.step.key === MATERIALS_KEY || v.step.leadNote) return v;
       return { ...v, lateDays: Math.max(1, workingDaysBetween(by, today, cal) ?? 1) };
     });
     lp.current = lp.steps.find((v) => v.state === 'NOW') ?? null;

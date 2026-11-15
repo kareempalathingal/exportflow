@@ -86,8 +86,10 @@ export function PerformancePage() {
   const range = preset === 'custom' ? custom : presetRange(preset, today)!;
   const valid = range.from <= range.to;
   const planningDays = profile?.planningDays;
+  const materialsDays = profile?.materialsDays;
+  const purchaseDays = profile?.purchaseDays;
   const units = useProcessUnits();
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, materialsDays, purchaseDays, units }), [master.md, cal, planningDays, materialsDays, purchaseDays, units]);
   const report = useMemo(
     () => (valid ? buildPerformance({ jobOrders: jos.items, ctx, from: range.from, to: range.to, today, history: history.events }) : null),
     [valid, jos.items, ctx, range.from, range.to, today, history.events],

@@ -4,6 +4,8 @@ import type { JoLine, StockEntry } from '../../src/lib/jobOrders';
 import type { Bom, MasterData, Process, Product, RouteStep } from '../../src/lib/masters';
 import {
   buildLineSteps,
+  isLandingStep,
+  orderPlan,
   completeCurrent,
   lineProgress,
   orderStepProgress,
@@ -172,5 +174,27 @@ describe('route editor parsing', async () => {
     ]);
     expect(routeFromDrafts([{ processId: 'weave', perDayText: '0', perDayUnit: 'pcs', fixedText: '', alsoForStock: false, status: 'VERIFIED' }])).toMatch(/more than 0/);
     expect(routeFromDrafts([{ processId: '', perDayText: '', perDayUnit: 'pcs', fixedText: '', alsoForStock: false, status: 'VERIFIED' }])).toMatch(/choose a process/);
+  });
+});
+
+describe('outright purchase benchmark (15 Nov 2026)', () => {
+  it('without the supplier date, landing is planned N working days after confirmation or the order, marked approx.', () => {
+    const o = order([line('b', 'door', 10, 'BUY')]);
+    const land = (p: ReturnType<typeof orderPlan>) => p.lines[0]!.lp.schedule!.find((s) => isLandingStep(s.view.step.label))!;
+    const p = orderPlan(o, '2026-11-03', ctx);
+    expect(land(p).view.step).toMatchObject({ readyBy: '2026-11-13', estimated: true });
+    expect(land(p).view.step.leadNote).toBe('supplier landing date to be confirmed (planned 10 working days after confirmation)');
+    expect(land(p).finish).toBe('2026-11-13');
+    // Ordered on a date: counted from it; the order step itself is never "over plan".
+    const ordered = { ...o, lines: [{ ...o.lines[0]!, steps: o.lines[0]!.steps!.map((s, i) => (i === 0 ? { ...s, orderedOn: '2026-11-05' } : s)) }] };
+    const q = orderPlan(ordered, '2026-11-20', ctx);
+    expect(land(q).view.step.readyBy).toBe('2026-11-17');
+    expect(q.lines[0]!.lp.steps.find((v) => v.step.label === 'Ordered')!.overrunDays).toBeNull();
+    expect(land(q).view.lateDays).toBeUndefined();
+    // The supplier's date always wins; no benchmark = to be confirmed.
+    const promised = { ...o, lines: [{ ...o.lines[0]!, steps: o.lines[0]!.steps!.map((s, i) => (i === 0 ? { ...s, expectedOn: '2026-11-09' } : s)) }] };
+    expect(land(orderPlan(promised, '2026-11-03', ctx)).view.step).toMatchObject({ readyBy: '2026-11-09' });
+    expect(land(orderPlan(promised, '2026-11-03', ctx)).view.step.leadNote).toBeUndefined();
+    expect(land(orderPlan(o, '2026-11-03', { ...ctx, purchaseDays: null })).finish).toBeNull();
   });
 });

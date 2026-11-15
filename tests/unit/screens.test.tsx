@@ -346,7 +346,7 @@ describe('Plan document', () => {
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('<summary>How to read this</summary>');
     // the main button of the running step stays in view, outside the hidden details
-    expect(html).toMatch(/<\/span><\/span><span class="row gap step-actions"><button type="button" class="primary small">Bleaching done<\/button>/);
+    expect(html).toMatch(/<\/span><\/span><span class="row gap step-actions"><button type="button" class="secondary small">Bleaching started<\/button><button type="button" class="primary small">Bleaching done<\/button>/);
   });
 
   it('the products tab shows planning as the first stage', () => {

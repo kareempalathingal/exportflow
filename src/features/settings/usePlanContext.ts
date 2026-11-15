@@ -13,8 +13,10 @@ export function usePlanContext(): { ctx: PlanContext; master: ReturnType<typeof 
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
   const planningDays = profile?.planningDays;
+  const materialsDays = profile?.materialsDays;
+  const purchaseDays = profile?.purchaseDays;
   const units = useProcessUnits();
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, materialsDays, purchaseDays, units }), [master.md, cal, planningDays, materialsDays, purchaseDays, units]);
   return {
     ctx,
     master,

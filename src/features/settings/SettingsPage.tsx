@@ -37,7 +37,7 @@ function ReadinessLinkCard() {
   );
 }
 import { DEFAULT_RED_AT, readRedAt, readTheme, saveRedAt, saveTheme, type ThemePref } from '../../lib/theme';
-import { DEFAULT_PLANNING_DAYS } from '../../lib/route';
+import { DEFAULT_MATERIALS_DAYS, DEFAULT_PLANNING_DAYS, DEFAULT_PURCHASE_DAYS } from '../../lib/route';
 import { DEFAULT_ALERT_DAYS } from '../../lib/followUp';
 
 function AppearanceCard() {
@@ -99,6 +99,8 @@ function ProfileForm() {
   const [designation, setDesignation] = useState('');
   const [planningText, setPlanningText] = useState(String(DEFAULT_PLANNING_DAYS));
   const [alertText, setAlertText] = useState(String(DEFAULT_ALERT_DAYS));
+  const [materialsText, setMaterialsText] = useState(String(DEFAULT_MATERIALS_DAYS));
+  const [purchaseText, setPurchaseText] = useState(String(DEFAULT_PURCHASE_DAYS));
 
   // Load saved values only when a new revision arrives (or the workspace
   // changes), not on every sync-metadata update, so typing is never lost.
@@ -115,6 +117,8 @@ function ProfileForm() {
     setDesignation(profile.preparedByDesignation ?? '');
     setPlanningText(profile.planningDays === null ? '' : String(profile.planningDays ?? DEFAULT_PLANNING_DAYS));
     setAlertText(String(profile.alertDays ?? DEFAULT_ALERT_DAYS));
+    setMaterialsText(profile.materialsDays === null ? '' : String(profile.materialsDays ?? DEFAULT_MATERIALS_DAYS));
+    setPurchaseText(profile.purchaseDays === null ? '' : String(profile.purchaseDays ?? DEFAULT_PURCHASE_DAYS));
   }, [profile, workspaceId]);
 
   function submit(e: FormEvent) {
@@ -133,6 +137,19 @@ function ProfileForm() {
       setFormError('Planning time must be between 0.5 and 30 working days, or empty');
       return;
     }
+    const leadDays = (text: string, what: string): number | null | string => {
+      const v = text.trim() === '' ? null : Number(text.replace(',', '.'));
+      if (v !== null && (!Number.isFinite(v) || v < 0 || v > 120)) return `${what} must be between 0 and 120 working days, or empty`;
+      return v;
+    };
+    const materialsDays = leadDays(materialsText, 'Raw materials time');
+    const purchaseDays = leadDays(purchaseText, 'Outright purchase time');
+    for (const v of [materialsDays, purchaseDays]) {
+      if (typeof v === 'string') {
+        setFormError(v);
+        return;
+      }
+    }
     const alertDays = Math.floor(Number(alertText));
     if (!Number.isFinite(alertDays) || alertDays < 1 || alertDays > 10) {
       setFormError('Ready-to-start alert must be 1 to 10 working days');
@@ -145,7 +162,7 @@ function ProfileForm() {
       docId: PROFILE_DOC,
       entity: 'Profile',
       before: profile,
-      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning, alertDays },
+      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning, materialsDays, purchaseDays, alertDays },
       reason,
     });
     setReason('');
@@ -193,6 +210,17 @@ function ProfileForm() {
         <input inputMode="decimal" value={planningText} onChange={(e) => setPlanningText(e.target.value)} placeholder="not set" />
       </label>
       <p className="muted small">Your own benchmark; drafts older than this show as late in planning. Empty = not set.</p>
+      <div className="grid2">
+        <label>
+          Raw materials landed (working days after confirmation)
+          <input inputMode="decimal" value={materialsText} onChange={(e) => setMaterialsText(e.target.value)} placeholder="not set" />
+        </label>
+        <label>
+          Outright purchase landed (working days after ordering)
+          <input inputMode="decimal" value={purchaseText} onChange={(e) => setPurchaseText(e.target.value)} placeholder="not set" />
+        </label>
+      </div>
+      <p className="muted small">Your own benchmarks, used only where no supplier date is entered; such dates are marked approx. and the plan lists them as open points. Empty = production dates stay “to be confirmed” until the dates are entered.</p>
       <label>
         Ready-to-start and follow-up alerts (working days before)
         <input inputMode="numeric" value={alertText} onChange={(e) => setAlertText(e.target.value)} style={{ maxWidth: 90 }} />

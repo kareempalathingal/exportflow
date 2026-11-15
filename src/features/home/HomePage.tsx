@@ -77,8 +77,10 @@ export function HomePage() {
   const redAt = readRedAt();
   const { cal } = useWorkCalendar();
   const planningDays = profile?.planningDays;
+  const materialsDays = profile?.materialsDays;
+  const purchaseDays = profile?.purchaseDays;
   const units = useProcessUnits();
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, units }), [master.md, cal, planningDays, units]);
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, materialsDays, purchaseDays, units }), [master.md, cal, planningDays, materialsDays, purchaseDays, units]);
 
   const open = useMemo(() => {
     return jos.items
