@@ -34,13 +34,13 @@ report the discrepancy and ask; do not silently choose.
     Overdue. The app never sets an approval to Approved by itself.
 -   ExportFlow is a personal tool for the user, not an official company
     system: keep data entry light.
--   Stock for each Job Order is confirmed manually per order line (and
+-   Stock for each Work Order is confirmed manually per order line (and
     per raw material for in-house manufacturing). No automatic
     safety-stock calculation. Warn on over-allocation across orders.
--   Internal deadline: buffer days = ceiling(order period in calendar
-    days × 10%). Store the computed deadline and rule version per order.
-    (Superseded 20 Oct 2026 by rule v2 in WORKING days — see "Working
-    days and step times" below.)
+-   Internal deadline: 10% buffer, stored per order with its rule
+    version; current rule v2 counts WORKING days (see "Working days and
+    step times"). Orders saved under v1 (calendar days) keep it until
+    "Recalculate deadline".
 -   Skeleton-first: every module works with available data; missing
     data shows Pending Verification / Unavailable / Insufficient Data
     and creates verification tasks. DEMO and ACTUAL data stay separate.
@@ -57,8 +57,6 @@ report the discrepancy and ask; do not silently choose.
     company's WO file; display text only. Data names stay as they are
     (`jobOrders` collection, `JobOrder` type, `joNumber`, routes, enum
     ids such as `BUY`, `deliveryDate`), so no data migration.
--   In this file, older sections still say "JO" / "Job Order" for the
-    order: read them as WO / Work Order.
 -   Job Order → **Work Order**, JO → **WO**, JO number → **WO No.**
 -   JO received on → **WO date** (the order clock starts on it).
 -   Customer delivery date → **Cargo ready date**; "Delivery date
@@ -118,7 +116,7 @@ report the discrepancy and ask; do not silently choose.
     Product. `explodeBom()` walks sub-products (MANUFACTURED/BOTH are
     produced, TRADED are bought), sums repeated components, refuses loops
     (`createsCycle()`), and marks the result provisional if any level is
-    missing or unconfirmed. BOTH is assumed "made" until a Job Order decides. BOM versions = record `rev`; Job
+    missing or unconfirmed. BOTH is assumed "made" until a Work Order decides. BOM versions = record `rev`; Job
     Orders (Phase 3) must snapshot the BOM lines they used.
 -   Unit conversion is deterministic (`src/lib/units.ts`): standard units
     within a dimension; count↔area↔mass via size (L×W), GSM and weight
@@ -148,37 +146,36 @@ report the discrepancy and ask; do not silently choose.
     calculator stays under it.
 -   Masters are never deleted; they are set Inactive. Product code is
     optional and not auto-generated until the company scheme is known.
--   Build only company-independent parts now (Phases 2–3). Packing,
-    container estimates, workflow stages, departments, approvals and
-    procurement wait until the user has joined and seen real processes.
+-   Company-dependent parts (packing, container estimates, approvals,
+    real workflows, capacity) wait until the user has joined and seen
+    real processes; departments, suppliers and process steps exist as
+    skeletons filled with the user's own data.
 
 ## Phase 3 decisions (confirmed 19 Oct 2026)
 
--   Phase 3 is split: 3a Job Order core (header, lines, Make/Buy per
+-   Phase 3 is split: 3a Work Order core (header, lines, Make/Buy per
     line, 10% deadline, status, BOM snapshot at confirmation); 3b
-    per-JO manual stock confirmation + explosion into To produce / To
+    per-WO manual stock confirmation + explosion into To produce / To
     buy with over-allocation warnings; 3c print/share as PDF via the
-    Android share sheet (JO summary, To buy, To produce).
--   JO status: Draft → Confirmed → Completed, or Cancelled. Completed
+    Android share sheet (WO summary, To buy, To produce).
+-   WO status: Draft → Confirmed → Completed, or Cancelled. Completed
     can be reopened to Confirmed, Cancelled to Draft. Cancelling and
     reopening require a reason (rules check the paired audit event);
-    editing a confirmed JO does not (history records old/new values).
+    editing a confirmed WO does not (history records old/new values).
     Whether stock-quantity changes need a reason (Req. §31.3 says yes)
     is decided in the 3b design. A later BOM change never alters a
-    confirmed JO; it shows a notice and "Use latest BOMs" (with reason).
--   Order Period starts on the JO received date. Delivery Date Type:
-    Not confirmed yet / Factory dispatch / Port / Arrival at customer.
--   JO import (Excel, text PDF, typed images via on-device OCR) is
-    built after the user joins and has a sample format. No AI
-    extraction for now. Imported data is always a draft the user
-    confirms. Original files are kept on the phone only. Android share
-    target ("Share → ExportFlow") comes with import. (Changed 5 Nov 2026:
-    Excel / CSV and photo import built now — see "JO import" below; text
-    PDF and the share target not yet.)
+    confirmed WO; it shows a notice and "Use latest BOMs" (with reason).
+-   Order Period starts on the WO date. "Cargo ready date means": Not
+    confirmed yet / Factory dispatch (ex-factory, default for new WOs) /
+    Port / Arrival at customer.
+-   WO import: see "WO import" below (Excel / CSV and photo built 5 Nov
+    2026; text PDF and "Share → ExportFlow" not yet). No AI extraction;
+    imported data is always a draft the user confirms; original files
+    stay on the phone.
 -   Daily task/blocker list waits for department benchmarks; it must
     also be printable/shareable.
 -   3c documents (`src/lib/docs/`): A4 PDF built on the phone, English,
-    simple header (company name from Settings, title, JO no., date; logo
+    simple header (company name from Settings, title, WO no., date; logo
     and address later), PROVISIONAL band with reasons when data is
     incomplete, no signature block. Share sheet or download; the app
     never sends anything itself. Later templates on the same engine:
@@ -186,7 +183,7 @@ report the discrepancy and ask; do not silently choose.
     (evening/next morning), supplier RFQ letters and purchase orders —
     always drafts the user sends; no invented prices or supplier data.
 -   Performance reports (confirmed 20 Oct 2026), PDF, any date range:
-    JO-wise (on time vs internal deadline / delivery, buffer used,
+    WO-wise (on time vs internal deadline / delivery, buffer used,
     schedule gap over time, changes after confirmation) and, once stages
     and departments exist, department-wise (output vs target, on-time
     stage %, delays, QC rework if recorded). Plan against company or
@@ -194,28 +191,28 @@ report the discrepancy and ask; do not silently choose.
     compare actual averages with benchmarks and SUGGEST a revision when
     the difference is significant — the user approves; benchmarks are
     versioned like the deadline rule and never changed silently or
-    invented. Data captured now: `completedOn` and `progressLog` per JO
+    invented. Data captured now: `completedOn` and `progressLog` per WO
     (every update with its time; Phase 4 stage records replace the slider).
--   3b stock: per-JO earmarks for finished products, made sub-products
+-   3b stock: per-WO earmarks for finished products, made sub-products
     (deducted before exploding their components) and raw materials;
     qty + unit required, location/remarks optional, who/when automatic;
     reason optional, but each entry shows when it last changed and the
     previous value (overrides Req. §31.3 "reason required"). A manual
     stock count per item (with date) feeds the over-allocation check:
-    warning only for Confirmed JOs, Draft earmarks shown as info; no
+    warning only for Confirmed WOs, Draft earmarks shown as info; no
     count = "manual only". Plus an all-orders To buy list.
 -   Home becomes a dashboard after 3b, layout "Option B · Track"
     (mockup artifact "ExportFlow Home Dashboard"): status counts,
-    3-week deadline strip, planned-vs-actual bar per JO, materials from
+    3-week deadline strip, planned-vs-actual bar per WO, materials from
     stock %, To buy, needs attention. Colour follows schedule gap
     (actual − planned), a smooth gradient green → amber → red (full red
     at about 20% behind, configurable; or past the internal deadline),
     always with the number shown. Until stage tracking (Phase 4) the
-    actual % is a manual per-JO slider (dated); planned % rises
+    actual % is a manual per-WO slider (dated); planned % rises
     linearly from confirmation to the internal deadline; no update =
     "Not tracked".
 
-## JO import (confirmed 5 Nov 2026, mockup canvas "JO import · Excel and photo")
+## WO import (confirmed 5 Nov 2026, mockup canvas "JO import · Excel and photo")
 
 -   Orders → "Import" (`/orders/import`, `src/features/orders/ImportPage.tsx`;
     logic `src/lib/joImport.ts`, file reading `src/lib/importRead.ts`). The
@@ -225,7 +222,7 @@ report the discrepancy and ask; do not silently choose.
 -   B: sheet (the one with item rows is guessed), heading row (the row naming
     most fields), item columns guessed from the headings (name, code, size,
     quantity, unit, pack quantity; "QTY (NOS)" gives the unit), order details
-    found next to their labels with the cell shown (JO / WO no., customer,
+    found next to their labels with the cell shown (WO no., customer,
     buyer PO, issued / received, delivery / cargo ready). Price / rate /
     amount columns are never mapped or read. First rows as read. "Remember
     this layout" (name; phone only, `exportflow:importLayouts`, max 20): a
@@ -239,9 +236,9 @@ report the discrepancy and ask; do not silently choose.
     Quantity editable (photo: letters inside a number such as "5l6" are
     turned into digits and marked "check qty"; never silently), unit per
     row, base-unit equivalent, Make / Buy from the product. Totals within one
-    unit, to compare with the sheet. "Create draft JO" only when every row
+    unit, to compare with the sheet. "Create draft WO" only when every row
     has a product, quantity and unit.
--   Nothing is saved by the import itself: it fills the normal New Job Order
+-   Nothing is saved by the import itself: it fills the normal New Work Order
     form (`?from=import`, banner "Filled from the import… check… then Save"),
     which saves a Draft as usual (duplicate-number check, deadline, history).
     Pack quantities have no field yet: they go into the order notes with the
@@ -251,11 +248,11 @@ report the discrepancy and ask; do not silently choose.
     (~10 MB) downloaded once from the jsdelivr CDN and kept by the browser;
     OCR runs on the phone. Old .xls files: "save as .xlsx or CSV".
 -   Not yet: text PDFs (pdf.js text), "Share → ExportFlow" (share target),
-    a JO line field for pack quantity (with packing, after joining).
+    a WO line field for pack quantity (with packing, after joining).
 
 ## Order items at a glance (confirmed 26 Oct 2026)
 
--   JO page, under the deadline / delivery / buffer boxes: numbered list
+-   WO page, under the deadline / delivery / buffer boxes: numbered list
     of products (`ItemsCard`, `src/lib/orderSummary.ts`): name, ordered
     quantity as on the order (+ base-unit equivalent when the unit
     differs), Make/Buy, "now <step>", and that product's own progress bar
@@ -275,9 +272,9 @@ report the discrepancy and ask; do not silently choose.
     data status; both empty = "time pending") and "Order of steps
     confirmed with the company" (`routeConfirmed`). Processes can be created from the route editor.
     Bought (TRADED) products have routes too (labelling, packing…).
--   At confirmation each JO line gets a copy of its steps
+-   At confirmation each WO line gets a copy of its steps
     (`lines[].steps`, `src/lib/route.ts` `buildLineSteps`): BUY lines
-    start with built-in "Ordered → Received"; MAKE lines put made
+    start with built-in "Ordered → Landing" (older orders: "Received"); MAKE lines put made
     sub-product steps first (depth-first), then the product's own route.
     Steps can be changed per order (to-do steps only); product routes
     stay unchanged. Orders confirmed earlier get "Set up steps from
@@ -289,7 +286,7 @@ report the discrepancy and ask; do not silently choose.
     linear deadline plan. Order progress = average of its lines and
     replaces the manual slider once steps exist (still logged in
     `progressLog`).
--   JO page opens on a "Products" tab (mockup "JO detail · progress per
+-   WO page opens on a "Products" tab (mockup "JO detail · progress per
     product"); Home shows "Now: product · step" and step overruns in
     Needs attention.
 -   Expected dates per step (confirmed 28 Oct 2026, `stepDates()` in
@@ -304,7 +301,7 @@ report the discrepancy and ask; do not silently choose.
 
 ## Item priority (confirmed 15 Nov 2026)
 
--   Within one WO (`scheduleOrder()` in `src/lib/route.ts`, rule
+-   Within one WO (`scheduleOrder()` in `src/lib/schedule.ts`, rule
     `PRIORITY`): the step that can REALLY start earliest is placed next
     (its start on a free unit, `earliestSlot()`), so a unit never waits
     idle for a more urgent item. Items waiting for the same unit at the
@@ -420,7 +417,7 @@ report the discrepancy and ask; do not silently choose.
     process in two departments is warned, not blocked). Work contacts
     only. Real names and numbers are added after joining.
 -   Contact buttons only — no follow-up log (updates are entered in the
-    app as usual): on a Job Order's Products tab for the step running now
+    app as usual): on a Work Order's Products tab for the step running now
     and the next one, and on Today items about steps. Call (`tel:`),
     WhatsApp (`wa.me` with a ready message) and Email (`mailto:` with
     subject and message); the message is a draft the user edits and
@@ -444,7 +441,7 @@ report the discrepancy and ask; do not silently choose.
     batches), rounded UP to half a day for display; schedules use the
     unrounded time (`workDays`, changed 5 Nov 2026: rounding every item
     added up across an order). Hour-level planning later.
-    Benchmarks are copied to JO steps at confirmation (confirmed, known or
+    Benchmarks are copied to WO steps at confirmation (confirmed, known or
     estimated values; estimates carry `estimated: true`, see below);
     planned days are worked out on display from the order as it is now
     (`planLines()` in `src/lib/route.ts`), so quantity, stock and holiday
@@ -458,11 +455,10 @@ report the discrepancy and ask; do not silently choose.
 -   Shared department capacity across orders is NOT modelled yet (each
     order is planned as if alone); it comes with department capacities.
 -   Within one order (confirmed 5 Nov 2026, `orderPlan()` /
-    `scheduleOrder()` in `src/lib/route.ts`): the items of the order share
+    `scheduleOrder()` in `src/lib/schedule.ts`): the items of the order share
     each process. A process has "Parallel units" (`parallelUnits`, default
     1; output per day in routes is per unit). Who goes first: see "Item
-    priority" below (15 Nov 2026; before that, first come first served with
-    ties in listed order); a free gap is used. Finished steps keep their real
+    priority" above; a free gap is used. Finished steps keep their real
     dates and free the unit then; a started step holds its unit. A running
     step still waiting for a unit is "next" (`queued`, "Waiting: X is busy
     with other items of this order"), never counted as over plan. Planned %
@@ -485,7 +481,7 @@ report the discrepancy and ask; do not silently choose.
     no earlier than one day of its work after the previous step's finish.
     No overlap for fixed-days-only or purchase steps, or when the route
     step has "Waits for the whole quantity of the previous step"
-    (`waitAll`, copied to JO steps; outside work, drying, batches). A step
+    (`waitAll`, copied to WO steps; outside work, drying, batches). A step
     not started yet never starts before today. Steps can also be tracked
     at the same time (see "Flow tracking" below).
 -   Flow tracking (confirmed 5 Nov 2026, mockup canvas "JO Products tab ·
@@ -559,7 +555,7 @@ report the discrepancy and ask; do not silently choose.
     ACTUAL workspace; Demo uses the same calendar. No public holidays
     are added automatically.
 -   Internal deadline rule v2 `buffer-10pct-ceil-min1-workdays/v2`:
-    period = working days after the received date up to the delivery
+    period = working days after the WO date up to the delivery
     date; buffer = ceil(period × 10%), min 1; internal deadline = the
     buffer-th working day before delivery (always a working day). A
     delivery date on a day off is accepted with a warning. Drafts follow
@@ -573,7 +569,7 @@ report the discrepancy and ask; do not silently choose.
 ## Reports tab and daily summary (confirmed 21 Oct 2026)
 
 -   Bottom menu: Reports replaces History (History opens from Reports).
-    Reports holds the daily summary (text share + PDF), the JO
+    Reports holds the daily summary (text share + PDF), the WO
     performance report, the all-orders To buy PDF and History; later the
     department to-do lists and review summaries. The To buy working list
     stays in Orders.
@@ -583,8 +579,8 @@ report the discrepancy and ask; do not silently choose.
     "Share summary" passes plain text to the share sheet (or copies it);
     the app never sends anything. Backup reminders stay in Needs
     attention.
--   JO performance report (`src/lib/performance.ts`, Reports →
-    Job Order performance): presets This month / Last month / Last 90
+-   WO performance report (`src/lib/performance.ts`, Reports →
+    Work Order performance): presets This month / Last month / Last 90
     days / Custom. Completed orders in the range: working days vs
     internal deadline and delivery, buffer used, allowed / planned /
     actual days, slowest step, furthest behind (from progressLog), plan
@@ -593,7 +589,7 @@ report the discrepancy and ask; do not silently choose.
     planned vs actual for steps finished in the range; a benchmark
     suggestion only with >= 5 steps differing by >= 15% (median rate) —
     never applied automatically. Screen chart: allowed vs actual days per
-    JO; the PDF engine draws simple grouped bar charts (`DocChart`).
+    WO; the PDF engine draws simple grouped bar charts (`DocChart`).
 -   Route steps have "Also for items taken from stock" (`alsoForStock`,
     default off): the step's time counts the stock set aside too (e.g.
     packing).
@@ -642,7 +638,7 @@ report the discrepancy and ask; do not silently choose.
     "To be confirmed", UNAVAILABLE = "Not available". Stored values are
     unchanged; all five levels stay distinct.
 -   Estimated step times are now used in plans (previously "time
-    pending"), always marked: "estimate" tag on the JO step, "· my
+    pending"), always marked: "estimate" tag on the WO step, "· my
     estimate" in the basis, a PROVISIONAL reason in the working plan, an
     open point "time for X is approximate - to be confirmed with
     production" in the plan to submit, and "(estimate)" next to expected
@@ -690,7 +686,7 @@ report the discrepancy and ask; do not silently choose.
 
 ## KPIs (confirmed 26 Oct 2026)
 
--   Steps: optional "<step> started" and "<step> done" on the JO Products
+-   Steps: optional "<step> started" and "<step> done" on the WO Products
     tab, both with "Date of this update" (default today; back-dating
     allowed, never future, never before the previous step / the start).
     `JoStep.startedAt` (ISO); `stepTime()` stores midday IST for past
@@ -728,14 +724,13 @@ report the discrepancy and ask; do not silently choose.
 
 -   Other departments (design, finance, HR…) may come under the user. Same
     app, separate "Work" section, for the user only (no other users).
-    Accounting, payroll and personal HR records stay in the company's own
-    systems — never in this app. (Refined 13 Nov 2026 by "Data rule"
-    below: amounts may be read for cross-checks; HR = process steps only.)
+    What may be kept follows the "Data rule" above (amounts for
+    cross-checks only; HR = process steps only).
 -   Bottom menu: Home · Orders · Work · Reports · Settings; Masters opens
     from Settings (link row; back link on Masters).
 -   Tasks (`tasks` collection, `src/lib/tasks.ts`): title, department
     (or General), whom to ask, due date, priority Normal/High, status
-    Open / Waiting (waiting on…) / Done / Dropped, optional Job Order,
+    Open / Waiting (waiting on…) / Done / Dropped, optional Work Order,
     notes; never deleted. Repeats: weekly (weekday of the due date),
     monthly (day of the due date; last day in shorter months), every N
     days; Done adds the next one (never a date already past).
@@ -860,12 +855,12 @@ report the discrepancy and ask; do not silently choose.
     ("Known"). No ERP logins, payroll / personal records, accounts or
     prices.
 -   Scan any document (idea 27 Oct 2026; build AFTER joining, together
-    with JO import): nearly all factory documents are printed. Photo /
+    with WO import): nearly all factory documents are printed. Photo /
     PDF / "Share → ExportFlow" → text read on the phone (pdf.js for text
     PDFs, on-device OCR for photos; the user can correct it) → find with
-    fixed rules (JO / PO / invoice numbers, dates, quantities, names of
+    fixed rules (WO / PO / invoice numbers, dates, quantities, names of
     customers, suppliers, products, departments, people) the related open
-    tasks and orders, with the reason shown → link it to a task / JO,
+    tasks and orders, with the reason shown → link it to a task / WO,
     create a prefilled follow-up the user edits, or file it in the
     document register. Images stay on the phone; only key fields are kept
     (no prices). "Explain an unknown document" needs AI: only after a
@@ -876,25 +871,11 @@ report the discrepancy and ask; do not silently choose.
     read whole (`useCollection`), and after the cache goes stale (~30 min)
     a re-open re-reads it; ~5,000 docs × ~10 opens a day reaches the
     50,000 reads/day limit, and tasks / completed orders keep growing
-    (never deleted). Before the import: (1) load only what is needed —
+    (never deleted). Before the import: load only what is needed —
     open tasks + done in the last 30 days, completed orders older than a
-    few months only on "Show older"; (2) System health: approximate reads
-    today (docs served from the server), not only quota hits. Blaze (with
-    a budget alert) only if reads still approach the limit.
-
-## Weekly report to management (noted 27 Oct 2026; built the same day as "My report", see below)
-
--   After the learning period the user must give management a weekly
-    report of what he did that week: a normal weekly report that also
-    shows his work is needed. Idea discussed, not designed: built only
-    from data recorded in the app (orders planned / confirmed, planning
-    days, steps updated, orders completed and on-time %, risks caught
-    early and how they ended, Work tasks and follow-ups done, plans and
-    reports submitted, KPI change vs last week, documentation status
-    later) plus a "Highlights" section of outcomes the app suggests and
-    the user edits. Outcomes over activity counts; nothing inflated or
-    invented — every figure must be checkable. Encourage a one-line note
-    when a task is marked Done.
+    few months only on "Show older" (still to do). The reads-today
+    counter in System health is built (15 Nov 2026). Blaze (with a budget
+    alert) only if reads still approach the limit.
 
 ## My report and Look ahead (confirmed 27 Oct 2026)
 
@@ -910,7 +891,10 @@ report the discrepancy and ask; do not silently choose.
     over their benchmark and how the order stands now), follow-ups closed
     with how they ended, open escalations, KPIs vs the previous period and
     targets, the coming week / month (from Look ahead), signatures. No
-    audit history loaded (plan-change counts not shown).
+    audit history loaded (plan-change counts not shown). After the
+    learning period it is the weekly report to management: outcomes over
+    activity counts, nothing inflated or invented, every figure checkable;
+    a one-line note when a task is marked Done is encouraged.
 -   Reports → "Look ahead" (`src/lib/lookAhead.ts`, PDF `lookAheadDoc`):
     next 7 days / 4 weeks / 3 months / custom; CONFIRMED orders only
     (drafts are left out on purpose). Department heat table per week
@@ -941,7 +925,7 @@ report the discrepancy and ask; do not silently choose.
     measures. Queue order by internal deadline by default, with manual
     priority (move up / Rush), an impact preview before saving and a
     history entry with reason.
--   Draft JO "Capacity check": expected finish vs internal deadline, where
+-   Draft WO "Capacity check": expected finish vs internal deadline, where
     it waits (process, department, behind which orders, days), impact on
     other orders, missing times / capacities listed. Then a Reports
     "Factory load" (weekly load % per process / department, bottlenecks
@@ -952,7 +936,7 @@ report the discrepancy and ask; do not silently choose.
 
 ## Planning stage and plan document (confirmed 21 Oct 2026)
 
--   The order clock starts on the JO received date. "Planning"
+-   The order clock starts on the WO date. "Planning"
     (received → confirmed) is the built-in first stage of every order
     (`planningStep()` / `withPlanning()` in `src/lib/route.ts`; worked
     out, not stored). Planned % (linear and step-based) counts from the
@@ -960,11 +944,11 @@ report the discrepancy and ask; do not silently choose.
     `planningDays`, default 1 working day (user benchmark; empty = not
     set). Drafts past it show in Today ("still in planning") and in the
     plan's open points; the performance report shows planning days per
-    JO and the average.
--   Plan document (`productionPlanDoc()` in `src/lib/docs/model.ts`),
+    WO and the average.
+-   Plan document (`productionPlanDoc()` in `src/lib/docs/planDoc.ts`),
     for submission to superiors: "Proposed Plan" for drafts (steps from
     the product routes at that moment) or "Production Plan — status as
-    of <date>" once confirmed. Contents: status band, plan version (JO
+    of <date>" once confirmed. Contents: status band, plan version (WO
     revision + time), key dates, planning time, internal deadline and
     buffer, working days available, expected finish vs internal
     deadline, progress; a timeline (Gantt) with today / internal
@@ -973,8 +957,8 @@ report the discrepancy and ask; do not silently choose.
     open points and risks; notes (working days, capacity limitation);
     "Prepared by" (name + designation from Settings) and an empty
     "Reviewed / approved by" block for signing on paper — the app never
-    marks anything approved. Available on the JO page and in Reports
-    (choose a JO). PROVISIONAL band when times, routes or BOM data are
+    marks anything approved. Available on the WO page and in Reports
+    (choose a WO). PROVISIONAL band when times, routes or BOM data are
     missing.
 -   Every PDF button row has View / Share PDF / Download (confirmed 21 Oct
     2026). View shows the PDF inside the app page by page (pdf.js
@@ -1001,10 +985,10 @@ report the discrepancy and ask; do not silently choose.
     user only, banner "WORKING PLAN - internal details, not for
     submission"). `productionPlanDoc({ ..., variant })`.
 -   Plan "to submit" layout (confirmed 26 Oct 2026, `planOverview()` in
-    `src/lib/docs/model.ts`, drawn in `pdf.ts`; mockup canvas "Plan PDF
+    `src/lib/docs/planDoc.ts`, drawn in `pdf.ts`; mockup canvas "Plan PDF
     timeline options", B + "D polished"): key facts; "The order at a
     glance" road map (Order received → Plan approval / confirmed →
-    Production → Internal deadline → Customer delivery, "we are here",
+    Production → Internal deadline → Cargo ready, "we are here",
     spare / late days) with an "In short" sentence; a Products table (#,
     product, quantity, start, ready, days before the internal deadline;
     tight = 2 working days or less (`TIGHT_DAYS`), late, to be confirmed
@@ -1024,7 +1008,7 @@ report the discrepancy and ask; do not silently choose.
     production" (with "For ... (via ...)" and suppliers) and, when any,
     "Ready-made products to buy". Only the working plan adds "Material
     calculation (BOM)" (per-unit figures are recipe data, not in the plan
-    to submit). JO To produce / To buy PDFs get "Made from" / "For"; the
+    to submit). WO To produce / To buy PDFs get "Made from" / "For"; the
     Materials tab shows them plus "How it was worked out" per item.
     PDF tables: right-aligned (number) columns never wrap.
 -   Making order and direct links (confirmed 15 Nov 2026): "Products to
@@ -1053,8 +1037,8 @@ report the discrepancy and ask; do not silently choose.
     Red (confirmed 27 Oct 2026) = the step took / is taking more working
     days than its benchmark (`overDays`, "N days over"); the line into it
     and its landmark are red. A step that only ends late because earlier
-    steps were late stays dark (not schedule-based: no baseline of planned
-    dates is stored; a baseline may come later for KPIs). Steps without a
+    steps were late stays dark (not schedule-based; the comparison with
+    the submitted plan is a separate table, see "Submitted plan"). Steps without a
     time are never marked late.
 -   Container loading (answers 27 Oct 2026, not built yet): one loading
     per order as far as known (may change); container booking always
@@ -1077,7 +1061,7 @@ report the discrepancy and ask; do not silently choose.
     same / kept) before writing; needs internet. Each record is written
     as a NEW revision with the history reason "Restored from backup of
     …"; records not in the backup are kept; audit events are never
-    restored. Job Orders go through allowed status paths (e.g. Completed
+    restored. Work Orders go through allowed status paths (e.g. Completed
     → Confirmed → Completed). Products/raw materials whose base unit
     differs are skipped and listed. A DEMO backup can never go into
     ACTUAL; an ACTUAL backup may go into DEMO (practice). Restoring into
@@ -1100,8 +1084,8 @@ report the discrepancy and ask; do not silently choose.
     publish (link to firestore.rules, then Check rules). Add each new
     collection to `RULES_PROBES`.
 -   Reports uses the same layout (confirmed 21 Oct 2026): Today ("2
-    overdue · 1 today", red flag when overdue), Plan of a Job Order, To buy
-    — all orders ("N items") as collapsed rows; Job Order performance and
+    overdue · 1 today", red flag when overdue), Plan of a Work Order, To buy
+    — all orders ("N items") as collapsed rows; Work Order performance and
     History as link rows of the same size.
 -   Settings layout (confirmed 21 Oct 2026): Mode stays open; every other
     section is one collapsed row (`SettingSection`, native details) with
