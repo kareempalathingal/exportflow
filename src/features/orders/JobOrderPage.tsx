@@ -173,7 +173,7 @@ export function JobOrderPage() {
         : 'products';
   const editable = isNew || isEditable(status);
   // Whole-order plan for the submitted-plan card (confirmed / completed WOs).
-  const oplan = !isNew && item && item.status !== 'DRAFT' && item.status !== 'CANCELLED' ? orderPlan(item, today, { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, units: unitsMap(processMap) }) : null;
+  const oplan = !isNew && item && item.status !== 'DRAFT' && item.status !== 'CANCELLED' ? orderPlan(item, today, { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, workHours: profile?.workHours, units: unitsMap(processMap) }) : null;
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const setLine = (i: number, patch: Partial<LineDraft>) => set({ lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
   const dirty = JSON.stringify(d) !== savedDraft.current;
@@ -370,7 +370,7 @@ export function JobOrderPage() {
             </div>
           </div>
 
-          <ItemsCard jo={item!} id={item!.id} md={md} ctx={{ md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, units: unitsMap(processMap) }} today={today} />
+          <ItemsCard jo={item!} id={item!.id} md={md} ctx={{ md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, workHours: profile?.workHours, units: unitsMap(processMap) }} today={today} />
           {oplan && <BaselineCard jo={item!} oplan={oplan} cal={cal} />}
 
           {changed.length > 0 && (
@@ -452,7 +452,7 @@ export function JobOrderPage() {
                   jo: item,
                   md,
                   processes: processMap,
-                  ctx: { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, units: unitsMap(processMap) },
+                  ctx: { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, workHours: profile?.workHours, units: unitsMap(processMap) },
                   today,
                   company,
                   generatedAt: `${formatDateTime(new Date())} IST`,

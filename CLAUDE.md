@@ -582,6 +582,15 @@ report the discrepancy and ask; do not silently choose.
     over plan. Defaults come from the one WO seen (WO 95: indent on the
     2nd working day after the WO date, production a week later; handwoven
     PO → landing 10 days); to be checked after joining.
+-   Working hours (confirmed 15 Nov 2026, display only): Settings →
+    profile "Working hours per day" `workHours` (default 8: duty 8:30 to
+    5:30 with the break, every day except Sunday; empty = not shown).
+    `hoursText()` = working days × hours, rounded UP to a whole hour,
+    shown next to the basis ("1 200 pcs ÷ 300/day · 32 working hours")
+    on the Products tab, in Plan by process ("4" + "32 h") and in the
+    working plan PDF / Excel; never in the plan to submit. Plans, dates
+    and KPIs stay in working days. [to ask] the day length the company's
+    output-per-day benchmarks were measured on.
 -   "X started" stays in view (15 Nov 2026) on the running step not
     started yet and on the next step to do, next to "X done": recording
     the start splits wait (e.g. moving goods between units) from work in

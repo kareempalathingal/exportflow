@@ -37,7 +37,7 @@ function ReadinessLinkCard() {
   );
 }
 import { DEFAULT_RED_AT, readRedAt, readTheme, saveRedAt, saveTheme, type ThemePref } from '../../lib/theme';
-import { DEFAULT_MATERIALS_DAYS, DEFAULT_PLANNING_DAYS, DEFAULT_PURCHASE_DAYS } from '../../lib/route';
+import { DEFAULT_MATERIALS_DAYS, DEFAULT_PLANNING_DAYS, DEFAULT_PURCHASE_DAYS, DEFAULT_WORK_HOURS } from '../../lib/route';
 import { DEFAULT_ALERT_DAYS } from '../../lib/followUp';
 
 function AppearanceCard() {
@@ -101,6 +101,7 @@ function ProfileForm() {
   const [alertText, setAlertText] = useState(String(DEFAULT_ALERT_DAYS));
   const [materialsText, setMaterialsText] = useState(String(DEFAULT_MATERIALS_DAYS));
   const [purchaseText, setPurchaseText] = useState(String(DEFAULT_PURCHASE_DAYS));
+  const [hoursText, setHoursText] = useState(String(DEFAULT_WORK_HOURS));
 
   // Load saved values only when a new revision arrives (or the workspace
   // changes), not on every sync-metadata update, so typing is never lost.
@@ -119,6 +120,7 @@ function ProfileForm() {
     setAlertText(String(profile.alertDays ?? DEFAULT_ALERT_DAYS));
     setMaterialsText(profile.materialsDays === null ? '' : String(profile.materialsDays ?? DEFAULT_MATERIALS_DAYS));
     setPurchaseText(profile.purchaseDays === null ? '' : String(profile.purchaseDays ?? DEFAULT_PURCHASE_DAYS));
+    setHoursText(profile.workHours === null ? '' : String(profile.workHours ?? DEFAULT_WORK_HOURS));
   }, [profile, workspaceId]);
 
   function submit(e: FormEvent) {
@@ -150,6 +152,11 @@ function ProfileForm() {
         return;
       }
     }
+    const workHours = hoursText.trim() === '' ? null : Number(hoursText.replace(',', '.'));
+    if (workHours !== null && (!Number.isFinite(workHours) || workHours <= 0 || workHours > 24)) {
+      setFormError('Working hours per day must be between 1 and 24, or empty');
+      return;
+    }
     const alertDays = Math.floor(Number(alertText));
     if (!Number.isFinite(alertDays) || alertDays < 1 || alertDays > 10) {
       setFormError('Ready-to-start alert must be 1 to 10 working days');
@@ -162,7 +169,7 @@ function ProfileForm() {
       docId: PROFILE_DOC,
       entity: 'Profile',
       before: profile,
-      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning, materialsDays, purchaseDays, alertDays },
+      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning, materialsDays, purchaseDays, workHours, alertDays },
       reason,
     });
     setReason('');
@@ -221,6 +228,11 @@ function ProfileForm() {
         </label>
       </div>
       <p className="muted small">Your own benchmarks, used only where no supplier date is entered; such dates are marked approx. and the plan lists them as open points. Empty = production dates stay “to be confirmed” until the dates are entered.</p>
+      <label>
+        Working hours per day
+        <input inputMode="decimal" value={hoursText} onChange={(e) => setHoursText(e.target.value)} placeholder="not shown" style={{ maxWidth: 90 }} />
+      </label>
+      <p className="muted small">Shown next to the planned days of each step (rounded up to a whole hour). Plans and dates stay in working days. Empty = hours not shown.</p>
       <label>
         Ready-to-start and follow-up alerts (working days before)
         <input inputMode="numeric" value={alertText} onChange={(e) => setAlertText(e.target.value)} style={{ maxWidth: 90 }} />

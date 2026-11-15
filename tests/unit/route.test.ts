@@ -198,3 +198,16 @@ describe('outright purchase benchmark (15 Nov 2026)', () => {
     expect(land(orderPlan(o, '2026-11-03', { ...ctx, purchaseDays: null })).finish).toBeNull();
   });
 });
+
+describe('working hours next to the days (15 Nov 2026, display only)', () => {
+  it('days × hours per day, rounded up to a whole hour; default 8; null = not shown', async () => {
+    const { hoursText } = await import('../../src/lib/route');
+    expect(hoursText(4, {})).toBe('32 working hours');
+    expect(hoursText(6561 / 1650, { workHours: 8 })).toBe('32 working hours'); // 3.98 days → 31.8 h → 32
+    expect(hoursText(0.1, { workHours: 8 })).toBe('1 working hour');
+    expect(hoursText(2, { workHours: 9 })).toBe('18 working hours');
+    expect(hoursText(4, { workHours: null })).toBeNull();
+    expect(hoursText(null, {})).toBeNull();
+    expect(hoursText(0, {})).toBeNull();
+  });
+});

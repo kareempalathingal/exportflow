@@ -6,7 +6,7 @@ import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, effectiveSupply, t
 import { workingDaysBetween, type WorkCalendar } from '../calendar';
 import { ITEM_ORDER_RULE, LISTED_RULE, daysLeftText, gainText } from '../itemOrder';
 import { compareToPlan, diffText as baselineDiffText, stepKey } from '../baseline';
-import { buildLineSteps, isLandingStep, DEFAULT_PLANNING_DAYS, isBuiltIn, lineProgress, MATERIALS_KEY, lineSchedule, orderPlan, orderStart, orderTrack, planLines, PLANNING_KEY, processPlanRows, type ItemOrder, type PlanContext } from '../route';
+import { buildLineSteps, hoursText, isLandingStep, DEFAULT_PLANNING_DAYS, isBuiltIn, lineProgress, MATERIALS_KEY, lineSchedule, orderPlan, orderStart, orderTrack, planLines, PLANNING_KEY, processPlanRows, type ItemOrder, type PlanContext } from '../route';
 import type { Department, MasterData, Process } from '../masters';
 import { departmentsFor } from '../contacts';
 import { planMaterials, type PlanRow } from '../materials';
@@ -405,7 +405,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
               const status = st.view.state === 'DONE' ? 'Done' : st.view.state === 'NOW' ? (late ? 'In progress - delayed' : 'In progress') : st.finish ? 'Planned' : 'To be confirmed';
               return [name, amount, st.start ? formatDay(st.start) : 'To be confirmed', st.finish ? formatDay(st.finish) : 'To be confirmed', status];
             }
-            const basis = [s.basis, s.note].filter(Boolean).join(' · ') || (s.processId === null && !isBuiltIn(s) ? 'Purchase' : '—');
+            const basis = [s.basis, s.basis ? hoursText(s.workDays ?? s.plannedDays, input.ctx) : null, s.note].filter(Boolean).join(' · ') || (s.processId === null && !isBuiltIn(s) ? 'Purchase' : '—');
             const days =
               st.view.state === 'DONE'
                 ? `${formatQty(st.view.actualDays ?? 0)}${s.plannedDays !== null ? ` (plan ${formatQty(s.plannedDays)})` : ''}`
@@ -436,7 +436,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       const to = r.finish ? `${formatDay(r.finish)}${r.undated ? ` (${r.undated} item${r.undated === 1 ? '' : 's'} to be confirmed)` : ''}` : clean ? 'To be confirmed' : '—';
       return clean
         ? [name, deptOf(r.processId), String(r.items), r.qty, from, to]
-        : [name, deptOf(r.processId), String(r.items), r.qty, r.rate, String(r.units), r.days === null ? 'pending' : formatQty(r.days), from, to];
+        : [name, deptOf(r.processId), String(r.items), r.qty, r.rate, String(r.units), r.days === null ? 'pending' : `${formatQty(r.days)}${hoursText(r.rawDays, input.ctx) ? ` (${hoursText(r.rawDays, input.ctx)!.replace(/ working hours?$/, ' h')})` : ''}`, from, to];
     }),
     empty: 'No process steps yet.',
   };

@@ -14,6 +14,8 @@ export interface Profile extends VersionedRecord {
   /** Benchmarks (15 Nov 2026): raw materials landed N working days after confirmation; outright purchase N working days after ordering. */
   materialsDays?: number | null;
   purchaseDays?: number | null;
+  /** Working hours per working day (display only, 15 Nov 2026); null = not shown. */
+  workHours?: number | null;
   /** Working days before a step starts that "Ready to start?" and supplier follow-ups are shown (default 2). */
   alertDays?: number;
 }

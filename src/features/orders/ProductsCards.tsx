@@ -2,7 +2,7 @@
 import { formatDay } from '../../lib/jobOrders';
 import { type Department, type Process } from '../../lib/masters';
 import { departmentsFor } from '../../lib/contacts';
-import { processPlanRows } from '../../lib/route';
+import { hoursText, processPlanRows } from '../../lib/route';
 import { formatQty } from '../../lib/units';
 import { daysLeftText, gainText, itemOrderRule } from '../../lib/itemOrder';
 import type { ItemOrder } from '../../lib/route';
@@ -58,7 +58,7 @@ export function ItemOrderCard({ io, editable, onRush, onUsePriority }: { io: Ite
 
 
 /** The company's WO planning view: each process with the items of this order it handles (5 Nov 2026). */
-export function ProcessPlanCard({ rows, processes, departments }: { rows: ReturnType<typeof processPlanRows>; processes: Map<string, Process>; departments: Department[] }) {
+export function ProcessPlanCard({ rows, processes, departments, workHours }: { rows: ReturnType<typeof processPlanRows>; processes: Map<string, Process>; departments: Department[]; workHours?: number | null }) {
   if (!rows.length) return null;
   return (
     <details className="card">
@@ -94,7 +94,10 @@ export function ProcessPlanCard({ rows, processes, departments }: { rows: Return
                     {r.rate}
                     {r.units > 1 && <span className="muted block">× {r.units} units</span>}
                   </td>
-                  <td className="num">{r.days === null ? <span className="warn">pending</span> : formatQty(r.days)}</td>
+                  <td className="num">
+                    {r.days === null ? <span className="warn">pending</span> : formatQty(r.days)}
+                    {hoursText(r.rawDays, { workHours }) && <span className="muted block">{hoursText(r.rawDays, { workHours })!.replace(' working hours', ' h').replace(' working hour', ' h')}</span>}
+                  </td>
                   <td>
                     {r.start && r.finish ? `${formatDay(r.start)} → ${formatDay(r.finish)}` : <span className="warn">to be confirmed</span>}
                     {r.undated > 0 && r.start && (

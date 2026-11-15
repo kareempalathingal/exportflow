@@ -30,7 +30,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const editable = jo.status === 'CONFIRMED';
   const { cal } = useWorkCalendar();
   const { profile } = useProfile(workspaceId);
-  const ctx: PlanContext = { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, units: unitsMap(processes) };
+  const ctx: PlanContext = { md, cal, planningDays: profile?.planningDays, materialsDays: profile?.materialsDays, purchaseDays: profile?.purchaseDays, workHours: profile?.workHours, units: unitsMap(processes) };
   const departments = useCollection<Department>(workspaceId, COLLECTIONS.departments);
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const [params] = useSearchParams();
@@ -106,7 +106,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
           </li>
         ))}
       </ul>
-      {oplan && <ProcessPlanCard rows={processPlanRows(oplan)} processes={processes} departments={departments.items} />}
+      {oplan && <ProcessPlanCard rows={processPlanRows(oplan)} processes={processes} departments={departments.items} workHours={profile?.workHours} />}
       <details className="how-to-read muted small">
         <summary>How to read this</summary>
         <p className="legend">
@@ -383,7 +383,7 @@ function LineCard(props: {
 
       <ol className="stepper">
         {lp.steps.map((v, i) => (
-          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} parts={{ ...actionsFor(v), ...followFor(v), contacts: contactFor(v), contactsOpen: delayed(v, dates.steps[i]!), plan: props.vsPlan ? planNote(props.vsPlan, line.id, v) : null }} />
+          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} parts={{ ...actionsFor(v), ...followFor(v), contacts: contactFor(v), contactsOpen: delayed(v, dates.steps[i]!), workHours: props.ctx.workHours, plan: props.vsPlan ? planNote(props.vsPlan, line.id, v) : null }} />
         ))}
       </ol>
       {dates.ready && <ReadyRow ready={dates.ready} />}

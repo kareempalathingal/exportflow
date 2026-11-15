@@ -5,7 +5,7 @@ import { productContext, type Product, type Supplier } from '../../lib/masters';
 import { firstPromise, type StepOutput } from '../../lib/jobOrders';
 import { parseNum } from '../masters/fields';
 import { type Process } from '../../lib/masters';
-import { isBuiltIn, MATERIALS_KEY, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
+import { hoursText, isBuiltIn, MATERIALS_KEY, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
 import { istDateKey } from '../../lib/time';
 import { availableUnits, convert, formatQty, unitLabel } from '../../lib/units';
 import { stepKey, type PlanCompare } from '../../lib/baseline';
@@ -113,6 +113,8 @@ export interface StepRowParts {
   info?: ReactNode;
   alert?: ReactNode;
   plan?: { late: boolean; pill: ReactNode; detail: ReactNode } | null;
+  /** Working hours per day (display only; undefined = default, null = not shown). */
+  workHours?: number | null;
 }
 
 /**
@@ -151,7 +153,12 @@ export function StepRow({ v, date, productName, parts }: { v: StepView; date: St
       {s.outputQty !== null && s.outputQty !== undefined && s.qty !== null && s.qtyUnit && v.state !== 'DONE' && <OutputProgress s={s} />}
       {parts.info}
       {parts.plan?.detail}
-      {s.basis && <span className="muted small block">{s.basis}</span>}
+      {s.basis && (
+        <span className="muted small block">
+          {s.basis}
+          {hoursText(s.workDays ?? s.plannedDays, { workHours: parts.workHours }) && ` · ${hoursText(s.workDays ?? s.plannedDays, { workHours: parts.workHours })}`}
+        </span>
+      )}
       {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
       {!parts.contactsOpen && parts.contacts}
       {parts.actions}

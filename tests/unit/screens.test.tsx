@@ -345,6 +345,8 @@ describe('Plan document', () => {
     expect(html).toContain('<span class="step-details" hidden="">');
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('<summary>How to read this</summary>');
+    // Working hours next to the basis (default 8 h per working day): Weaving 100 pcs ÷ 50/day = 2 days.
+    expect(html).toContain('100 pcs ÷ 50/day · 16 working hours');
     // the main button of the running step stays in view, outside the hidden details
     expect(html).toMatch(/<\/span><\/span><span class="row gap step-actions"><button type="button" class="secondary small">Bleaching started<\/button><button type="button" class="primary small">Bleaching done<\/button>/);
   });

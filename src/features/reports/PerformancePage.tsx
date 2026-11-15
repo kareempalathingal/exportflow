@@ -88,8 +88,9 @@ export function PerformancePage() {
   const planningDays = profile?.planningDays;
   const materialsDays = profile?.materialsDays;
   const purchaseDays = profile?.purchaseDays;
+  const workHours = profile?.workHours;
   const units = useProcessUnits();
-  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, materialsDays, purchaseDays, units }), [master.md, cal, planningDays, materialsDays, purchaseDays, units]);
+  const ctx = useMemo(() => ({ md: master.md, cal, planningDays, materialsDays, purchaseDays, workHours, units }), [master.md, cal, planningDays, materialsDays, purchaseDays, workHours, units]);
   const report = useMemo(
     () => (valid ? buildPerformance({ jobOrders: jos.items, ctx, from: range.from, to: range.to, today, history: history.events }) : null),
     [valid, jos.items, ctx, range.from, range.to, today, history.events],

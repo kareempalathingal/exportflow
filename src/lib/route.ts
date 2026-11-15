@@ -51,6 +51,8 @@ export interface PlanContext {
    */
   materialsDays?: number | null;
   purchaseDays?: number | null;
+  /** Working hours in one working day (15 Nov 2026, display only: "N working hours" next to the days). */
+  workHours?: number | null;
 }
 
 /** Parallel units per process for a plan context (from the Processes master). */
@@ -65,6 +67,19 @@ export const DEFAULT_PLANNING_DAYS = 1;
 /** User benchmarks (15 Nov 2026, from the one WO seen so far; changed in Settings → profile). */
 export const DEFAULT_MATERIALS_DAYS = 5;
 export const DEFAULT_PURCHASE_DAYS = 10;
+/** 8-hour duty (told by the user, 15 Nov 2026: 8:30 to 5:30 with the break; every day except Sunday). */
+export const DEFAULT_WORK_HOURS = 8;
+
+/**
+ * "N working hours" for a time in working days (15 Nov 2026): days × hours per day, rounded UP to a
+ * whole hour. Display only; plans and dates stay in working days. Null when either is unknown.
+ */
+export function hoursText(days: number | null | undefined, ctx: Pick<PlanContext, 'workHours'>): string | null {
+  const h = ctx.workHours === undefined ? DEFAULT_WORK_HOURS : ctx.workHours;
+  if (h === null || h <= 0 || days === null || days === undefined || days <= 0) return null;
+  const n = Math.ceil(days * h - 1e-9);
+  return `${formatQty(n)} working hour${n === 1 ? '' : 's'}`;
+}
 const bench = (v: number | null | undefined, d: number): number | null => (v === undefined ? d : v === null ? null : Math.max(0, v));
 
 const pos = (n: number | null | undefined): number | null => (typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : null);
@@ -980,6 +995,8 @@ export interface ProcessPlanRow {
   units: number;
   /** Working days of work (sum of the steps ÷ parallel units); null when a time is missing. */
   days: number | null;
+  /** The same, not rounded (for working hours). */
+  rawDays: number | null;
   start: string | null;
   finish: string | null;
   items: number;
@@ -1002,6 +1019,7 @@ export function processPlanRows(plan: OrderPlan): ProcessPlanRow[] {
       rate: rates.join(', ') || (known ? 'fixed days' : 'time pending'),
       units: p.units,
       days: known ? roundUpHalf(p.steps.reduce((a, s) => a + s.days!, 0) / p.units) : null,
+      rawDays: known ? p.steps.reduce((a, s) => a + s.days!, 0) / p.units : null,
       start: p.start,
       finish: p.finish,
       items: p.steps.length,
