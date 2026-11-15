@@ -366,6 +366,30 @@ report the discrepancy and ask; do not silently choose.
     (WO ready + every step whose finish moved).
 -   Later: KPI "on time vs the submitted plan", count of plan revisions.
 
+## Speed, reads and file layout (confirmed 15 Nov 2026)
+
+-   Plan cache: `orderPlan()` (`src/lib/route.ts`) keeps the last plans
+    per WO record (same record object, same master data object, same
+    day, planning benchmark, calendar and parallel units → the same
+    result; max 8 per record). `orderPlanUncached()` is the plain
+    calculation (tests compare both).
+-   One Firestore listener per collection (`useCollection`, shared store
+    with `useSyncExternalStore`): every screen using the same list shares
+    it; a failed listener is retried after 30 s; listeners of the other
+    workspace are closed when nobody uses them.
+-   Settings → System health "Reads today (approx.)" of the 50 000
+    free reads (`src/lib/readsToday.ts`, per IST day, on the phone):
+    a list's first server snapshot after more than 30 min counts every
+    document, later ones only the changes; cache reads are free. Backup,
+    restore and history reads are not counted (said under the row).
+    Later: load older WOs / tasks only on "Show older".
+-   File split (no behaviour change): scheduling within one WO in
+    `src/lib/schedule.ts` (route.ts re-exports `itemOrderRuleOf`,
+    `ItemOrderRule`); plan documents in `src/lib/docs/planDoc.ts`
+    (model.ts re-exports them); Products tab parts in
+    `ProductsCards.tsx` (item order, plan by process) and
+    `StepParts.tsx` (step rows, dates, forms).
+
 ## Departments and contacts (skeleton, confirmed 21 Oct 2026)
 
 -   Departments master (`departments`, label "Departments"): name, notes,

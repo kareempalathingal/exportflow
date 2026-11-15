@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { BACKUP_REMIND_DAYS, daysSinceBackup, readLastBackup } from '../../lib/backup';
@@ -10,6 +10,8 @@ import { COLLECTIONS, type Customer, type Department, type Process, type Supplie
 import { readinessWorkspace } from '../../lib/readiness';
 import { summarize } from '../../lib/syncState';
 import { formatDateTime } from '../../lib/time';
+import { FREE_READS_PER_DAY, readsToday, subscribeReads } from '../../lib/readsToday';
+import { formatQty } from '../../lib/units';
 import { useCollection } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { useSyncOps } from '../sync/syncStore';
@@ -35,6 +37,7 @@ export function HealthCard() {
   const [checks, setChecks] = useState(false);
   const [copied, setCopied] = useState(false);
   const quota = quotaErrors(errors);
+  const reads = useSyncExternalStore(subscribeReads, () => readsToday(), () => 0);
 
   async function copy() {
     const text = errorReport(errors, { userAgent: navigator.userAgent });
@@ -76,6 +79,13 @@ export function HealthCard() {
               </span>
             )}
             {quota.length > 0 && <span className="error small block">The free plan’s daily limit was reached ({formatDateTime(new Date(quota[0]!.at))}). Saving resumes the next day; nothing saved is lost.</span>}
+          </span>
+        </li>
+        <li>
+          <span className={`dot ${reads >= FREE_READS_PER_DAY * 0.8 ? 'bad' : reads >= FREE_READS_PER_DAY * 0.5 ? 'warn' : 'ok'}`} aria-hidden="true" />
+          <span>
+            Reads today (approx.): {formatQty(reads)} of {formatQty(FREE_READS_PER_DAY)} ({Math.round((reads / FREE_READS_PER_DAY) * 100)}%)
+            <span className="muted small block">Lists read by this phone since midnight. Backup, restore and history reads are not counted; other phones count separately.</span>
           </span>
         </li>
         <li>

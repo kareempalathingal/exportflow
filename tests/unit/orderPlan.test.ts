@@ -225,3 +225,17 @@ describe('item order rule per WO (15 Nov 2026)', () => {
     expect(old.itemOrder.items.map((i) => i.lineId)).toEqual(['1', '2']);
   });
 });
+
+describe('plan cache (15 Nov 2026)', () => {
+  it('the same WO, masters and day give the same plan object; anything else is planned again', async () => {
+    const { orderPlanUncached } = await import('../../src/lib/route');
+    const w = order([line('1', 'a', 300), line('2', 'b', 300)]);
+    const c = ctx();
+    const p1 = orderPlan(w, '2026-11-02', c);
+    expect(orderPlan(w, '2026-11-02', { ...c })).toBe(p1); // a new ctx object with the same contents
+    expect(JSON.stringify(p1)).toBe(JSON.stringify(orderPlanUncached(w, '2026-11-02', c)));
+    expect(orderPlan(w, '2026-11-03', c)).not.toBe(p1);
+    expect(orderPlan(w, '2026-11-02', ctx({ tuft: 2 }))).not.toBe(p1);
+    expect(orderPlan({ ...w }, '2026-11-02', c)).not.toBe(p1); // a changed record is a new object
+  });
+});
