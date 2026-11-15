@@ -66,6 +66,10 @@ export interface PlanRow {
   usedForIds: string[];
   /** Made products in between (e.g. "Coir yarn" for coir fibre). */
   via: string[];
+  /** Items that use this one DIRECTLY (its BOM parents), e.g. coir yarn → base mat (15 Nov 2026). */
+  directFor: string[];
+  /** Making order: 0 = made from bought items only (e.g. base mat), 1 = made from a level-0 product… */
+  level: number;
   /** The item is itself a line of the order. */
   ordered: boolean;
 }
@@ -264,6 +268,20 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
     const sorted = (x: Set<string>) => [...x].sort((a, b) => a.localeCompare(b));
     return { usedFor: sorted(usedFor), usedForIds: [...usedForIds], via: sorted(via) };
   };
+  // Making order (15 Nov 2026): a product comes after every made product it is made from.
+  const madeKey = new Set([...made].map((id) => itemKey('PRODUCT', id)));
+  const levelMemo = new Map<string, number>();
+  const levelOf = (k: string, path: Set<string> = new Set()): number => {
+    const m = levelMemo.get(k);
+    if (m !== undefined) return m;
+    if (path.has(k)) return 0; // loop (reported above)
+    path.add(k);
+    const kids = [...new Set(links.filter((l) => l.parentKey === k && madeKey.has(l.childKey)).map((l) => l.childKey))];
+    const lv = kids.length ? 1 + Math.max(...kids.map((c) => levelOf(c, path))) : 0;
+    path.delete(k);
+    levelMemo.set(k, lv);
+    return lv;
+  };
   const toProduce: PlanRow[] = [];
   const toBuy: PlanRow[] = [];
   for (const [key, n] of needs) {
@@ -280,6 +298,8 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
       provisional: n.provisional,
       madeFrom: [...new Set(links.filter((l) => l.parentKey === key).map((l) => l.childName))].sort((a, b) => a.localeCompare(b)),
       ...ancestry(key),
+      directFor: [...new Set(parentsOf(key).map((pk) => nameOfKey.get(pk) ?? pk))].sort((a, b) => a.localeCompare(b)),
+      level: madeKey.has(key) ? levelOf(key) : 0,
       ordered: roots.has(key),
     };
     if (fromStock > n.qty + 1e-9) notes.push(`${n.name}: more stock set aside than this order needs`);
@@ -288,7 +308,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
   for (const key of Object.keys(stock))
     if (!needs.has(key)) notes.push(`Stock is set aside for an item this order no longer needs (${liveMd.products.get(parseItemKey(key)?.id ?? '')?.name ?? liveMd.rawMaterials.get(parseItemKey(key)?.id ?? '')?.name ?? key})`);
   const byName = (a: PlanRow, b: PlanRow) => a.name.localeCompare(b.name);
-  return { toProduce: toProduce.sort(byName), toBuy: toBuy.sort(byName), links, errors, notes, provisional };
+  return { toProduce: toProduce.sort((a, b) => a.level - b.level || byName(a, b)), toBuy: toBuy.sort(byName), links, errors, notes, provisional };
 }
 
 // ---------------------------------------------------------------------------

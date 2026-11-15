@@ -982,6 +982,15 @@ report the discrepancy and ask; do not silently choose.
     to submit). JO To produce / To buy PDFs get "Made from" / "For"; the
     Materials tab shows them plus "How it was worked out" per item.
     PDF tables: right-aligned (number) columns never wrap.
+-   Making order and direct links (confirmed 15 Nov 2026): "Products to
+    make" is listed in making order (`PlanRow.level`: 0 = made from bought
+    items only, e.g. the base mat; each product after every made product it
+    is made from; same level by name) and gets a "For" column; "For" on
+    raw materials and products is what uses the item DIRECTLY
+    (`PlanRow.directFor`, `directForText()`: coir yarn → base mat, base
+    mat → the ordered mats, "ordered" / "also ordered"). Plan PDFs, Excel,
+    the WO To produce / To buy PDFs and the Materials tab. The all-orders
+    To buy list keeps the ordered products (`usedFor`, for purchase).
 -   Step cards show progress (confirmed 27 Oct 2026): the line between
     landmarks is dark up to the step reached (`DocStepRoad.reached`: last
     done step, or the running one; the "Ready" pill when all are done).

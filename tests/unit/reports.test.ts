@@ -258,7 +258,16 @@ describe('materials: made from, needed for, calculation (confirmed 27 Oct 2026)'
     const ready = m.tables.find((t) => t.title === 'Ready-made products to buy')!;
     expect(ready.rows.map((r) => r[0])).toEqual(['Printed door mat 45×75 (sample)']);
     const raw = m.tables.find((t) => t.title === 'Raw materials to buy for production')!;
-    expect(raw.rows.find((r) => r[0]!.startsWith('Coir fibre'))![4]).toMatch(/\(via Coir yarn \(sample\)\)$/);
+    // "For" = what uses it directly (15 Nov 2026): coir fibre goes into the yarn, not straight into the mats.
+    expect(raw.rows.find((r) => r[0]!.startsWith('Coir fibre'))![4]).toBe('Coir yarn (sample)');
+    expect(fibre.directFor).toEqual(['Coir yarn (sample)']);
+    // Products to make in making order: the yarn (made from bought fibre) before the mats made from it.
+    const make = m.tables.find((t) => t.title === 'Products to make')!;
+    const names = make.rows.map((r) => r[0]!);
+    expect(names.findIndex((n) => n.startsWith('Coir yarn'))).toBe(0);
+    expect(make.columns.map((c) => c.label)).toEqual(['Item', 'Needed', 'From stock', 'To make', 'Made from', 'For']);
+    expect(make.rows[0]![5]).toMatch(/Coir (mat|rug)/);
+    expect(yarn.level).toBe(0);
   });
 });
 

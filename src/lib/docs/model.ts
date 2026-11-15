@@ -219,6 +219,18 @@ export function usedForText(r: Pick<PlanRow, 'usedFor' | 'via' | 'ordered'>, ord
   return parts.join('; ') || '—';
 }
 
+/**
+ * "Tufted base mat 5000 GSM" — what uses an item DIRECTLY (15 Nov 2026), so the chain reads
+ * raw material → base mat → ordered mat. "ordered" when the item is itself on the order.
+ */
+export function directForText(r: Pick<PlanRow, 'directFor' | 'ordered'>, orderedCount = 0, made = false): string {
+  const parts: string[] = [];
+  const all = orderedCount > 3 && r.directFor.length === orderedCount;
+  if (r.directFor.length) parts.push(all ? `all ${orderedCount} ordered products` : r.directFor.join(', '));
+  if (r.ordered) parts.push(made ? (r.directFor.length ? 'also ordered' : 'ordered') : r.directFor.length ? 'also ordered as is' : 'ordered as is');
+  return parts.join('; ') || '—';
+}
+
 function planRows(rows: PlanRow[], withType: boolean, names?: SupplierNames, orderedCount = 0): string[][] {
   return rows.map((r) => [
     `${r.name}${r.provisional ? ' *' : ''}`,
@@ -226,8 +238,8 @@ function planRows(rows: PlanRow[], withType: boolean, names?: SupplierNames, ord
     qty(r.gross, r.unit),
     r.fromStock > 0 ? qty(Math.min(r.fromStock, r.gross), r.unit) : '—',
     qty(r.net, r.unit),
-    withType ? usedForText(r, orderedCount) : madeFromText(r),
-    ...(withType ? [supplierCell(names, r.key)] : []),
+    withType ? directForText(r, orderedCount) : madeFromText(r),
+    ...(withType ? [supplierCell(names, r.key)] : [directForText(r, orderedCount, true)]),
   ]);
 }
 
@@ -266,7 +278,7 @@ export function planDoc(
           { label: 'From stock', align: 'right' as const },
           { label: produce ? 'To produce' : 'To buy', align: 'right' as const },
           { label: produce ? 'Made from' : 'For' },
-          ...(produce ? [] : [{ label: 'Suppliers' }]),
+          ...(produce ? [{ label: 'For' }] : [{ label: 'Suppliers' }]),
         ],
         rows: planRows(rows, !produce, opts.supplierNames, orderedProductCount(jo)),
         empty: produce ? 'Nothing to make for this order.' : 'Nothing to buy for this order.',
@@ -882,7 +894,8 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   if (procRows.length) tables.push(procTable);
 
   // Materials (confirmed 27 Oct 2026): what to make (and from what), raw materials to buy for
-  // production (and for which ordered products), ready-made products to buy.
+  // production, ready-made products to buy. Since 15 Nov 2026: products in making order (base
+  // mat first) and "For" = what uses the item directly.
   const matRow = (r: PlanRow, extra: string[]) => [
     `${r.name}${r.provisional && !clean ? ' *' : ''}`,
     qty(r.gross, r.unit),
@@ -896,14 +909,14 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   tables.push(
     {
       title: 'Products to make',
-      columns: [{ label: 'Item' }, ...nums, { label: 'To make', align: 'right' }, { label: 'Made from' }],
-      rows: mat.toProduce.map((r) => matRow(r, [madeFromText(r)])),
+      columns: [{ label: 'Item' }, ...nums, { label: 'To make', align: 'right' }, { label: 'Made from' }, { label: 'For' }],
+      rows: mat.toProduce.map((r) => matRow(r, [madeFromText(r), directForText(r, orderedProductCount(jo), true)])),
       empty: 'Nothing to make.',
     },
     {
       title: 'Raw materials to buy for production',
       columns: [{ label: 'Item' }, ...nums, { label: 'To buy', align: 'right' }, { label: 'For' }, { label: 'Suppliers' }],
-      rows: forProduction.map((r) => matRow(r, [usedForText(r, orderedProductCount(jo)), supplierCell(input.supplierNames, r.key)])),
+      rows: forProduction.map((r) => matRow(r, [directForText(r, orderedProductCount(jo)), supplierCell(input.supplierNames, r.key)])),
       empty: 'Nothing to buy for production.',
     },
     ...(readyMade.length

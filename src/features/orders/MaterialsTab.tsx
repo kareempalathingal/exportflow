@@ -18,7 +18,7 @@ import type { WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { useCollection } from '../masters/useCollection';
 import { DocButtons } from '../docs/DocButtons';
-import { madeFromText, orderedProductCount, planDoc, usedForText } from '../../lib/docs/model';
+import { directForText, madeFromText, orderedProductCount, planDoc } from '../../lib/docs/model';
 import { LongList, LONG_LIST_INLINE } from '../../components/LongList';
 
 interface EntryDraft {
@@ -160,31 +160,27 @@ export function MaterialsTab(props: {
           {r.name}
           {r.provisional && <span className="pill warn inline-pill">provisional</span>}
         </legend>
-        {verb === 'To produce' ? (
-          r.madeFrom.length > 0 && (
-            <div className="muted small">
-              Made from:{' '}
-              {r.madeFrom.length > LONG_LIST_INLINE ? (
-                <LongList as="comma" summary={`${r.madeFrom.length} items`} entries={r.madeFrom.map((n) => ({ key: n, node: n }))} />
-              ) : (
-                madeFromText(r)
-              )}
-            </div>
-          )
-        ) : (
+        {verb === 'To produce' && r.madeFrom.length > 0 && (
           <div className="muted small">
-            For:{' '}
-            {r.usedFor.length > LONG_LIST_INLINE && r.usedFor.length < orderedCount ? (
-              <>
-                <LongList as="comma" summary={`${r.usedFor.length} products`} entries={r.usedFor.map((n) => ({ key: n, node: n }))} />
-                {r.via.length > 0 && ` (via ${r.via.join(', ')})`}
-                {r.ordered && '; also ordered as is'}
-              </>
+            Made from:{' '}
+            {r.madeFrom.length > LONG_LIST_INLINE ? (
+              <LongList as="comma" summary={`${r.madeFrom.length} items`} entries={r.madeFrom.map((n) => ({ key: n, node: n }))} />
             ) : (
-              usedForText(r, orderedCount)
+              madeFromText(r)
             )}
           </div>
         )}
+        <div className="muted small">
+          For:{' '}
+          {r.directFor.length > LONG_LIST_INLINE && r.directFor.length < orderedCount ? (
+            <>
+              <LongList as="comma" summary={`${r.directFor.length} products`} entries={r.directFor.map((n) => ({ key: n, node: n }))} />
+              {r.ordered && (verb === 'To produce' ? '; also ordered' : '; also ordered as is')}
+            </>
+          ) : (
+            directForText(r, orderedCount, verb === 'To produce')
+          )}
+        </div>
         <div className="mat-figures">
           <span>
             <span className="kicker">Needed</span>
