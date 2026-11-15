@@ -440,7 +440,8 @@ export function JobOrderPage() {
       )}
 
       {!isNew && item && <ProgressCard key={`${item.id}:${item.rev}`} jo={item} md={md} />}
-      {!isNew && item && status !== 'CANCELLED' && (
+      {!isNew && item && master.notReady && <p className="notice warn small">{master.notReady}</p>}
+      {!isNew && item && status !== 'CANCELLED' && !master.notReady && (
         <div className="card doc-card">
           {(['submit', 'working'] as const).map((variant) => (
             <DocButtons
@@ -485,7 +486,7 @@ export function JobOrderPage() {
       {!isNew && item && tab === 'products' && <ProductsTab jo={item} md={md} processes={processMap} />}
       {!isNew && item && (
         <div hidden={tab !== 'materials'}>
-          <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} company={company} />
+          {master.notReady ? <p className="muted small">Materials are shown once Masters have loaded.</p> : <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} company={company} />}
         </div>
       )}
       <form className="card" onSubmit={submit} noValidate hidden={tab !== 'order'}>

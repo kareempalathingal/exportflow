@@ -312,7 +312,7 @@ export function MaterialsTab(props: {
           </button>
         </div>
       )}
-      {plan.toBuy.length === 0 ? <p className="muted small">Nothing to buy yet.</p> : plan.toBuy.map((r) => rowView(r, 'To buy'))}
+      {plan.toBuy.length === 0 ? <p className={plan.missingLines ? 'warn small' : 'muted small'}>{plan.missingLines ? 'Not calculated - BOM lines point to items not found in Masters (see above).' : 'Nothing to buy yet.'}</p> : plan.toBuy.map((r) => rowView(r, 'To buy'))}
 
       {editable && (plan.toProduce.length > 0 || plan.toBuy.length > 0) && (
         <div className="card">

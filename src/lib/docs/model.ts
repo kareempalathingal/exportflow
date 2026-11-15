@@ -281,7 +281,7 @@ export function planDoc(
           ...(produce ? [{ label: 'For' }] : [{ label: 'Suppliers' }]),
         ],
         rows: planRows(rows, !produce, opts.supplierNames, orderedProductCount(jo)),
-        empty: produce ? 'Nothing to make for this order.' : 'Nothing to buy for this order.',
+        empty: plan.missingLines ? 'Not calculated - BOM lines point to items not found in Masters (see the reasons at the top).' : produce ? 'Nothing to make for this order.' : 'Nothing to buy for this order.',
       },
     ],
     notes: planNotes(plan, rows),
@@ -917,7 +917,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       title: 'Raw materials to buy for production',
       columns: [{ label: 'Item' }, ...nums, { label: 'To buy', align: 'right' }, { label: 'For' }, { label: 'Suppliers' }],
       rows: forProduction.map((r) => matRow(r, [directForText(r, orderedProductCount(jo)), supplierCell(input.supplierNames, r.key)])),
-      empty: 'Nothing to buy for production.',
+      empty: mat.missingLines ? 'Not calculated - BOM lines point to items not found in Masters (see open points).' : 'Nothing to buy for production.',
     },
     ...(readyMade.length
       ? [

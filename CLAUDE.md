@@ -991,6 +991,17 @@ report the discrepancy and ask; do not silently choose.
     mat → the ordered mats, "ordered" / "also ordered"). Plan PDFs, Excel,
     the WO To produce / To buy PDFs and the Materials tab. The all-orders
     To buy list keeps the ordered products (`usedFor`, for purchase).
+-   Masters must be complete before material figures (confirmed 15 Nov
+    2026, after a plan PDF showed "Nothing to buy" while raw materials
+    had not loaded): `useCollection` exposes `fromCache`;
+    `useMasterData().notReady` (`mastersNotReady()`) is a message while
+    products / raw materials / BOMs are loading, failed, or are only the
+    phone's saved copy while online (offline the saved copy is allowed).
+    Then the WO page hides the plan PDFs and "Save as submitted plan" and
+    the Materials tab, and Reports (plan, To buy) and Orders → To buy show
+    the message instead. A BOM line whose item is not in Masters is
+    counted (`MaterialPlan.missingLines`, error names the id) and the
+    lists read "Not calculated - …" instead of "Nothing to buy".
 -   Step cards show progress (confirmed 27 Oct 2026): the line between
     landmarks is dark up to the step reached (`DocStepRoad.reached`: last
     done step, or the running one; the "Ready" pill when all are done).

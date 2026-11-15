@@ -9,6 +9,8 @@ export function useCollection<T>(workspaceId: string | null, name: string) {
   const [items, setItems] = useState<WithMeta<T>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // True while the list comes only from the phone's saved copy, which may be incomplete (15 Nov 2026).
+  const [fromCache, setFromCache] = useState(true);
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -20,6 +22,7 @@ export function useCollection<T>(workspaceId: string | null, name: string) {
         setItems(
           snap.docs.map((d) => ({ ...(d.data() as T & VersionedRecord), id: d.id, pending: d.metadata.hasPendingWrites })),
         );
+        setFromCache(snap.metadata.fromCache);
         setLoading(false);
         setError(null);
       },
@@ -30,7 +33,7 @@ export function useCollection<T>(workspaceId: string | null, name: string) {
     );
   }, [workspaceId, name]);
 
-  return { items, loading, error };
+  return { items, loading, error, fromCache };
 }
 
 export function useDocument<T>(workspaceId: string | null, name: string, id: string | null) {

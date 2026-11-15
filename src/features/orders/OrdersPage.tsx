@@ -75,7 +75,8 @@ export function OrdersPage() {
       </div>
       {jos.loading && <p className="muted">{t('loading')}</p>}
       {jos.error && <p className="error">{permissionHint(jos.error)}</p>}
-      {tab.id === 'to-buy' && !jos.loading && !jos.error && <ToBuyList jos={jos.items} md={master.md} counts={counts.items} company={profile?.companyName?.value ?? ''} suppliers={suppliers.items} />}
+      {tab.id === 'to-buy' && master.notReady && <p className="warn small">{master.notReady}</p>}
+      {tab.id === 'to-buy' && !jos.loading && !jos.error && !master.notReady && <ToBuyList jos={jos.items} md={master.md} counts={counts.items} company={profile?.companyName?.value ?? ''} suppliers={suppliers.items} />}
       {tab.id === 'awaited' && !jos.loading && !jos.error && <AwaitedList jos={jos.items} ctx={ctx} suppliers={suppliers.items} today={today} alertDays={profile?.alertDays ?? DEFAULT_ALERT_DAYS} company={profile?.companyName?.value ?? ''} />}
       {tab.id !== 'to-buy' && tab.id !== 'awaited' && (
         <input className="search" type="search" placeholder="Search WO No., customer, PO" value={q} onChange={(e) => setQ(e.target.value)} />

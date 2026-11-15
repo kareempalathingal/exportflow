@@ -98,3 +98,26 @@ describe('submitted plan', () => {
     }
   });
 });
+
+describe('materials never read "nothing to buy" when Masters are incomplete (15 Nov 2026)', () => {
+  it('a BOM line to an item not in Masters: the list says "Not calculated" and names the id', async () => {
+    const { planMaterials } = await import('../../src/lib/materials');
+    const { productionPlanDoc } = await import('../../src/lib/docs/model');
+    const mdx: MasterData = { ...md, boms: new Map([['a', { productId: 'a', notes: '', lines: [{ componentType: 'RAW_MATERIAL', componentId: 'rm-gone', qty: 1, unit: 'kg', wastagePct: 0, status: 'USER_PROVIDED', source: '' }] }]]) } as unknown as MasterData;
+    const w = jo([line(10)]);
+    const plan = planMaterials(w, mdx);
+    expect(plan.missingLines).toBe(1);
+    expect(plan.errors[0]).toContain('(rm-gone)');
+    const m = productionPlanDoc({ jo: w, md: mdx, processes, ctx: { ...ctx, md: mdx }, today: '2026-11-02', company: 'Co', generatedAt: 'x', preparedBy: { name: '', designation: '' } });
+    expect(m.tables.find((t) => t.title === 'Raw materials to buy for production')!.empty).toMatch(/^Not calculated/);
+  });
+  it('Masters loading, failed, or only the saved copy while online: not ready', async () => {
+    const { mastersNotReady } = await import('../../src/features/masters/useMasterData');
+    const ok = { loading: false, error: null, fromCache: false };
+    expect(mastersNotReady([ok, ok], true)).toBeNull();
+    expect(mastersNotReady([ok, { ...ok, loading: true }], true)).toMatch(/still loading/);
+    expect(mastersNotReady([ok, { ...ok, error: 'resource-exhausted' }], true)).toMatch(/resource-exhausted/);
+    expect(mastersNotReady([ok, { ...ok, fromCache: true }], true)).toMatch(/from the server/);
+    expect(mastersNotReady([ok, { ...ok, fromCache: true }], false)).toBeNull(); // offline: the saved copy is all there is
+  });
+});

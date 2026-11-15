@@ -99,6 +99,8 @@ export interface MaterialPlan {
   errors: string[]; // missing data that stops part of the calculation
   notes: string[]; // things worth knowing that do not stop it
   provisional: boolean;
+  /** BOM lines whose item is not in Masters: the materials list is incomplete, never "nothing to buy". */
+  missingLines?: number;
 }
 
 interface Need {
@@ -122,6 +124,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
   const errors: string[] = [];
   const notes: string[] = [];
   let provisional = false;
+  let missingLines = 0;
   const needs = new Map<string, Need>();
   const links: MaterialLink[] = [];
   const add = (n: Need) => {
@@ -201,7 +204,8 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
         const c = lineComponent(bl);
         const comp = componentContext(c.type, c.id, md);
         if (!comp) {
-          errors.push(`${p.name}: a BOM line points to a missing ${c.type === 'PRODUCT' ? 'product' : 'raw material'}`);
+          errors.push(`${p.name}: a BOM line points to a ${c.type === 'PRODUCT' ? 'product' : 'raw material'} not found in Masters (${c.id})`);
+          missingLines++;
           provisional = true;
           continue;
         }
@@ -308,7 +312,7 @@ export function planMaterials(jo: Pick<JobOrder, 'lines' | 'status' | 'bomSnapsh
   for (const key of Object.keys(stock))
     if (!needs.has(key)) notes.push(`Stock is set aside for an item this order no longer needs (${liveMd.products.get(parseItemKey(key)?.id ?? '')?.name ?? liveMd.rawMaterials.get(parseItemKey(key)?.id ?? '')?.name ?? key})`);
   const byName = (a: PlanRow, b: PlanRow) => a.name.localeCompare(b.name);
-  return { toProduce: toProduce.sort((a, b) => a.level - b.level || byName(a, b)), toBuy: toBuy.sort(byName), links, errors, notes, provisional };
+  return { toProduce: toProduce.sort((a, b) => a.level - b.level || byName(a, b)), toBuy: toBuy.sort(byName), links, errors, notes, provisional, missingLines };
 }
 
 // ---------------------------------------------------------------------------

@@ -126,7 +126,9 @@ export function ReportsPage() {
                   ))}
                 </select>
               </label>
+              {chosen && master.notReady && <p className="warn small">{master.notReady}</p>}
               {chosen &&
+                !master.notReady &&
                 (['submit', 'working'] as const).map((variant) => (
                   <DocButtons
                     key={variant}
@@ -171,10 +173,11 @@ export function ReportsPage() {
 
           <SettingSection title="To buy — all orders" summary={`${toBuy.rows.length} item${toBuy.rows.length === 1 ? '' : 's'}`}>
             <div className="card doc-card">
+              {master.notReady && <p className="warn small">{master.notReady}</p>}
               <label className="check">
                 <input type="checkbox" checked={bySupplier} onChange={(e) => setBySupplier(e.target.checked)} /> Group by supplier
               </label>
-              {bySupplier ? (
+              {master.notReady ? null : bySupplier ? (
                 <DocButtons
                   label="To buy — by supplier, confirmed orders (PDF)"
                   build={() => toBuyBySupplierDoc(toBuyBySupplier(toBuy.rows, suppliers.items), toBuy.ordersWithErrors, { company, includeDrafts: false, today, generatedAt: generatedAt() })}
