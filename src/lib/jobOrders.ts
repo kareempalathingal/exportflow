@@ -2,6 +2,7 @@
  * Work Order core (Phase 3a): shapes and pure, deterministic calculations.
  * Requirements v1.9 §31.4 (10% buffer) and CLAUDE.md phase-plan decisions.
  */
+import type { PlanBaseline } from './baseline';
 import type { ProgressEntry } from './progress';
 import {
   bomStatus,
@@ -249,6 +250,8 @@ export interface JobOrder {
   materialDates?: Record<string, MaterialDates>;
   /** Item order rule (15 Nov 2026), saved at confirmation; absent on WOs confirmed before = listed order. */
   itemOrderRule?: 'PRIORITY' | 'LISTED';
+  /** Submitted plans (15 Nov 2026), oldest first; compared with the latest. See src/lib/baseline.ts. */
+  baselines?: PlanBaseline[];
 }
 
 /** Completion date after a status change: set on completion, cleared on reopen, else kept. */

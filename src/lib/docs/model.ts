@@ -5,6 +5,7 @@
 import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, workingDaysBetween, type WorkCalendar } from '../calendar';
 import { ITEM_ORDER_RULE, LISTED_RULE, daysLeftText, gainText } from '../itemOrder';
+import { compareToPlan, diffText as baselineDiffText, stepKey } from '../baseline';
 import { buildLineSteps, isLandingStep, DEFAULT_PLANNING_DAYS, isBuiltIn, lineProgress, MATERIALS_KEY, lineSchedule, orderPlan, orderStart, orderStepProgress, orderTrack, planLines, PLANNING_KEY, processPlanRows, type ItemOrder, type PlanContext } from '../route';
 import type { Department, MasterData, Process } from '../masters';
 import { departmentsFor } from '../contacts';
@@ -939,6 +940,26 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       empty: 'None found in the data available.',
     },
   );
+
+  // Submitted plan (15 Nov 2026): what moved since the plan given to management (both versions).
+  const vs = draft ? null : compareToPlan(order, oplan, cal);
+  if (vs) {
+    const day = (d: string | null) => (d ? formatDay(d) : 'to be confirmed');
+    const rows: string[][] = [['WO ready (last item)', day(vs.base.ready), day(vs.readyNow), vs.readyDiff === null ? '-' : baselineDiffText(vs.readyDiff)]];
+    for (const { line, lp } of oplan.lines) {
+      for (const st of lp.schedule ?? []) {
+        const p = vs.steps.get(stepKey(line.id, st.view.step.key));
+        if (!p || p.diff === null || p.diff === 0 || st.view.step.key === PLANNING_KEY) continue;
+        rows.push([`${line.productName} · ${st.view.step.label}`, day(p.planFinish), day(st.finish), baselineDiffText(p.diff)]);
+      }
+    }
+    tables.splice(tables.length - 1, 0, {
+      title: `Changes since the submitted plan (v${vs.base.version}, ${formatDay(vs.base.savedOn)})`,
+      columns: [{ label: 'Item / step' }, { label: 'Plan' }, { label: 'Now' }, { label: 'Change' }],
+      rows,
+      empty: '',
+    });
+  }
 
   const uniq = [...new Set(provisional)];
   const overview = clean ? planOverview({ order, lines, md, cal, today, draft, track, expected, spare }) : null;

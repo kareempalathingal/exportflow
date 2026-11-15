@@ -42,7 +42,8 @@ import { IMPORT_DRAFT_KEY, type ImportDraft } from './ImportPage';
 import { ItemsCard } from './ItemsCard';
 import { ProgressCard } from './ProgressCard';
 import { ProductsTab } from './ProductsTab';
-import { buildLineSteps, unitsMap } from '../../lib/route';
+import { buildLineSteps, orderPlan, unitsMap } from '../../lib/route';
+import { BaselineCard, SavePlanForm } from './BaselineCard';
 import type { Department, Process } from '../../lib/masters';
 import { DocButtons } from '../docs/DocButtons';
 import { joSummaryDoc, productionPlanDoc } from '../../lib/docs/model';
@@ -171,6 +172,8 @@ export function JobOrderPage() {
         ? 'order'
         : 'products';
   const editable = isNew || isEditable(status);
+  // Whole-order plan for the submitted-plan card (confirmed / completed WOs).
+  const oplan = !isNew && item && item.status !== 'DRAFT' && item.status !== 'CANCELLED' ? orderPlan(item, today, { md, cal, planningDays: profile?.planningDays, units: unitsMap(processMap) }) : null;
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
   const setLine = (i: number, patch: Partial<LineDraft>) => set({ lines: d.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) });
   const dirty = JSON.stringify(d) !== savedDraft.current;
@@ -253,6 +256,7 @@ export function JobOrderPage() {
       ...(item?.materialDates || (next === 'CONFIRMED' && status === 'DRAFT') ? { materialDates: item?.materialDates ?? {} } : {}),
       // Item priority (15 Nov 2026): saved when the WO is confirmed; older WOs keep the listed order until changed.
       ...(next === 'CONFIRMED' && (isNew || status === 'DRAFT') ? { itemOrderRule: 'PRIORITY' as const } : item?.itemOrderRule ? { itemOrderRule: item.itemOrderRule } : {}),
+      ...(item?.baselines ? { baselines: item.baselines } : {}),
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;
@@ -367,6 +371,7 @@ export function JobOrderPage() {
           </div>
 
           <ItemsCard jo={item!} id={item!.id} md={md} ctx={{ md, cal, planningDays: profile?.planningDays, units: unitsMap(processMap) }} today={today} />
+          {oplan && <BaselineCard jo={item!} oplan={oplan} cal={cal} />}
 
           {changed.length > 0 && (
             <div className="card subtle">
@@ -458,6 +463,7 @@ export function JobOrderPage() {
               }
             />
           ))}
+          {oplan && !dirty && <SavePlanForm jo={item} oplan={oplan} />}
           {!profile?.preparedByName && <p className="muted small">Add your name and designation in Settings so they appear under “Prepared by”.</p>}
           {dirty && <p className="warn small">Unsaved changes are not in the plan — save first.</p>}
         </div>

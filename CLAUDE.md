@@ -344,9 +344,27 @@ report the discrepancy and ask; do not silently choose.
     adds the listed-order comparison and days left per item.
 -   Not verified yet against the real WO 95 test order (its data stays
     outside the repo): check Reports → Item priority after the update.
--   Next (confirmed 15 Nov 2026, to design): "Submitted plan" baseline —
-    save the step dates of the plan given to management, then show plan
-    vs now everywhere.
+
+## Submitted plan (baseline, confirmed 15 Nov 2026)
+
+-   `src/lib/baseline.ts`, `JobOrder.baselines` (oldest first, max 20; no
+    rules change). Saved only by "Save as submitted plan (vN)" next to the
+    plan PDFs on a CONFIRMED WO (`SavePlanForm`), never on share: every
+    step's start / finish (`lineId` + step key) from the plan as it stands,
+    WO ready (last item), internal deadline, WO rev, saved date / time;
+    "Why a new version" required from v2; optional "Approved by / on"
+    (written by the user, no future date; the app never approves). History
+    entry "Submitted plan vN saved: <reason>".
+-   Compared with the LATEST version (`compareToPlan()`): WO page card
+    (`BaselineCard`: plan vs now ready with "+N working days", steps
+    behind plan, steps not in the plan, approval, "first submitted" (v1)
+    and a collapsed versions list); every step on the Products tab "Plan
+    <date> (+N)" (amber when later) or "Not in the submitted plan";
+    Orders at risk "Watch" when the expected finish is more than
+    `BASELINE_WATCH_DAYS` (2) working days after the plan's ready date;
+    both plan PDFs a table "Changes since the submitted plan (vN, date)"
+    (WO ready + every step whose finish moved).
+-   Later: KPI "on time vs the submitted plan", count of plan revisions.
 
 ## Departments and contacts (skeleton, confirmed 21 Oct 2026)
 

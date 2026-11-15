@@ -20,6 +20,7 @@ import { saveRecord } from '../sync/records';
 import { jobOrderData } from './MaterialsTab';
 import { TrackBar } from './TrackBar';
 import { daysLeftText, gainText, itemOrderRule } from '../../lib/itemOrder';
+import { compareToPlan, stepKey, type PlanCompare } from '../../lib/baseline';
 import type { ItemOrder } from '../../lib/route';
 
 /** Item order (15 Nov 2026): who goes first at a shared process, and what it changes against the other rule. */
@@ -94,6 +95,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   // Whole-order plan: the items share each process (5 Nov 2026).
   const oplan = jo.status === 'DRAFT' ? null : orderPlan(jo, today, ctx);
   const lpByLine = new Map((oplan?.lines ?? []).map((x) => [x.line.id, x.lp]));
+  const vsPlan = oplan ? compareToPlan(jo, oplan, cal) : null;
 
   function saveLines(lines: JoLine[], what: string) {
     if (!workspaceId) return;
@@ -149,7 +151,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} vsPlan={vsPlan} />
           </li>
         ))}
       </ul>
@@ -238,6 +240,7 @@ function LineCard(props: {
   departments: Department[];
   suppliers: (Supplier & { id: string })[];
   onSteps: (steps: JoStep[], what: string) => void;
+  vsPlan: PlanCompare | null;
 }) {
   const { jo, line, raw, today, editable, ctx } = props;
   const cal = ctx.cal;
@@ -474,7 +477,7 @@ function LineCard(props: {
 
       <ol className="stepper">
         {lp.steps.map((v, i) => (
-          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} actions={actionsFor(v)} follow={followFor(v)} />
+          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} actions={actionsFor(v)} follow={followFor(v)} plan={props.vsPlan ? planNote(props.vsPlan, line.id, v) : undefined} />
         ))}
       </ol>
       {dates.ready && <ReadyRow ready={dates.ready} />}
@@ -575,7 +578,23 @@ function ReadyRow({ ready: r }: { ready: ReadyDate }) {
   );
 }
 
-function StepRow({ v, date, productName, contacts, actions, follow }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode; actions?: ReactNode; follow?: ReactNode }) {
+/** "· plan 26 Sep (+2)" under a step, against the submitted plan (15 Nov 2026). */
+function planNote(c: PlanCompare, lineId: string, v: StepView): ReactNode {
+  if (isBuiltIn(v.step) && v.step.key !== MATERIALS_KEY) return null;
+  const p = c.steps.get(stepKey(lineId, v.step.key));
+  if (!p) return <span className="muted small block">Not in the submitted plan (v{c.base.version})</span>;
+  if (!p.planFinish) return <span className="muted small block">Submitted plan: date to be confirmed</span>;
+  const range = v.state === 'TODO' && p.planStart && p.planStart !== p.planFinish ? `${formatDay(p.planStart)} → ${formatDay(p.planFinish)}` : formatDay(p.planFinish);
+  const late = p.diff !== null && p.diff > 0;
+  return (
+    <span className={`small block ${late ? 'warn' : 'muted'}`}>
+      Plan {range}
+      {p.diff !== null && p.diff !== 0 && ` (${p.diff > 0 ? '+' : '−'}${Math.abs(p.diff)})`}
+    </span>
+  );
+}
+
+function StepRow({ v, date, productName, contacts, actions, follow, plan }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode; actions?: ReactNode; follow?: ReactNode; plan?: ReactNode }) {
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
   const over = v.overrunDays !== null && v.overrunDays > 0;
@@ -620,6 +639,7 @@ function StepRow({ v, date, productName, contacts, actions, follow }: { v: StepV
         {s.outputQty !== null && s.outputQty !== undefined && s.qty !== null && s.qtyUnit && v.state !== 'DONE' && <OutputProgress s={s} />}
         {follow}
         <StepDateLine d={date} materials={s.key === MATERIALS_KEY} />
+        {plan}
         {s.basis && <span className="muted small block">{s.basis}</span>}
         {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
         {contacts}

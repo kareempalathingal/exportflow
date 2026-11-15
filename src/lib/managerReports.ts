@@ -4,6 +4,7 @@
  * work list, stock allocation and To buy by supplier. Pure and deterministic;
  * nothing is estimated — unknown values stay unknown.
  */
+import { BASELINE_WATCH_DAYS, latestBaseline } from './baseline';
 import { addWorkingDays, weekday, workingDaysBetween } from './calendar';
 import { departmentsFor } from './contacts';
 import { addDays, daysBetween, DELIVERY_DATE_TYPES, formatDay, type JobOrder } from './jobOrders';
@@ -148,6 +149,10 @@ export function atRiskOrders(args: { jobOrders: Jo[]; ctx: PlanContext; today: s
         reasons.push({ level: -t.gap >= redAt ? 'HIGH' : 'WATCH', text: `${-t.gap}% behind plan (done ${t.actual}%, plan ${t.planned}%)` });
       for (const r of o.overruns) reasons.push({ level: 'WATCH', text: `${r.product} · ${r.step} running ${plural(r.days, 'working day')} over plan` });
       if (t.kind === 'NOT_TRACKED') reasons.push({ level: 'WATCH', text: 'Progress not tracked - cannot tell if it is on time' });
+      // Submitted plan (15 Nov 2026): more than BASELINE_WATCH_DAYS behind its ready date.
+      const b = latestBaseline(jo);
+      const behind = b?.ready && o.expectedFinish ? workingDaysBetween(b.ready, o.expectedFinish, cal) : null;
+      if (behind !== null && behind > BASELINE_WATCH_DAYS) reasons.push({ level: 'WATCH', text: `${plural(behind, 'working day')} behind the submitted plan (v${b!.version}: ready ${formatDay(b!.ready!)})` });
     }
     if (!reasons.length) continue;
     const level = reasons.map((r) => r.level).sort((a, b) => LEVEL_ORDER[a] - LEVEL_ORDER[b])[0]!;

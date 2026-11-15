@@ -50,6 +50,7 @@ export function jobOrderData(jo: JobOrder): JobOrder {
     completedOn: jo.completedOn ?? null,
     ...(jo.materialDates ? { materialDates: jo.materialDates } : {}),
     ...(jo.itemOrderRule ? { itemOrderRule: jo.itemOrderRule } : {}),
+    ...(jo.baselines ? { baselines: jo.baselines } : {}),
   };
 }
 
