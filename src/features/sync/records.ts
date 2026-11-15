@@ -39,6 +39,12 @@ export interface SaveArgs {
  * locally when offline; the returned op is tracked until the server confirms
  * or rejects it. The UI never waits for the server.
  */
+let localWriteHook: ((path: string) => void) | null = null;
+/** `useCollection` registers here to show a record saved on this phone at once (delta sync, 15 Nov 2026). */
+export function setLocalWriteHook(f: (path: string) => void): void {
+  localWriteHook = f;
+}
+
 export function saveRecord(args: SaveArgs): PendingOp {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error('Not signed in');
@@ -83,6 +89,7 @@ export function saveRecord(args: SaveArgs): PendingOp {
     status: 'PENDING',
   };
   syncStore.upsert(op);
+  localWriteHook?.(path);
 
   batch.commit().then(
     () => syncStore.update(op.id, markSynced),

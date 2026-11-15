@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import {
+  CACHE_SIZE_UNLIMITED,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
@@ -26,7 +27,9 @@ function createFirestore(): { db: Firestore; offlineCache: boolean } {
   try {
     return {
       db: initializeFirestore(app, {
-        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+        // Unlimited: the saved copy is never trimmed by Firestore, so lists read only by
+        // changes (delta sync, 15 Nov 2026) keep every record on the phone.
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager(), cacheSizeBytes: CACHE_SIZE_UNLIMITED }),
       }),
       offlineCache: true,
     };

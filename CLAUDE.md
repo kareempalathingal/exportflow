@@ -379,7 +379,22 @@ report the discrepancy and ask; do not silently choose.
     a list's first server snapshot after more than 30 min counts every
     document, later ones only the changes; cache reads are free. Backup,
     restore and history reads are not counted (said under the row).
-    Later: load older WOs / tasks only on "Show older".
+-   Delta sync (confirmed 15 Nov 2026, replaces the planned "Show older";
+    rules in `src/lib/deltaSync.ts`, used by `useCollection`): the first
+    open of a list each IST day reads it whole from the server; later
+    opens start from the phone's saved copy and listen only to records
+    with `updatedAt` since the newest one seen, minus a 10-minute overlap.
+    Safety nets (the user asked that no record may ever go missing on the
+    phone): every start compares the record count with the server
+    (`getCountFromServer`, about 1 read per 1 000 records) and reads the
+    list whole on any difference, a failed saved-copy read or a refused
+    query (logged in System health errors); records saved on this phone
+    are watched one by one until the server has them (`setLocalWriteHook`
+    in `records.ts`), so they show at once, also offline; the Firestore
+    cache is unlimited (never trimmed); Clear DEMO and System health "Read
+    everything again" read every list whole; backups always read from the
+    server (`getDocsFromServer`, needs internet). Writes are unchanged:
+    the server stays the single truth. No rules or index change.
 -   File split (no behaviour change): scheduling within one WO in
     `src/lib/schedule.ts` (route.ts re-exports `itemOrderRuleOf`,
     `ItemOrderRule`); plan documents in `src/lib/docs/planDoc.ts`
@@ -871,10 +886,9 @@ report the discrepancy and ask; do not silently choose.
     read whole (`useCollection`), and after the cache goes stale (~30 min)
     a re-open re-reads it; ~5,000 docs × ~10 opens a day reaches the
     50,000 reads/day limit, and tasks / completed orders keep growing
-    (never deleted). Before the import: load only what is needed —
-    open tasks + done in the last 30 days, completed orders older than a
-    few months only on "Show older" (still to do). The reads-today
-    counter in System health is built (15 Nov 2026). Blaze (with a budget
+    (never deleted). Done 15 Nov 2026: the reads-today counter
+    and delta sync (see "Speed, reads and file layout"), so a list is read
+    whole once a day and otherwise only by changes. Blaze (with a budget
     alert) only if reads still approach the limit.
 
 ## My report and Look ahead (confirmed 27 Oct 2026)

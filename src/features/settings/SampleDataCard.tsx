@@ -1,3 +1,4 @@
+import { readListsAgain } from '../masters/useCollection';
 import { useState } from 'react';
 import { collection, doc, getDoc, getDocsFromServer, writeBatch } from 'firebase/firestore';
 import { BACKUP_COLLECTIONS } from '../../lib/backup';
@@ -61,6 +62,7 @@ export function SampleDataCard() {
           n += Math.min(400, snap.docs.length - i);
         }
       }
+      readListsAgain(workspaceId);
       setWord('');
       setMsg(`DEMO cleared: ${n} records deleted. ACTUAL was not touched.`);
     } catch (e) {

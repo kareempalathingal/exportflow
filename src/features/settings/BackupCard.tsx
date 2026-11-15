@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocsFromServer } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useApp } from '../../AppContext';
 import { BACKUP_COLLECTIONS, BACKUP_REMIND_DAYS, backupFileName, buildBackup, daysSinceBackup, markBackedUp, readLastBackup } from '../../lib/backup';
@@ -15,7 +15,9 @@ export async function takeBackup(
 ): Promise<{ result: SaveResult; total: number; at: Date; file: { blob: Blob; name: string } }> {
   const collections: Record<string, { id: string; data: unknown }[]> = {};
   for (const name of BACKUP_COLLECTIONS) {
-    const snap = await getDocs(collection(db, `workspaces/${workspaceId}/${name}`));
+    // Always from the server (15 Nov 2026): a backup never comes from the phone's saved copy,
+    // so it holds every record even if that copy were incomplete. Needs internet.
+    const snap = await getDocsFromServer(collection(db, `workspaces/${workspaceId}/${name}`));
     collections[name] = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
   }
   const now = new Date();
@@ -70,7 +72,8 @@ export function BackupCard() {
       }
     } catch (e) {
       logError(e, 'Backup');
-      setMsg({ ok: false, text: `Backup failed: ${e instanceof Error ? e.message : String(e)}` });
+      const offline = (e as { code?: string })?.code === 'unavailable';
+      setMsg({ ok: false, text: offline ? 'Backup needs internet: it reads every record from the server. Connect and try again.' : `Backup failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setBusy(false);
     }

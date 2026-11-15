@@ -12,7 +12,8 @@ import { summarize } from '../../lib/syncState';
 import { formatDateTime } from '../../lib/time';
 import { FREE_READS_PER_DAY, readsToday, subscribeReads } from '../../lib/readsToday';
 import { formatQty } from '../../lib/units';
-import { useCollection } from '../masters/useCollection';
+import { readListsAgain, subscribeListSync, useCollection } from '../masters/useCollection';
+import { allListMeta, listSyncSummary } from '../../lib/deltaSync';
 import { useMasterData } from '../masters/useMasterData';
 import { useSyncOps } from '../sync/syncStore';
 import { checkRules, useRulesState } from './rulesCheck';
@@ -38,6 +39,8 @@ export function HealthCard() {
   const [copied, setCopied] = useState(false);
   const quota = quotaErrors(errors);
   const reads = useSyncExternalStore(subscribeReads, () => readsToday(), () => 0);
+  const syncKey = useSyncExternalStore(subscribeListSync, () => JSON.stringify(allListMeta()), () => '{}');
+  const lists = useMemo(() => (workspaceId ? listSyncSummary(workspaceId, JSON.parse(syncKey)) : { today: 0, firstAt: null }), [workspaceId, syncKey]);
 
   async function copy() {
     const text = errorReport(errors, { userAgent: navigator.userAgent });
@@ -89,6 +92,16 @@ export function HealthCard() {
           </span>
         </li>
         <li>
+          <span className={`dot ${lists.today > 0 ? 'ok' : 'idle'}`} aria-hidden="true" />
+          <span>
+            Lists from the server:{' '}
+            {lists.today > 0 && lists.firstAt !== null
+              ? `${lists.today} read whole today (first ${formatDateTime(new Date(lists.firstAt))}), since then only changes`
+              : 'each list is read whole the first time it opens today'}
+            <span className="muted small block">At every start the record count is checked with the server; if it differs, the list is read whole again. Backups always come from the server.</span>
+          </span>
+        </li>
+        <li>
           <span className={`dot ${rules.state === 'ok' ? 'ok' : rules.state === 'old' || rules.state === 'error' ? 'bad' : 'idle'}`} aria-hidden="true" />
           <span>
             Firestore rules:{' '}
@@ -98,6 +111,9 @@ export function HealthCard() {
         </li>
       </ul>
       <div className="row gap wrap">
+        <button type="button" className="secondary small" disabled={!online} onClick={() => readListsAgain(workspaceId ?? undefined)}>
+          Read everything again
+        </button>
         <button type="button" className="secondary small" disabled={!online || rules.state === 'checking'} onClick={() => workspaceId && void checkRules(workspaceId)}>
           Check rules
         </button>

@@ -78,6 +78,8 @@ vi.mock('../../src/features/masters/useCollection', () => ({
     error: null,
   }),
   newId: () => 'new-id',
+  readListsAgain: () => undefined,
+  subscribeListSync: () => () => undefined,
 }));
 
 const { MastersPage } = await import('../../src/features/masters/MastersPage');
