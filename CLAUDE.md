@@ -116,7 +116,7 @@ report the discrepancy and ask; do not silently choose.
     Product. `explodeBom()` walks sub-products (MANUFACTURED/BOTH are
     produced, TRADED are bought), sums repeated components, refuses loops
     (`createsCycle()`), and marks the result provisional if any level is
-    missing or unconfirmed. BOTH is assumed "made" until a Work Order decides. BOM versions = record `rev`; Job
+    missing or unconfirmed. BOTH is assumed "made" until a Work Order decides. BOM versions = record `rev`; Work
     Orders (Phase 3) must snapshot the BOM lines they used.
 -   Unit conversion is deterministic (`src/lib/units.ts`): standard units
     within a dimension; count↔area↔mass via size (L×W), GSM and weight
@@ -840,7 +840,7 @@ report the discrepancy and ask; do not silently choose.
 ## Factory documentation (noted 27 Oct 2026; build AFTER joining)
 
 -   The user will be answerable for factory records being complete and on
-    time (all activities, e.g. even a parcel received), not only Job
+    time (all activities, e.g. even a parcel received), not only Work
     Orders. Idea discussed, not approved: a document register (document
     types master with trigger, owner, due rule, filing place; records
     raised by app events, schedules or quick entries such as "parcel
@@ -937,10 +937,10 @@ report the discrepancy and ask; do not silently choose.
 ## Planning stage and plan document (confirmed 21 Oct 2026)
 
 -   The order clock starts on the WO date. "Planning"
-    (received → confirmed) is the built-in first stage of every order
+    (WO date → confirmed) is the built-in first stage of every order
     (`planningStep()` / `withPlanning()` in `src/lib/route.ts`; worked
     out, not stored). Planned % (linear and step-based) counts from the
-    received date. Planning benchmark: Settings → profile
+    WO date. Planning benchmark: Settings → profile
     `planningDays`, default 1 working day (user benchmark; empty = not
     set). Drafts past it show in Today ("still in planning") and in the
     plan's open points; the performance report shows planning days per
