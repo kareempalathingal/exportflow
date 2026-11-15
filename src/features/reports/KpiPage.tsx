@@ -1,3 +1,4 @@
+import { shareMessage, shareText } from '../../lib/share';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
@@ -13,7 +14,6 @@ import { permissionHint } from '../orders/OrderBits';
 import { usePlanContext } from '../settings/usePlanContext';
 import { useProfile } from '../settings/useProfile';
 import { presetRange, useJoHistory, type Preset } from './PerformancePage';
-import { shareText } from './TodayCard';
 
 export function useKpiTargets(workspaceId: string | null) {
   const d = useDocument<KpiTargets>(workspaceId, 'settings', KPI_TARGETS_DOC);
@@ -59,7 +59,7 @@ export function KpiPage() {
     if (!r) return;
     const res = await shareText('KPIs', kpiText(r, company, formatDay));
     if (res !== 'cancelled') {
-      setMsg(res === 'shared' ? 'Passed to the share menu.' : 'Copied — paste it where you need it.');
+      setMsg(shareMessage(res));
       setTimeout(() => setMsg(null), 3000);
     }
   }

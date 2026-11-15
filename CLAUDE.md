@@ -390,6 +390,27 @@ report the discrepancy and ask; do not silently choose.
     `ProductsCards.tsx` (item order, plan by process) and
     `StepParts.tsx` (step rows, dates, forms).
 
+## Compact step rows and uniform texts (confirmed 15 Nov 2026)
+
+-   Products tab step rows (`StepRow` in `StepParts.tsx`, mockup shown in
+    chat): always shown = name (now / next, estimate, outside, and an
+    amber "plan <date> (+N)" pill only when later than the submitted
+    plan), one date line, "Waiting: …" and "late · ask for a new date"
+    warnings, and the running step's main button ("X done → Y"). Tap the
+    row for the rest (days over / on time, started / waited / worked,
+    output, supplier / PO, submitted plan date, basis, notes, contacts,
+    other buttons); the details stay in the page, hidden. A delayed
+    running step keeps its contact buttons in view. The legend is a
+    collapsed "How to read this".
+-   One text-share helper (`src/lib/share.ts`: `shareText()`,
+    `shareMessage()`: "Passed to the share menu." / "Copied. Paste it
+    into WhatsApp, email or a note."). Empty states are sentences with a
+    full stop ("No … yet." for lists, "No … in this period." for
+    reports); short status labels have none. Pill colours: ok = done /
+    on time / matched, warn = needs a look, bad = late / missing / error,
+    neutral (or none) = information. Native confirm popups stay, worded
+    as one question naming the thing.
+
 ## Departments and contacts (skeleton, confirmed 21 Oct 2026)
 
 -   Departments master (`departments`, label "Departments"): name, notes,

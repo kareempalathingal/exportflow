@@ -1,3 +1,4 @@
+import { shareMessage, shareText } from '../../lib/share';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatDay, type JobOrder } from '../../lib/jobOrders';
@@ -9,7 +10,6 @@ import type { PlanContext } from '../../lib/route';
 import { formatDateTime } from '../../lib/time';
 import { DocButtons } from '../docs/DocButtons';
 import { SupplierContact } from '../masters/ContactButtons';
-import { shareText } from '../reports/TodayCard';
 
 /** Everything awaited from outside, all orders (mockup C, confirmed 5 Nov 2026): late first. */
 export function AwaitedList(props: { jos: (JobOrder & { id: string })[]; ctx: PlanContext; suppliers: (Supplier & { id: string })[]; today: string; alertDays: number; company: string }) {
@@ -57,7 +57,7 @@ export function AwaitedList(props: { jos: (JobOrder & { id: string })[]; ctx: Pl
             className="secondary small"
             onClick={async () => {
               const r = await shareText('Awaited from outside', awaitedText(items, name, formatDay, today));
-              setMsg(r === 'copied' ? 'Copied — paste it into WhatsApp or email.' : null);
+              setMsg(shareMessage(r));
             }}
           >
             Share list (text)

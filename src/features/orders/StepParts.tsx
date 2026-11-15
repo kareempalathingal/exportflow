@@ -85,22 +85,42 @@ export function ReadyRow({ ready: r }: { ready: ReadyDate }) {
 }
 
 /** "· plan 26 Sep (+2)" under a step, against the submitted plan (15 Nov 2026). */
-export function planNote(c: PlanCompare, lineId: string, v: StepView): ReactNode {
+/** Submitted-plan note of a step (15 Nov 2026): `late` = finishes after the submitted plan (shown as a pill on the row). */
+export function planNote(c: PlanCompare, lineId: string, v: StepView): { late: boolean; pill: ReactNode; detail: ReactNode } | null {
   if (isBuiltIn(v.step) && v.step.key !== MATERIALS_KEY) return null;
   const p = c.steps.get(stepKey(lineId, v.step.key));
-  if (!p) return <span className="muted small block">Not in the submitted plan (v{c.base.version})</span>;
-  if (!p.planFinish) return <span className="muted small block">Submitted plan: date to be confirmed</span>;
+  if (!p) return { late: false, pill: null, detail: <span className="muted small block">Not in the submitted plan (v{c.base.version})</span> };
+  if (!p.planFinish) return { late: false, pill: null, detail: <span className="muted small block">Submitted plan: date to be confirmed</span> };
   const range = v.state === 'TODO' && p.planStart && p.planStart !== p.planFinish ? `${formatDay(p.planStart)} → ${formatDay(p.planFinish)}` : formatDay(p.planFinish);
   const late = p.diff !== null && p.diff > 0;
-  return (
-    <span className={`small block ${late ? 'warn' : 'muted'}`}>
-      Plan {range}
-      {p.diff !== null && p.diff !== 0 && ` (${p.diff > 0 ? '+' : '−'}${Math.abs(p.diff)})`}
-    </span>
-  );
+  const diff = p.diff !== null && p.diff !== 0 ? ` (${p.diff > 0 ? '+' : '−'}${Math.abs(p.diff)})` : p.diff === 0 ? ' (same)' : '';
+  return {
+    late,
+    pill: late ? <span className="pill warn">plan {formatDay(p.planFinish)}{diff}</span> : null,
+    detail: <span className={`small block ${late ? 'warn' : 'muted'}`}>Plan {range}{diff}</span>,
+  };
 }
 
-export function StepRow({ v, date, productName, contacts, actions, follow, plan }: { v: StepView; date: StepDate; productName: string; contacts?: ReactNode; actions?: ReactNode; follow?: ReactNode; plan?: ReactNode }) {
+/** What one step row shows (15 Nov 2026, compact rows): `alert` always, `main` (the "done" button) always, the rest on tap. */
+export interface StepRowParts {
+  contacts?: ReactNode;
+  /** Shown without a tap (a delayed step: who to ask matters now). */
+  contactsOpen?: boolean;
+  main?: ReactNode;
+  actions?: ReactNode;
+  /** Forms opened from the actions (kept open with the row). */
+  forms?: ReactNode;
+  info?: ReactNode;
+  alert?: ReactNode;
+  plan?: { late: boolean; pill: ReactNode; detail: ReactNode } | null;
+}
+
+/**
+ * One step, compact (15 Nov 2026): name, one date line and any warning; details (basis,
+ * waited / worked, output, supplier, submitted plan, contacts, other buttons) open on tap.
+ */
+export function StepRow({ v, date, productName, parts }: { v: StepView; date: StepDate; productName: string; parts: StepRowParts }) {
+  const [open, setOpen] = useState(false);
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
   const over = v.overrunDays !== null && v.overrunDays > 0;
@@ -109,7 +129,7 @@ export function StepRow({ v, date, productName, contacts, actions, follow, plan 
       <>
         {days(v.actualDays!)}
         {s.plannedDays !== null && <span className="muted"> / {days(s.plannedDays)}</span>}
-        {v.overrunDays !== null && <span className={`block ${over ? 'error' : 'ok'}`}>{over ? `+${formatQty(v.overrunDays)} day${v.overrunDays === 1 ? '' : 's'}` : 'on time'}</span>}
+        {over && <span className="block error">+{formatQty(v.overrunDays!)}d</span>}
       </>
     ) : v.state === 'NOW' ? (
       <>
@@ -118,38 +138,54 @@ export function StepRow({ v, date, productName, contacts, actions, follow, plan 
         {over && <span className="block error">overrun</span>}
       </>
     ) : s.plannedDays !== null ? (
-      <span className="muted">plan {days(s.plannedDays)}</span>
+      <span className="muted">{days(s.plannedDays)}</span>
     ) : (
       <span className="warn">time pending</span>
     );
+  const details = (
+    <>
+      {v.state === 'DONE' && v.overrunDays !== null && <span className={`small block ${over ? 'error' : 'ok'}`}>{over ? `${formatQty(v.overrunDays)} day${v.overrunDays === 1 ? '' : 's'} over the planned time` : 'On time'}</span>}
+      {v.state === 'NOW' && !v.queued && v.startOn && !v.startedOn && <span className="muted small block">Since {formatDay(v.startOn)} · {formatQty(v.actualDays!)} working day{v.actualDays === 1 ? '' : 's'} so far</span>}
+      {v.state === 'NOW' && v.startedOn && <span className="muted small block">Started {formatDay(v.startedOn)} · waited {days(v.waitDays!)} · working {days(v.workDays!)} so far</span>}
+      {v.state === 'DONE' && v.startedOn && <span className="muted small block">Waited {days(v.waitDays!)}, worked {days(v.workDays!)}</span>}
+      {s.outputQty !== null && s.outputQty !== undefined && s.qty !== null && s.qtyUnit && v.state !== 'DONE' && <OutputProgress s={s} />}
+      {parts.info}
+      {parts.plan?.detail}
+      {s.basis && <span className="muted small block">{s.basis}</span>}
+      {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
+      {!parts.contactsOpen && parts.contacts}
+      {parts.actions}
+    </>
+  );
   return (
-    <li className={`step ${v.state.toLowerCase()}`}>
+    <li className={`step ${v.state.toLowerCase()}${open ? ' open' : ''}`}>
       <span className="step-dot" aria-hidden="true">
         {v.state === 'DONE' ? '✓' : ''}
       </span>
       <span className="step-body">
-        <span className="step-name">
-          {s.label}
-          {v.state === 'NOW' && (v.queued ? ' · next' : ' · now')}
-          {s.estimated && s.plannedDays !== null && v.state !== 'DONE' && <span className="pill warn"> estimate</span>}
-          {(s.outside || s.outsideOf) && <span className="pill"> outside</span>}
-          <span className="muted small">{sub}</span>
+        <span className="step-head" role="button" tabIndex={0} aria-expanded={open} onClick={() => setOpen((o) => !o)} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpen((o) => !o))}>
+          <span className="step-name">
+            {s.label}
+            {v.state === 'NOW' && (v.queued ? ' · next' : ' · now')}
+            {s.estimated && s.plannedDays !== null && v.state !== 'DONE' && <span className="pill warn"> estimate</span>}
+            {(s.outside || s.outsideOf) && <span className="pill"> outside</span>}
+            {parts.plan?.pill}
+            <span className="muted small">{sub}</span>
+            <span className="step-more muted small" aria-hidden="true">
+              {open ? ' ▴' : ' ▾'}
+            </span>
+          </span>
+          {v.state === 'DONE' && v.doneOn && <span className="muted small block">Done {formatDay(v.doneOn)}</span>}
+          {v.state === 'NOW' && v.queued && v.startOn && <span className="small block warn">Waiting: {s.label} is busy with other items of this order · can start {formatDay(v.startOn)}</span>}
+          <StepDateLine d={date} materials={s.key === MATERIALS_KEY} />
         </span>
-        <span className="muted small block">
-          {v.state === 'DONE' && v.doneOn && `Done ${formatDay(v.doneOn)}`}
-          {v.state === 'NOW' && v.queued && v.startOn && `Waiting: ${s.label} is busy with other items of this order · can start ${formatDay(v.startOn)}`}
-          {v.state === 'NOW' && !v.queued && v.startOn && !v.startedOn && `Since ${formatDay(v.startOn)} · ${formatQty(v.actualDays!)} working day${v.actualDays === 1 ? '' : 's'} so far`}
-          {v.state === 'NOW' && v.startedOn && `Started ${formatDay(v.startedOn)} · waited ${days(v.waitDays!)} · working ${days(v.workDays!)} so far`}
-          {v.state === 'DONE' && v.startedOn && ` · waited ${days(v.waitDays!)}, worked ${days(v.workDays!)}`}
+        {parts.alert}
+        {parts.contactsOpen && parts.contacts}
+        <span className="step-details" hidden={!open}>
+          {details}
         </span>
-        {s.outputQty !== null && s.outputQty !== undefined && s.qty !== null && s.qtyUnit && v.state !== 'DONE' && <OutputProgress s={s} />}
-        {follow}
-        <StepDateLine d={date} materials={s.key === MATERIALS_KEY} />
-        {plan}
-        {s.basis && <span className="muted small block">{s.basis}</span>}
-        {s.note && <span className={`small block ${s.plannedDays === null ? 'warn' : 'muted'}`}>{s.note}</span>}
-        {contacts}
-        {actions}
+        {parts.main && <span className="row gap step-actions">{parts.main}</span>}
+        {parts.forms}
       </span>
       <span className="step-time mono small">{right}</span>
     </li>

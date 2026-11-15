@@ -257,7 +257,7 @@ export function PerformancePage() {
 
           <h3 className="section-title">Still open</h3>
           {report.open.length === 0 ? (
-            <p className="muted small">No open orders.</p>
+            <p className="muted small">No open Work Orders.</p>
           ) : (
             <ul className="attention">
               {report.open.map((o) => (

@@ -142,7 +142,7 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
   }
 
   function cancel() {
-    if (dirty && !window.confirm('Discard your BOM changes?')) return;
+    if (dirty && !window.confirm('Discard the BOM changes?')) return;
     const initial = (bom?.lines ?? []).map(toDraft);
     setLines(initial);
     setNotes(bom?.notes ?? '');

@@ -338,6 +338,15 @@ describe('Plan document', () => {
     expect(reports).toContain('Plan of a Work Order');
     expect(reports).toContain('JO-88 · Buyer GmbH · confirmed');
   });
+  it('step rows are compact: details behind a tap, legend collapsed (15 Nov 2026)', () => {
+    const html = render('/orders/j2', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('<span class="step-details" hidden="">');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('<summary>How to read this</summary>');
+    // the main button of the running step stays in view, outside the hidden details
+    expect(html).toMatch(/<\/span><\/span><span class="row gap step-actions"><button type="button" class="primary small">Bleaching done<\/button>/);
+  });
+
   it('the products tab shows planning as the first stage', () => {
     const html = render('/orders/j2', '/orders/:id', <JobOrderPage />);
     expect(html).toContain('Planning');

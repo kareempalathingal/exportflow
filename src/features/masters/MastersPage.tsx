@@ -102,7 +102,7 @@ export function MastersPage() {
       {current.loading && <p className="muted">{t('loading')}</p>}
       {current.error && <p className="error">{current.error === 'permission-denied' ? t('permissionDenied') : current.error}</p>}
       {!current.loading && !current.error && list.length === 0 && (
-        <p className="muted">{q ? 'No match.' : 'Nothing added yet. Tap “+ Add”.'}</p>
+        <p className="muted">{q ? 'No match.' : 'No entries yet. Tap “+ Add”.'}</p>
       )}
 
       <ul className="master-list">

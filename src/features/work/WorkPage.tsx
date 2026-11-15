@@ -1,3 +1,4 @@
+import { shareMessage, shareText } from '../../lib/share';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
@@ -29,7 +30,6 @@ import { DocButtons } from '../docs/DocButtons';
 import { StepContacts } from '../masters/ContactButtons';
 import { newId, useCollection, type WithMeta } from '../masters/useCollection';
 import { permissionHint } from '../orders/OrderBits';
-import { shareText } from '../reports/TodayCard';
 import { useProfile } from '../settings/useProfile';
 import { saveRecord } from '../sync/records';
 
@@ -148,7 +148,8 @@ export function WorkPage() {
   async function share() {
     const title = dept ? `Follow-ups - ${dept === 'general' ? 'General' : deptName(dept)}` : 'Follow-ups';
     const r = await shareText(title, tasksText(filtered, { company, today, now, title, deptName }));
-    if (r !== 'cancelled') flash(r === 'shared' ? 'Passed to the share menu.' : 'Copied — paste it where you need it.');
+    const m = shareMessage(r);
+    if (m) flash(m);
   }
 
   const activeDepts = departments.items.filter((d) => d.active !== false).sort((a, b) => a.name.localeCompare(b.name));
@@ -220,7 +221,7 @@ export function WorkPage() {
       </div>
 
       {tasks.loading && <p className="muted">{tr('loading')}</p>}
-      {!tasks.loading && groups.length === 0 && <p className="muted">Nothing here yet. Add what you need to follow up — any department.</p>}
+      {!tasks.loading && groups.length === 0 && <p className="muted">No tasks yet. Add what you need to follow up, for any department.</p>}
       {groups.map((g) => (
         <div key={g.group} className={`today-group${g.group === 'DONE' ? ' faded' : ''}`}>
           <span className={`pill ${GROUP_CLS[g.group] ?? 'neutral'}`}>

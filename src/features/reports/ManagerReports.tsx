@@ -1,3 +1,4 @@
+import { shareMessage, shareText } from '../../lib/share';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { departmentsFor, stepMessage } from '../../lib/contacts';
@@ -32,7 +33,6 @@ import { formatQty, unitLabel } from '../../lib/units';
 import { DocButtons } from '../docs/DocButtons';
 import { StepContacts } from '../masters/ContactButtons';
 import { SettingSection } from '../settings/SettingSection';
-import { shareText } from './TodayCard';
 import { tasksDoc } from '../../lib/docs/tasksDoc';
 import { groupTasks, isActive, tasksText, type Task } from '../../lib/tasks';
 
@@ -50,8 +50,9 @@ function ShareTextButton({ title, text }: { title: string; text: () => string })
   const [msg, setMsg] = useState<string | null>(null);
   async function go() {
     const r = await shareText(title, text());
-    if (r === 'cancelled') return;
-    setMsg(r === 'shared' ? 'Passed to the share menu.' : 'Copied — paste it where you need it.');
+    const m = shareMessage(r);
+    if (!m) return;
+    setMsg(m);
     setTimeout(() => setMsg(null), 3000);
   }
   return (

@@ -4,26 +4,8 @@ import { formatDay } from '../../lib/jobOrders';
 import { departmentsFor, stepMessage } from '../../lib/contacts';
 import type { Department } from '../../lib/masters';
 import { StepContacts } from '../masters/ContactButtons';
+import { shareMessage, shareText } from '../../lib/share';
 import { TODAY_HEADINGS, todayText, type TodaySummary, type TodayWhen } from '../../lib/today';
-
-/** Share plain text through the phone's share sheet, or copy it. The app never sends anything itself. */
-export async function shareText(title: string, text: string): Promise<'shared' | 'copied' | 'cancelled'> {
-  if (typeof navigator.share === 'function') {
-    try {
-      await navigator.share({ title, text });
-      return 'shared';
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled';
-    }
-  }
-  try {
-    await navigator.clipboard.writeText(text);
-    return 'copied';
-  } catch {
-    window.prompt('Copy this summary:', text);
-    return 'copied';
-  }
-}
 
 const CLS: Record<TodayWhen, string> = { OVERDUE: 'bad', TODAY: 'warn', SOON: 'neutral' };
 
@@ -33,7 +15,7 @@ export function TodayCard({ summary, company, compact = false, departments = [] 
   async function share() {
     const r = await shareText(`Daily summary ${formatDay(summary.today)}`, todayText(summary, company));
     if (r !== 'cancelled') {
-      setMsg(r === 'shared' ? 'Passed to the share menu.' : 'Copied — paste it where you need it.');
+      setMsg(shareMessage(r));
       setTimeout(() => setMsg(null), 3000);
     }
   }

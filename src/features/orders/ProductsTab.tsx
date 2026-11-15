@@ -107,14 +107,17 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
         ))}
       </ul>
       {oplan && <ProcessPlanCard rows={processPlanRows(oplan)} processes={processes} departments={departments.items} />}
-      <p className="muted small legend">
-        <span>✓ done (actual / planned days)</span>
-        <span>● now</span>
-        <span>○ to do</span>
-        <span className="warn">time pending = benchmark not known yet</span>
-        <span>days and dates are working days (Sundays and company holidays left out)</span>
-        <span>items of this order share each process (when several wait for the same one: Rush first, then the item with more work left); a step can start once the previous one has a day of its work ready; waiting behind other orders is not included yet</span>
-      </p>
+      <details className="how-to-read muted small">
+        <summary>How to read this</summary>
+        <p className="legend">
+          <span>✓ done · ● now · ○ to do; tap a step for its details and buttons</span>
+          <span>right side: days taken / planned</span>
+          <span className="warn">time pending = benchmark not known yet</span>
+          <span>amber “plan” = later than the submitted plan</span>
+          <span>days and dates are working days (Sundays and company holidays left out)</span>
+          <span>items of this order share each process (when several wait for the same one: Rush first, then the item with more work left); a step can start once the previous one has a day of its work ready; waiting behind other orders is not included yet</span>
+        </p>
+      </details>
     </section>
   );
 }
@@ -177,7 +180,7 @@ function LineCard(props: {
 
   const supplierName = (id: string | null | undefined) => (id ? (props.suppliers.find((x) => x.id === id)?.name ?? 'supplier') : null);
   /** Supplier / vendor line and what is still out (5 Nov 2026). */
-  const followFor = (v: StepView): ReactNode => {
+  const followFor = (v: StepView): { info: ReactNode; alert: ReactNode } => {
     const s = v.step;
     const parts: string[] = [];
     if (s.outside || (s.processId === null && !s.outsideOf && s.label === 'Ordered')) {
@@ -197,20 +200,22 @@ function LineCard(props: {
       const back = s.outputQty ?? 0;
       if (sent > 0) out = `${formatQty(Math.max(0, sent - back))} ${unitLabel(s.qtyUnit ?? '')} still with ${supplierName(rawSteps.find((x) => x.outside && x.processId === s.outsideOf)?.supplierId) ?? 'the vendor'}`;
     }
-    if (!parts.length && !out && !v.lateDays) return null;
-    return (
-      <>
-        {parts.length > 0 && <span className="small block">{parts.join(' · ')}</span>}
-        {out && <span className="small block warn">{out}</span>}
-        {v.lateDays ? <span className="small block error">{formatQty(v.lateDays)} working day{v.lateDays === 1 ? '' : 's'} late · ask for a new date</span> : null}
-      </>
-    );
+    return {
+      info: parts.length > 0 ? <span className="small block">{parts.join(' · ')}</span> : null,
+      alert:
+        out || v.lateDays ? (
+          <>
+            {out && <span className="small block warn">{out}</span>}
+            {v.lateDays ? <span className="small block error">{formatQty(v.lateDays)} working day{v.lateDays === 1 ? '' : 's'} late · ask for a new date</span> : null}
+          </>
+        ) : null,
+    };
   };
 
-  const actionsFor = (v: StepView): ReactNode => {
-    if (!editable || v.state === 'DONE') return null;
+  const actionsFor = (v: StepView): { main?: ReactNode; actions?: ReactNode; forms?: ReactNode } => {
+    if (!editable || v.state === 'DONE') return {};
     const i = keyIdx.get(v.step.key);
-    if (i === undefined) return null;
+    if (i === undefined) return {};
     const isFirst = i === firstRaw;
     const startable = canStart(rawSteps, i);
     const prevStart = i > 0 ? (dayOfIso(rawSteps[i - 1]!.startedAt) ?? dayOfIso(rawSteps[i - 1]!.doneAt)) : null;
@@ -222,6 +227,7 @@ function LineCard(props: {
     const holdsPromise = v.step.outside || (v.step.processId === null && !v.step.outsideOf && v.step.label === 'Ordered');
     const label = v.step.label;
     const btns: ReactNode[] = [];
+    let main: ReactNode = null;
     if (startable)
       btns.push(
         <button key="start" type="button" className="secondary small" disabled={when > today || (startMin !== null && when < startMin)} onClick={() => props.onSteps(startStepAt(rawSteps, i, stepTime(when, today))!, `${label} started ${when === today ? 'today' : formatDay(when)} (${line.productName})`)}>
@@ -241,7 +247,7 @@ function LineCard(props: {
         </button>,
       );
     if (isFirst)
-      btns.push(
+      main = (
         <button
           key="done"
           type="button"
@@ -253,7 +259,7 @@ function LineCard(props: {
           }}
         >
           {label} done{nextStep ? ` → ${nextStep.step.label}` : ''}
-        </button>,
+        </button>
       );
     else if (v.step.startedAt) btns.push(<span key="wait" className="muted small">“Done” after {rawSteps[i - 1]?.label ?? 'the step before'} is done</span>);
     if (v.step.startedAt && undoStartAt(rawSteps, i))
@@ -262,9 +268,11 @@ function LineCard(props: {
           Undo start
         </button>,
       );
-    return (
+    return {
+      main,
+      actions: btns.length > 0 ? <span className="row gap step-actions">{btns}</span> : null,
+      forms: (
       <>
-        {btns.length > 0 && <span className="row gap step-actions">{btns}</span>}
         {promiseFor === v.step.key && (
           <PromiseEditor
             step={rawSteps[i]!}
@@ -293,11 +301,12 @@ function LineCard(props: {
               if (whole && isFirst && window.confirm(`Whole quantity ${isReceipt ? 'in' : 'made'}: mark ${label} done?`)) props.onSteps(completeCurrent(next, stepTime(entry.on, today))!, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)}; done (${line.productName})`);
               else props.onSteps(next, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)} (${line.productName})`);
             }}
-            onRemove={(k) => window.confirm('Remove this output entry?') && props.onSteps(removeOutput(rawSteps, i, k)!, `${label}: output entry removed (${line.productName})`)}
+            onRemove={(k) => window.confirm(`Remove this ${label} entry?`) && props.onSteps(removeOutput(rawSteps, i, k)!, `${label}: output entry removed (${line.productName})`)}
           />
         )}
       </>
-    );
+      ),
+    };
   };
 
   // Who to ask (5 Nov 2026): the department of every step running now and of
@@ -332,6 +341,9 @@ function LineCard(props: {
       />
     );
   };
+
+  // A delayed step keeps its contact buttons in view (15 Nov 2026); others open on tap.
+  const delayed = (v: StepView, d: { kind: string }) => v.state === 'NOW' && ((v.overrunDays ?? 0) > 0 || (v.lateDays ?? 0) > 0 || d.kind === 'OVER' || stepDelay(v) !== null);
 
   return (
     <div className="card edge" style={{ ['--edge' as string]: color }}>
@@ -368,7 +380,7 @@ function LineCard(props: {
 
       <ol className="stepper">
         {lp.steps.map((v, i) => (
-          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} contacts={contactFor(v)} actions={actionsFor(v)} follow={followFor(v)} plan={props.vsPlan ? planNote(props.vsPlan, line.id, v) : undefined} />
+          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} parts={{ ...actionsFor(v), ...followFor(v), contacts: contactFor(v), contactsOpen: delayed(v, dates.steps[i]!), plan: props.vsPlan ? planNote(props.vsPlan, line.id, v) : null }} />
         ))}
       </ol>
       {dates.ready && <ReadyRow ready={dates.ready} />}
@@ -380,7 +392,7 @@ function LineCard(props: {
             <button
               type="button"
               className="secondary small"
-              onClick={() => window.confirm('Undo the last completed step?') && props.onSteps(undoLast(raw.steps!)!, `Undo last step (${line.productName})`)}
+              onClick={() => window.confirm(`Undo the last done step of ${line.productName}?`) && props.onSteps(undoLast(raw.steps!)!, `Undo last step (${line.productName})`)}
             >
               Undo last
             </button>

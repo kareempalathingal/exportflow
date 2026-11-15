@@ -110,7 +110,7 @@ export function ProcessPlanCard({ rows, processes, departments }: { rows: Return
         </table>
       </div>
       <p className="muted small">
-        Days = work at the planned output, on the process's parallel units (Masters → Processes). A step starts once the previous step has one day of its work ready; items are taken first come, first served (ties: in the order listed). Quantities are never added across
+        Days = work at the planned output, on the process's parallel units (Masters → Processes). A step starts once the previous step has one day of its work ready; items waiting for the same process go in the order set in the Item order card. Quantities are never added across
         units.
       </p>
     </details>
