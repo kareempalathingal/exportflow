@@ -494,6 +494,7 @@ export function ItemPrioritySection({ jos, ctx, today, company, generatedAt, pro
                     <td>
                       <Link to={`/orders/${r.id}?tab=products`}>{r.joNumber}</Link>
                       {r.draft && <span className="muted"> · draft</span>}
+                      {!r.draft && r.rule === 'LISTED' && <span className="muted block">uses listed order</span>}
                     </td>
                     <td>{r.readyListed ? formatDay(r.readyListed) : '?'}</td>
                     <td>{r.ready ? formatDay(r.ready) : '?'}</td>
@@ -508,7 +509,7 @@ export function ItemPrioritySection({ jos, ctx, today, company, generatedAt, pro
           <ShareTextButton title="Item priority: effect" text={() => itemPriorityText(rows, today)} />
         </div>
         <DocButtons label="Item priority: effect (PDF)" build={() => itemPriorityDoc(rows, { company, today, generatedAt: generatedAt() })} />
-        <p className="muted small">−3 = ready 3 working days earlier with the priority; +2 = later (then Rush on the WO can set the order you want).</p>
+        <p className="muted small">−3 = ready 3 working days earlier with the priority; +2 = later (then Rush on the WO can set the order you want). WOs confirmed before item priority keep the listed order until “Use item priority” on their Products tab.</p>
       </div>
     </SettingSection>
   );

@@ -185,7 +185,7 @@ export function buildSampleData(today: string): SampleWrite[] {
     };
     if (o.final === 'DRAFT') continue;
     const confirmedLines = o.lines.map((l) => ({ ...l, steps: buildLineSteps(l, md, processMap) }));
-    const confirmedJo: JobOrder = { ...current, status: 'CONFIRMED', confirmedOn: d(o.confirmed!), bomSnapshot: snapshotBoms(o.lines, md, () => 1), stock: o.stock ?? {}, lines: confirmedLines };
+    const confirmedJo: JobOrder = { ...current, status: 'CONFIRMED', itemOrderRule: 'PRIORITY', confirmedOn: d(o.confirmed!), bomSnapshot: snapshotBoms(o.lines, md, () => 1), stock: o.stock ?? {}, lines: confirmedLines };
     // Materials to buy: received on confirmation; the newest order still waits for them (expected in 2 days).
     const materialDates: Record<string, MaterialDates> = {};
     for (const r of planMaterials(confirmedJo, md).toBuy) {

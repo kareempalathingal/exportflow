@@ -251,6 +251,8 @@ export function JobOrderPage() {
       completedOn: completedOnAfter(isNew ? null : status, next, item?.completedOn, today),
       // Orders confirmed from 5 Nov 2026 track material arrivals ("Materials ready" stage).
       ...(item?.materialDates || (next === 'CONFIRMED' && status === 'DRAFT') ? { materialDates: item?.materialDates ?? {} } : {}),
+      // Item priority (15 Nov 2026): saved when the WO is confirmed; older WOs keep the listed order until changed.
+      ...(next === 'CONFIRMED' && (isNew || status === 'DRAFT') ? { itemOrderRule: 'PRIORITY' as const } : item?.itemOrderRule ? { itemOrderRule: item.itemOrderRule } : {}),
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;

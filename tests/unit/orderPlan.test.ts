@@ -129,23 +129,24 @@ describe('item priority (15 Nov 2026)', () => {
   const pctx = (units?: Record<string, number>) => ({ md: pmd, cal: DEFAULT_CALENDAR, planningDays: null, ...(units ? { units: new Map(Object.entries(units)) } : {}) });
   const at = (p: ReturnType<typeof orderPlan>, i: number, label: string) => p.lines[i]!.lp.schedule!.find((s) => s.view.step.label === label)!;
   const off = (d: string | null) => workingDaysBetween('2026-11-02', d!, DEFAULT_CALENDAR);
+  const porder = (lines: JoLine[]) => ({ ...order(lines), itemOrderRule: 'PRIORITY' as const });
 
   it('the item with more work left gets the shared process first, even when listed second', () => {
-    const p = orderPlan(order([pline('1', 'short', 300), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    const p = orderPlan(porder([pline('1', 'short', 300), pline('2', 'long', 300)]), '2026-11-02', pctx());
     expect(off(at(p, 1, 'Tufting').start)).toBe(0);
     expect(at(p, 0, 'Tufting').start).toBe(at(p, 1, 'Tufting').finish);
     expect(p.itemOrder.items.map((i) => i.lineId)).toEqual(['2', '1']);
     expect(p.itemOrder.gainDays! >= 0).toBe(true);
   });
   it('Rush goes first whatever the work left', () => {
-    const p = orderPlan(order([pline('1', 'short', 300, true), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    const p = orderPlan(porder([pline('1', 'short', 300, true), pline('2', 'long', 300)]), '2026-11-02', pctx());
     expect(off(at(p, 0, 'Tufting').start)).toBe(0);
     expect(p.itemOrder.items[0]).toMatchObject({ lineId: '1', rush: true });
   });
   it('items waiting for the same unit are chosen by priority, not by who was ready first', () => {
     // Printing is busy with X until day 6; A is ready for it on day 3, B on day 4 (two tufting units).
     const lines = [pline('0', 'x', 600), pline('1', 'a', 300), pline('2', 'b', 400)];
-    const p = orderPlan(order(lines), '2026-11-02', pctx({ tuft: 2 }));
+    const p = orderPlan(porder(lines), '2026-11-02', pctx({ tuft: 2 }));
     expect(off(at(p, 2, 'Printing').start)).toBe(6); // B has more work left
     expect(off(at(p, 1, 'Printing').start)).toBe(10);
     expect(p.itemOrder.readyListed).not.toBeNull();
@@ -154,14 +155,33 @@ describe('item priority (15 Nov 2026)', () => {
   });
   it('an idle unit is never kept for a more urgent item', () => {
     const lines = [pline('1', 'a', 300), pline('2', 'b', 400)];
-    const p = orderPlan(order(lines), '2026-11-02', pctx({ tuft: 2 }));
+    const p = orderPlan(porder(lines), '2026-11-02', pctx({ tuft: 2 }));
     expect(off(at(p, 0, 'Printing').start)).toBe(3); // A is ready first and printing is free
     expect(off(at(p, 1, 'Printing').start)).toBe(6);
   });
   it('days left and "part unknown" per item', () => {
-    const p = orderPlan(order([pline('1', 'short', 300), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    const p = orderPlan(porder([pline('1', 'short', 300), pline('2', 'long', 300)]), '2026-11-02', pctx());
     const long = p.itemOrder.items.find((i) => i.lineId === '2')!;
-    expect(long).toMatchObject({ daysLeft: 12, partUnknown: false });
+    expect(long).toMatchObject({ step: 'Tufting', daysLeft: 9, partUnknown: false });
+  });
+  it('counts the work AFTER the shared step (the case where "all work left" picks wrong)', () => {
+    // A: tufting 2 days, then printing 6; B: tufting 4 days, then packing 5. After tufting A has 6, B 5: A first.
+    const md2: MasterData = {
+      products: new Map([
+        ['a', product('A', [step('tuft', 100), wait('print', 100)])],
+        ['b', product('B', [step('tuft', 100), wait('pack', 100)])],
+      ]),
+      rawMaterials: new Map(),
+      boms: new Map(),
+    };
+    const l = (id: string, pid: string, tq: number, nq: number): JoLine => {
+      const x: JoLine = { id, productId: pid, productName: pid, qty: tq, unit: 'pcs', supply: 'MAKE' };
+      const steps = buildLineSteps(x, md2, pproc).map((s) => (s.processId === 'tuft' ? s : { ...s, perDay: tq / nq }));
+      return { ...x, steps };
+    };
+    const p = orderPlan(porder([l('2', 'b', 400, 5), l('1', 'a', 200, 6)]), '2026-11-02', { md: md2, cal: DEFAULT_CALENDAR, planningDays: null });
+    expect(off(p.lines[1]!.lp.schedule!.find((s) => s.view.step.label === 'Tufting')!.start)).toBe(0); // A first although listed second
+    expect(p.itemOrder.gainDays).toBe(1); // listed order (B first) would end a day later
   });
 });
 
@@ -187,5 +207,21 @@ describe('item priority: texts, effect list and plan line', () => {
     expect(rows.map((r) => r.joNumber).sort()).toEqual(['WO-C', 'WO-D']);
     expect(rows.find((r) => r.joNumber === 'WO-D')!.draft).toBe(true);
     expect(itemPriorityText(rows, '2026-11-02')).toContain('WO-D (draft): listed order');
+  });
+});
+
+describe('item order rule per WO (15 Nov 2026)', () => {
+  it('a WO confirmed before item priority keeps the listed order; a draft uses the priority', () => {
+    const lines = [line('1', 'a', 300), line('2', 'c', 300)];
+    expect(orderPlan(order(lines), '2026-11-02', ctx()).itemOrder.rule).toBe('LISTED');
+    expect(orderPlan({ ...order(lines), itemOrderRule: 'PRIORITY' as const }, '2026-11-02', ctx()).itemOrder.rule).toBe('PRIORITY');
+    expect(orderPlan({ ...order(lines), status: 'DRAFT' as const }, '2026-11-02', ctx()).itemOrder.rule).toBe('PRIORITY');
+  });
+  it('the listed WO is planned exactly as before; the priority is shown only as a comparison', () => {
+    const lines = [line('1', 'a', 300), line('2', 'b', 300)];
+    const old = orderPlan(order(lines), '2026-11-02', ctx());
+    expect(tuft(old, 1).start).toBe(tuft(old, 0).finish); // listed order: first line first
+    expect(old.itemOrder.ready).toBe(old.itemOrder.readyListed);
+    expect(old.itemOrder.items.map((i) => i.lineId)).toEqual(['1', '2']);
   });
 });

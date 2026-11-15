@@ -122,7 +122,7 @@ describe('Phase 2 screens render', () => {
   it('manufactured product opens on the BOM tab with a summary', () => {
     const html = render('/masters/products/p1', '/masters/products/:id', <ProductForm />);
     expect(html).toContain('BOM ready');
-    expect(html).toContain('components for 1');
+    expect(html).toContain('BOM — for 1');
     expect(html).toContain('Production time');
   });
   it('product details and conversion tabs render', () => {
@@ -133,6 +133,11 @@ describe('Phase 2 screens render', () => {
   });
   it('new product form renders', () => {
     expect(render('/masters/products/new', '/masters/products/:id', <ProductForm />)).toContain('New product');
+    // BOM tab (15 Nov 2026): a compact table first, the editor only after "Edit BOM".
+    const bomTab = render('/masters/products/p1?tab=bom', '/masters/products/:id', <ProductForm />);
+    expect(bomTab).toContain('class="conv bom-view"');
+    expect(bomTab).toContain('>Edit BOM<');
+    expect(bomTab).not.toContain('+ Add component<');
   });
   it('raw material and customer forms render', () => {
     expect(render('/masters/raw-materials/r1', '/masters/raw-materials/:id', <RawMaterialForm />)).toContain('Base unit');

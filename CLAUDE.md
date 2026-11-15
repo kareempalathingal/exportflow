@@ -140,6 +140,12 @@ report the discrepancy and ask; do not silently choose.
     Supplier ↔ item links (raw materials and products) are editable from
     both sides but stored only on the supplier (`items` = item keys).
     No prices, lead times or payment terms until real data exists.
+-   BOM tab (confirmed 15 Nov 2026): a compact read-only table first
+    (component, qty + unit, wastage, status; all rows; count, "not
+    confirmed yet" and notes below) with "Edit BOM" ("+ Add components"
+    when empty); the full editor opens only then, with Cancel (asks when
+    there are changes) and Save, both back to the table. The requirement
+    calculator stays under it.
 -   Masters are never deleted; they are set Inactive. Product code is
     optional and not auto-generated until the company scheme is known.
 -   Build only company-independent parts now (Phases 2–3). Packing,
@@ -302,19 +308,32 @@ report the discrepancy and ask; do not silently choose.
     `PRIORITY`): the step that can REALLY start earliest is placed next
     (its start on a free unit, `earliestSlot()`), so a unit never waits
     idle for a more urgent item. Items waiting for the same unit at the
-    same moment go: Rush first → more work left → listed order. Work left
-    = planned work days of the item's remaining steps (`workLeft()`; a
-    promised date counts until that date; steps without a time count 0 and
-    are flagged "part unknown"). The earlier rule (step ready first, ties
-    in listed order) stays as `LISTED`, used only for the comparison.
-    Valid also when shared capacity across WOs comes.
+    same moment go: Rush first → more work AFTER the shared step → listed
+    order (changed the same day from "all work left", which counted the
+    contested step itself and could pick the wrong item). Work after =
+    planned work days of the item's later steps (`workLeft()`; a promised
+    date counts until that date; steps without a time count 0 and are
+    flagged "part unknown"). The earlier rule (step ready first, ties in
+    listed order) stays as `LISTED`. Valid also when shared capacity
+    across WOs comes. No simple rule is always best: hence the comparison.
+-   Rule per WO (like the deadline rule version): `JobOrder.itemOrderRule`
+    is saved as PRIORITY when a WO is confirmed; drafts always use
+    PRIORITY; a confirmed WO without it (confirmed before 15 Nov 2026)
+    keeps LISTED, so shared plans do not change silently. Products tab
+    "Use item priority" (confirm dialog with the change in days, history
+    entry "Item order: switched to item priority") switches it; the
+    internal deadline never changes. Sample data confirms with PRIORITY.
+    `itemOrderRuleOf()`; the other rule is always computed as the
+    comparison.
 -   Rush: optional `JoLine.rush` (true or absent). Set on the WO form
     ("Rush: plan this item first", shown when the WO has 2+ lines) and on
     the Products tab (Item order card, confirmed WOs); each change is a
     history entry ("Rush on / off: <product>"). No rules change.
--   `orderPlan()` returns `itemOrder` (`ItemOrder`): items in priority
-    order with days left, WO ready (last item) with the priority and in
-    listed order, and `gainDays` (working days; positive = earlier).
+-   `orderPlan()` returns `itemOrder` (`ItemOrder`): rule, items in the
+    rule's order with the current step and days after it, WO ready (last
+    item) with the rule in use, with the priority and in listed order, and
+    `gainDays` (priority vs listed, working days; positive = earlier).
+    Rush buttons show only on WOs using PRIORITY (LISTED ignores Rush).
 -   Shown: Products tab "Item order" card (rule, WO ready vs listed order
     with "N working days earlier / later", items with Rush and days left);
     Reports → "Item priority: effect" (`src/lib/itemOrder.ts`): every open
@@ -325,6 +344,9 @@ report the discrepancy and ask; do not silently choose.
     adds the listed-order comparison and days left per item.
 -   Not verified yet against the real WO 95 test order (its data stays
     outside the repo): check Reports → Item priority after the update.
+-   Next (confirmed 15 Nov 2026, to design): "Submitted plan" baseline —
+    save the step dates of the plan given to management, then show plan
+    vs now everywhere.
 
 ## Departments and contacts (skeleton, confirmed 21 Oct 2026)
 

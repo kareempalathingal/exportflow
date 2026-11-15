@@ -583,7 +583,7 @@ export function withPlanning(steps: PlannedStep[] | undefined, jo: Pick<JobOrder
   return steps && steps.length ? [planningStep(jo, ctx), ...steps] : steps;
 }
 
-type StepOrder = Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate' | 'status' | 'bomSnapshot' | 'stock'> & Partial<Pick<JobOrder, 'materialDates'>>;
+type StepOrder = Pick<JobOrder, 'lines' | 'confirmedOn' | 'receivedDate' | 'status' | 'bomSnapshot' | 'stock'> & Partial<Pick<JobOrder, 'materialDates' | 'itemOrderRule'>>;
 
 /**
  * Progress of every line that has steps (lines without steps are skipped),
@@ -612,10 +612,13 @@ export interface ProcessPlan {
 
 /** Item order (15 Nov 2026): who goes first, and what the priority changes against the listed order. */
 export interface ItemOrder {
-  /** Lines with steps in priority order: Rush first, then more work left, then as listed. */
-  items: { lineId: string; product: string; rush: boolean; daysLeft: number; partUnknown: boolean }[];
-  /** Last item ready with the priority rule / in listed order (null = some date not known yet). */
+  /** The rule this WO uses. */
+  rule: ItemOrderRule;
+  /** Lines with steps in the order of the rule (priority: Rush, then more work after the current step; listed: as listed). */
+  items: { lineId: string; product: string; rush: boolean; step: string | null; daysLeft: number; partUnknown: boolean }[];
+  /** Last item ready with the rule in use / with the priority / in listed order (null = some date not known yet). */
   ready: string | null;
+  readyPriority: string | null;
   readyListed: string | null;
   /** Working days the priority gains (positive = earlier than the listed order, negative = later). */
   gainDays: number | null;
@@ -701,8 +704,9 @@ function workLeft(ss: PlannedStep[], si: number, from: number, off: (d: string) 
  * How items take turns at a process (15 Nov 2026). PRIORITY: the step that can really
  * start earliest goes next (a unit never waits idle for a more urgent item); items
  * waiting for the same unit at the same moment go Rush first, then the one with more
- * work left, then in listed order. LISTED: the earlier rule (the step ready first goes
- * next, ties in listed order), kept to show what the priority changes.
+ * work AFTER this step, then in listed order. LISTED: the earlier rule (the step ready
+ * first goes next, ties in listed order): WOs confirmed before the change keep it until
+ * "Use item priority", and it is the comparison for the others.
  */
 export type ItemOrderRule = 'PRIORITY' | 'LISTED';
 
@@ -853,7 +857,7 @@ function scheduleOrder(
         const len = s.readyBy ? Math.max(0, off(s.readyBy) - ready) : work(s)!;
         at = earliestSlot(unitsOf(s.processId), ready, len)[1];
       }
-      const cand: Cand = { li, si, ready, after, at, rush: !!rush[li], left: rule === 'PRIORITY' ? workLeft(ss, si, ready, off).days : 0 };
+      const cand: Cand = { li, si, ready, after, at, rush: !!rush[li], left: rule === 'PRIORITY' ? workLeft(ss, si + 1, ready, off).days : 0 };
       if (!pick || better(cand, pick)) pick = cand;
     });
     if (!pick) break;
@@ -919,9 +923,11 @@ export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): Order
   }).map((ss) => (ss ? withPromises(ss) : ss));
   const at = (o: number) => (o <= 0 ? base : addWorkingDays(base, o, cal)!);
   const rush = planned.map((l) => !!l.rush);
-  const real = scheduleOrder(steps, base, today, ctx, true, { rush });
-  const plan = scheduleOrder(steps, base, today, ctx, false, { rush });
-  const listed = scheduleOrder(steps, base, today, ctx, true, { rush, rule: 'LISTED' });
+  const rule = itemOrderRuleOf(jo);
+  const other: ItemOrderRule = rule === 'PRIORITY' ? 'LISTED' : 'PRIORITY';
+  const real = scheduleOrder(steps, base, today, ctx, true, { rush, rule });
+  const plan = scheduleOrder(steps, base, today, ctx, false, { rush, rule });
+  const alt = scheduleOrder(steps, base, today, ctx, true, { rush, rule: other });
   const todayOff = workingDaysBetween(base, today, cal) ?? 0;
   const lines: { line: PlannedLine; lp: LineProgress }[] = [];
   planned.forEach((line, li) => {
@@ -983,13 +989,19 @@ export function orderPlan(jo: StepOrder, today: string, ctx: PlanContext): Order
     return { ...pp, start: dated.map((x) => x.start!).sort()[0] ?? null, finish: dated.map((x) => x.finish!).sort().at(-1) ?? null, undated: pp.steps.length - dated.length };
   });
   processes.sort((a, b) => (a.start ?? '9999').localeCompare(b.start ?? '9999'));
-  return { lines, processes, itemOrder: itemOrderOf(planned, steps, real, listed, base, today, cal, at) };
+  return { lines, processes, itemOrder: itemOrderOf(rule, planned, steps, rule === 'PRIORITY' ? real : alt, rule === 'PRIORITY' ? alt : real, base, today, cal, at) };
+}
+
+/** Drafts always use the priority; confirmed WOs the rule saved on them (none saved = confirmed before 15 Nov 2026 = LISTED). */
+export function itemOrderRuleOf(jo: { status: JobOrder['status']; itemOrderRule?: ItemOrderRule }): ItemOrderRule {
+  return jo.status === 'DRAFT' ? 'PRIORITY' : (jo.itemOrderRule ?? 'LISTED');
 }
 
 function itemOrderOf(
+  rule: ItemOrderRule,
   planned: PlannedLine[],
   steps: (PlannedStep[] | undefined)[],
-  real: StepTimes[][],
+  prio: StepTimes[][],
   listed: StepTimes[][],
   base: string,
   today: string,
@@ -1010,15 +1022,23 @@ function itemOrderOf(
   };
   const items = withSteps
     .map(({ line, li, ss }) => {
-      const from = Math.max(0, ss!.findIndex((s) => !s.doneAt));
-      const left = ss!.every((s) => s.doneAt) ? { days: 0, unknown: false } : workLeft(ss!, from, todayOff, off);
-      return { li, lineId: line.id, product: line.productName, rush: !!line.rush, daysLeft: Math.round(left.days * 2) / 2, partUnknown: left.unknown };
+      const from = ss!.findIndex((s) => !s.doneAt);
+      const left = from < 0 ? { days: 0, unknown: false } : workLeft(ss!, from + 1, todayOff, off);
+      const now = from < 0 ? null : ss![from]!;
+      return { li, lineId: line.id, product: line.productName, rush: !!line.rush, step: now ? (now.key === PLANNING_KEY ? 'Planning' : now.label) : null, daysLeft: Math.round(left.days * 2) / 2, partUnknown: left.unknown };
     })
-    .sort((a, b) => Number(b.rush) - Number(a.rush) || b.daysLeft - a.daysLeft || a.li - b.li)
-    .map(({ lineId, product, rush, daysLeft, partUnknown }) => ({ lineId, product, rush, daysLeft, partUnknown }));
-  const ready = lastReady(real);
+    .sort((a, b) => (rule === 'LISTED' ? a.li - b.li : Number(b.rush) - Number(a.rush) || b.daysLeft - a.daysLeft || a.li - b.li))
+    .map(({ lineId, product, rush, step, daysLeft, partUnknown }) => ({ lineId, product, rush, step, daysLeft, partUnknown }));
+  const readyPriority = lastReady(prio);
   const readyListed = lastReady(listed);
-  return { items, ready, readyListed, gainDays: ready && readyListed ? workingDaysBetween(ready, readyListed, cal) : null };
+  return {
+    rule,
+    items,
+    ready: rule === 'PRIORITY' ? readyPriority : readyListed,
+    readyPriority,
+    readyListed,
+    gainDays: readyPriority && readyListed ? workingDaysBetween(readyPriority, readyListed, cal) : null,
+  };
 }
 
 /**

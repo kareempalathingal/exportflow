@@ -22,9 +22,11 @@ import { TrackBar } from './TrackBar';
 import { daysLeftText, gainText, itemOrderRule } from '../../lib/itemOrder';
 import type { ItemOrder } from '../../lib/route';
 
-/** Item order (15 Nov 2026): who goes first at a shared process, and what it changes against the listed order. */
-function ItemOrderCard({ io, editable, onRush }: { io: ItemOrder; editable: boolean; onRush: (lineId: string, on: boolean) => void }) {
+/** Item order (15 Nov 2026): who goes first at a shared process, and what it changes against the other rule. */
+function ItemOrderCard({ io, editable, onRush, onUsePriority }: { io: ItemOrder; editable: boolean; onRush: (lineId: string, on: boolean) => void; onUsePriority: () => void }) {
   const gain = gainText(io.gainDays);
+  const prio = io.rule === 'PRIORITY';
+  const other = prio ? io.readyListed : io.readyPriority;
   return (
     <div className="card">
       <strong>Item order</strong>
@@ -33,12 +35,12 @@ function ItemOrderCard({ io, editable, onRush }: { io: ItemOrder; editable: bool
         {io.ready ? (
           <>
             WO ready <strong>{formatDay(io.ready)}</strong>
-            {io.readyListed && ` · in listed order: ${formatDay(io.readyListed)}`}
+            {other && ` · ${prio ? 'in listed order' : 'with item priority'}: ${formatDay(other)}`}
           </>
         ) : (
           'WO ready date to be confirmed (a step has no time yet)'
         )}
-        {gain && gain.tone !== 'neutral' && <span className={`pill ${gain.tone} inline-pill`}>{gain.text}</span>}
+        {gain && gain.tone !== 'neutral' && <span className={`pill ${gain.tone} inline-pill`}>{prio ? gain.text : `priority: ${gain.text}`}</span>}
         {gain && gain.tone === 'neutral' && <span className="muted"> · {gain.text}</span>}
       </p>
       <ol className="small plain-list">
@@ -46,10 +48,10 @@ function ItemOrderCard({ io, editable, onRush }: { io: ItemOrder; editable: bool
           <li key={i.lineId} className="row between">
             <span>
               {n + 1}. {i.product}
-              {i.rush && <span className="pill warn inline-pill">Rush</span>}
+              {prio && i.rush && <span className="pill warn inline-pill">Rush</span>}
               <span className="muted"> · {daysLeftText(i)}</span>
             </span>
-            {editable && (
+            {editable && prio && (
               <button type="button" className="secondary small" onClick={() => onRush(i.lineId, !i.rush)}>
                 {i.rush ? 'Rush off' : 'Rush'}
               </button>
@@ -57,6 +59,14 @@ function ItemOrderCard({ io, editable, onRush }: { io: ItemOrder; editable: bool
           </li>
         ))}
       </ol>
+      {!prio && editable && (
+        <>
+          <p className="muted small">This WO was confirmed before item priority, so its plan keeps the listed order. Switching changes its expected dates{gain ? ` (${gain.text})` : ''}; the internal deadline stays.</p>
+          <button type="button" className="secondary small" onClick={onUsePriority}>
+            Use item priority
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -106,6 +116,13 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
     );
   }
 
+  function usePriority() {
+    if (!workspaceId) return;
+    const g = oplan ? gainText(oplan.itemOrder.gainDays) : null;
+    if (!window.confirm(`Use item priority on ${jo.joNumber}?\n\nRush first, then the item with more work after the shared step. Expected dates change${g ? ` (WO ready ${g.text})` : ''}; the internal deadline stays.`)) return;
+    saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Work Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), itemOrderRule: 'PRIORITY' })) as Record<string, unknown>, reason: 'Item order: switched to item priority' });
+  }
+
   function setUp() {
     saveLines(
       jo.lines.map((l) => (l.steps && l.steps.length ? l : { ...l, steps: buildLineSteps(l, md, processes) })),
@@ -128,7 +145,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
           </button>
         </div>
       )}
-      {oplan && oplan.itemOrder.items.length > 1 && <ItemOrderCard io={oplan.itemOrder} editable={editable} onRush={setRush} />}
+      {oplan && oplan.itemOrder.items.length > 1 && <ItemOrderCard io={oplan.itemOrder} editable={editable} onRush={setRush} onUsePriority={usePriority} />}
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>

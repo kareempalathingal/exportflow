@@ -17,7 +17,7 @@ import {
   type MasterData,
   type Product,
 } from '../../lib/masters';
-import type { DataStatus } from '../../lib/dataStatus';
+import { DATA_STATUS_LABEL, type DataStatus } from '../../lib/dataStatus';
 import { saveRecord } from '../sync/records';
 import { parseNum, StatusSelect, UnitSelect } from './fields';
 import type { WithMeta } from './useCollection';
@@ -61,6 +61,8 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // Compact table first; the full editor only after "Edit BOM" (15 Nov 2026).
+  const [editing, setEditing] = useState(false);
   const loaded = useRef<string | null>(null);
   const savedDraft = useRef<string>('[]');
 
@@ -127,6 +129,7 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
       reason,
     });
     setReason('');
+    setEditing(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -138,7 +141,79 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
     if (dirty && !window.confirm('You have unsaved BOM changes. Leave without saving them?')) e.preventDefault();
   }
 
+  function cancel() {
+    if (dirty && !window.confirm('Discard your BOM changes?')) return;
+    const initial = (bom?.lines ?? []).map(toDraft);
+    setLines(initial);
+    setNotes(bom?.notes ?? '');
+    setReason('');
+    setError(null);
+    setEditing(false);
+  }
+
   if (loading) return <p className="muted">{t('loading')}</p>;
+
+  if (!editing) {
+    const shown = bom?.lines ?? [];
+    const toConfirm = shown.filter((l) => l.status !== 'VERIFIED' && l.status !== 'USER_PROVIDED').length;
+    return (
+      <div className="card">
+        <div className="row between">
+          <h3>BOM — for 1 {unitLabel(product.baseUnit)}</h3>
+          <span className="muted small">Version {bom?.rev ?? 0}</span>
+        </div>
+        {shown.length === 0 ? (
+          <p className="muted small">No BOM yet. Components can be raw materials or other products (for example yarn made in-house).</p>
+        ) : (
+          <table className="conv bom-view">
+            <thead>
+              <tr>
+                <th>Component</th>
+                <th className="num">Qty</th>
+                <th className="num">Wastage</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((l, i) => {
+                const c = lineComponent(l);
+                const comp = c.id ? componentContext(c.type, c.id, md) : null;
+                const firm = l.status === 'VERIFIED' || l.status === 'USER_PROVIDED';
+                return (
+                  <tr key={i}>
+                    <td>
+                      {comp?.name ?? '(missing item)'}
+                      {c.type === 'PRODUCT' && <span className="muted small"> · product</span>}
+                    </td>
+                    <td className="num">
+                      {formatQty(l.qty)} {unitLabel(l.unit)}
+                    </td>
+                    <td className="num">{formatQty(l.wastagePct ?? 0)}%</td>
+                    <td className={firm ? 'ok small' : 'warn small'}>{DATA_STATUS_LABEL[l.status]}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {shown.length > 0 && (
+          <p className="muted small">
+            {shown.length} component{shown.length === 1 ? '' : 's'}
+            {toConfirm > 0 && ` · ${toConfirm} not confirmed yet`}
+            {bom?.notes && ` · notes: ${bom.notes}`}
+          </p>
+        )}
+        {saved && <p className="ok small">{t('saved')}</p>}
+        <div className="row between">
+          <span className="muted small">{bom?.pending && <span className="badge pending">{t('PENDING')}</span>}</span>
+          <button type="button" className="secondary" onClick={() => setEditing(true)}>
+            {shown.length ? 'Edit BOM' : '+ Add components'}
+          </button>
+        </div>
+        {bom && bom.lines.length > 0 && <BomCalculator product={product} productId={product.id} md={md} />}
+      </div>
+    );
+  }
 
   return (
     <div className="card">
@@ -255,13 +330,16 @@ export function BomEditor({ product }: { product: WithMeta<Product> }) {
         </p>
       )}
       <div className="row between">
-        <span className="muted small">{bom?.pending && <span className="badge pending">{t('PENDING')}</span>}</span>
-        <button className="primary" type="button" onClick={save}>
-          Save BOM
-        </button>
+        <span />
+        <span className="row gap">
+          <button className="secondary" type="button" onClick={cancel}>
+            Cancel
+          </button>
+          <button className="primary" type="button" onClick={save}>
+            Save BOM
+          </button>
+        </span>
       </div>
-      {saved && <p className="ok small">{t('saved')}</p>}
-      {bom && bom.lines.length > 0 && <BomCalculator product={product} productId={product.id} md={md} />}
     </div>
   );
 }

@@ -49,6 +49,7 @@ export function jobOrderData(jo: JobOrder): JobOrder {
     progressLog: jo.progressLog ?? [],
     completedOn: jo.completedOn ?? null,
     ...(jo.materialDates ? { materialDates: jo.materialDates } : {}),
+    ...(jo.itemOrderRule ? { itemOrderRule: jo.itemOrderRule } : {}),
   };
 }
 

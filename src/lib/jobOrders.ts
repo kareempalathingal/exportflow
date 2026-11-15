@@ -247,6 +247,8 @@ export interface JobOrder {
   completedOn?: string | null;
   /** Per material to buy (item key): ordered / expected / received dates. Gates the "Materials ready" stage. */
   materialDates?: Record<string, MaterialDates>;
+  /** Item order rule (15 Nov 2026), saved at confirmation; absent on WOs confirmed before = listed order. */
+  itemOrderRule?: 'PRIORITY' | 'LISTED';
 }
 
 /** Completion date after a status change: set on completion, cleared on reopen, else kept. */

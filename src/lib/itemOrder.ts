@@ -7,11 +7,13 @@ import { formatDay, isEditable, type JobOrder } from './jobOrders';
 import type { MasterData, Process } from './masters';
 import { buildLineSteps, orderPlan, type ItemOrder, type PlanContext } from './route';
 
-export const ITEM_ORDER_RULE = 'Rush first, then the item with more work left';
+export const ITEM_ORDER_RULE = 'Rush first, then the item with more work after the shared step';
+export const LISTED_RULE = 'Items in listed order (WO confirmed before item priority)';
 
 /** The rule in one line, for screens and plans. */
 export function itemOrderRule(io: ItemOrder): string {
-  return io.items.some((i) => i.rush) ? 'Rush, then more work first' : 'More work first';
+  if (io.rule === 'LISTED') return 'Listed order (confirmed before item priority)';
+  return io.items.some((i) => i.rush) ? 'Rush, then more work after the shared step' : 'More work after the shared step first';
 }
 
 export type GainTone = 'ok' | 'warn' | 'neutral';
@@ -25,11 +27,12 @@ export function gainText(gainDays: number | null): { text: string; tone: GainTon
   return gainDays > 0 ? { text: `${days} earlier`, tone: 'ok' } : { text: `${days} later`, tone: 'warn' };
 }
 
-/** "9 days left", "4 days left (part unknown)", "work left not known yet". */
+/** "now Tufting · 9 days after it", "(part unknown)", "done". */
 export function daysLeftText(i: ItemOrder['items'][number]): string {
+  if (!i.step) return 'done';
   const d = i.daysLeft;
-  if (i.partUnknown && d === 0) return 'work left not known yet';
-  return `${d} day${d === 1 ? '' : 's'} left${i.partUnknown ? ' (part unknown)' : ''}`;
+  if (i.partUnknown && d === 0) return `now ${i.step} · work after it not known yet`;
+  return `now ${i.step} · ${d} day${d === 1 ? '' : 's'} after it${i.partUnknown ? ' (part unknown)' : ''}`;
 }
 
 /** Drafts are planned from the product routes as they are now (like the proposed plan). */
@@ -43,6 +46,8 @@ export interface ItemPriorityRow {
   joNumber: string;
   customer: string;
   draft: boolean;
+  /** The rule the WO uses now (LISTED = confirmed before item priority, not changed yet). */
+  rule: ItemOrder['rule'];
   items: number;
   readyListed: string | null;
   ready: string | null;
@@ -56,7 +61,7 @@ export function itemPriorityRows(jos: (JobOrder & { id: string })[], today: stri
     if (!isEditable(jo.status)) continue;
     const io = orderPlan(withDraftSteps(jo, ctx.md, processes), today, ctx).itemOrder;
     if (io.items.length < 2) continue;
-    rows.push({ id: jo.id, joNumber: jo.joNumber, customer: jo.customerName, draft: jo.status === 'DRAFT', items: io.items.length, readyListed: io.readyListed, ready: io.ready, gainDays: io.gainDays });
+    rows.push({ id: jo.id, joNumber: jo.joNumber, customer: jo.customerName, draft: jo.status === 'DRAFT', rule: io.rule, items: io.items.length, readyListed: io.readyListed, ready: io.readyPriority, gainDays: io.gainDays });
   }
   // Biggest change first (either way), unknown last.
   return rows.sort((a, b) => (b.gainDays === null ? -1 : Math.abs(b.gainDays)) - (a.gainDays === null ? -1 : Math.abs(a.gainDays)) || a.joNumber.localeCompare(b.joNumber));
@@ -84,7 +89,7 @@ const dayOrDash = (d: string | null) => (d ? formatDay(d) : 'to be confirmed');
 /** Plain text for the share sheet. */
 export function itemPriorityText(rows: ItemPriorityRow[], today: string): string {
   const out = [`Item priority: effect · ${formatDay(today)}`, `Rule: ${ITEM_ORDER_RULE}. Working days; ready = last item ready.`, itemPrioritySummary(rows)];
-  for (const r of rows) out.push(`• ${r.joNumber}${r.draft ? ' (draft)' : ''}: listed order ${dayOrDash(r.readyListed)} → with priority ${dayOrDash(r.ready)} (${diffText(r)})`);
+  for (const r of rows) out.push(`• ${r.joNumber}${r.draft ? ' (draft)' : r.rule === 'LISTED' ? ' (uses listed order)' : ''}: listed order ${dayOrDash(r.readyListed)} → with priority ${dayOrDash(r.ready)} (${diffText(r)})`);
   return out.join('\n');
 }
 
@@ -101,13 +106,14 @@ export function itemPriorityDoc(rows: ItemPriorityRow[], opts: { company: string
       {
         title: 'Listed order vs priority',
         columns: [{ label: 'WO' }, { label: 'Customer' }, { label: 'Items', align: 'right' }, { label: 'Listed order' }, { label: 'With priority' }, { label: 'Difference' }],
-        rows: rows.map((r) => [`${r.joNumber}${r.draft ? '\nDraft' : ''}`, r.customer || '-', String(r.items), dayOrDash(r.readyListed), dayOrDash(r.ready), diffText(r)]),
+        rows: rows.map((r) => [`${r.joNumber}${r.draft ? '\nDraft' : r.rule === 'LISTED' ? '\nUses listed order' : ''}`, r.customer || '-', String(r.items), dayOrDash(r.readyListed), dayOrDash(r.ready), diffText(r)]),
         empty: 'No open WO with two or more items.',
       },
     ],
     notes: [
       'Ready = the day the last item of the WO is ready, in working days (Sundays and company holidays left out).',
       'Each WO is planned on its own; waiting behind other WOs is not included yet. Drafts are planned from the product routes as they are now.',
+      'WOs confirmed before item priority keep the listed order until "Use item priority" is chosen on the WO (Products tab).',
     ],
     provisional: false,
     provisionalReasons: [],
