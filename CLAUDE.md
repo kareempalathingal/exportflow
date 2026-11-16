@@ -193,6 +193,22 @@ report the discrepancy and ask; do not silently choose.
     follows it (tables: title + column heads + first row, measured on a
     scratch page); table rows never split across pages; a table that runs
     on repeats its title "(continued)" and its column heads.
+-   Products numbered (confirmed 16 Nov 2026): the ordered products (WO
+    lines) carry their place on the order (1, 2, 3 …) wherever they are
+    listed: Products table, step cards, timeline, working-plan step tables,
+    WO summary, the WO page list and the Products tab cards. Raw materials
+    and made sub-products (base mat) get no number; "For" columns keep the
+    names.
+-   Working plan timeline (redrawn 16 Nov 2026): legend (done, running,
+    planned, approx. = dashed, over plan / late, "All steps of a product",
+    today / internal deadline / cargo ready lines); month band and a label
+    and line at every Monday (every day when the range is short); Sundays
+    and company holidays shaded (`DocTimeline.offDays`); each product as a
+    full-width numbered name row, an "All steps" summary bar, then its
+    steps, every bar with its dates (+ "approx.", "N days over"); a product
+    is kept on one page when it fits; legend and axis repeat on each page.
+    Hour lines were discussed and left out (unreadable on a whole-order
+    chart).
 -   Performance reports (confirmed 20 Oct 2026), PDF, any date range:
     WO-wise (on time vs internal deadline / delivery, buffer used,
     schedule gap over time, changes after confirmation) and, once stages

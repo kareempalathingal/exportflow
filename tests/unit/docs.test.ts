@@ -29,7 +29,7 @@ const opts = { company: 'Acme Coir', today: '2026-11-20', generatedAt: '20 Nov 2
 describe('document models', () => {
   it('JO summary lists lines with base-unit conversion and the deadline rule', () => {
     const m = joSummaryDoc(jo, md, opts);
-    expect(m.tables[0]!.rows[0]).toEqual(['Coir Mat 40×60', '24 sq m', '100 pcs', 'Make']);
+    expect(m.tables[0]!.rows[0]).toEqual(['1', 'Coir Mat 40×60', '24 sq m', '100 pcs', 'Make']);
     expect(m.meta.find(([k]) => k === 'Internal deadline')![1]).toContain('buffer 6 of 51 working days');
     expect(m.provisional).toBe(false);
     expect(m.fileName).toBe('JO-1042-A_summary.pdf');
@@ -70,6 +70,17 @@ describe('PDF output', () => {
     expect(text.startsWith('%PDF-')).toBe(true);
     expect(text).toMatch(/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/); // A4
     expect(bytes.length).toBeGreaterThan(2000);
+  });
+  it('draws the timeline with numbered products, days off and dates on the bars (16 Nov 2026)', async () => {
+    const m = joSummaryDoc(jo, md, opts);
+    expect(m.tables[0]!.columns[0]!.label).toBe('#');
+    expect(m.tables[0]!.rows[0]![0]).toBe('1');
+    const rows = Array.from({ length: 70 }, (_, i) => ({ label: `Step ${i}`, group: `${Math.floor(i / 10) + 1}. Product`, from: '2026-11-16', to: '2026-11-18', kind: (['done', 'now', 'planned', 'late'] as const)[i % 4]!, ...(i % 5 === 0 ? { approx: true } : {}), ...(i % 7 === 0 ? { note: '1 day over' } : {}) }));
+    const tl = { ...m, timeline: { title: 'Timeline', from: '2026-11-15', to: '2026-12-20', markers: [{ date: '2026-11-16', label: 'Today', color: [0, 0, 0] as [number, number, number] }], rows, offDays: ['2026-11-22'] } };
+    const text = new TextDecoder('latin1').decode(new Uint8Array(await (await renderPdf(tl)).arrayBuffer()));
+    expect(text).toContain('16-18 Nov');
+    expect(text).toContain('All steps');
+    expect(text).toContain('November 2026');
   });
   it('names the WO, never the app, and repeats a long table title as continued (16 Nov 2026)', async () => {
     const m = joSummaryDoc(jo, md, opts);

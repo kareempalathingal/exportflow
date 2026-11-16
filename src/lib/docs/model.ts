@@ -89,7 +89,19 @@ export interface DocTimeline {
   from: string; // YYYY-MM-DD
   to: string;
   markers: { date: string; label: string; color: [number, number, number] }[];
-  rows: { label: string; group: string; from: string | null; to: string | null; kind: 'done' | 'now' | 'planned' | 'late' | 'unknown' }[];
+  rows: {
+    label: string;
+    group: string;
+    from: string | null;
+    to: string | null;
+    kind: 'done' | 'now' | 'planned' | 'late' | 'unknown';
+    /** Date is approximate (estimate or benchmark): dashed bar. */
+    approx?: boolean;
+    /** Added after the dates on the bar, e.g. "1 day over". */
+    note?: string;
+  }[];
+  /** Sundays and company holidays between from and to (shaded). */
+  offDays?: string[];
 }
 
 export interface DocSignature {
@@ -146,13 +158,14 @@ export function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'
 export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: string; today: string; generatedAt: string; cal?: WorkCalendar }): DocModel {
   const b = base(jo, opts.company, opts.generatedAt);
   const reasons: string[] = [];
-  const rows = jo.lines.map((l) => {
+  const rows = jo.lines.map((l, n) => {
     const r = resolveLine(l, md);
     const p = md.products.get(l.productId);
     const supply = effectiveSupply(l, p);
     if (r.problem) reasons.push(`${p?.name ?? l.productName}: ${r.problem}`);
     if (!supply) reasons.push(`${p?.name ?? l.productName}: Make or outright purchase not decided`);
     return [
+      String(n + 1),
       p?.name ?? l.productName,
       qty(l.qty, l.unit),
       r.baseQty !== null && r.baseUnit && r.baseUnit !== l.unit ? `${qty(r.baseQty, r.baseUnit)}${r.provisional ? ' (est.)' : ''}` : r.baseQty === null ? 'Conversion needed' : '—',
@@ -183,7 +196,7 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
     tables: [
       {
         title: 'Products',
-        columns: [{ label: 'Product' }, { label: 'Ordered', align: 'right' }, { label: 'In base unit', align: 'right' }, { label: 'Make / Outright purchase' }],
+        columns: [{ label: '#' }, { label: 'Product' }, { label: 'Ordered', align: 'right' }, { label: 'In base unit', align: 'right' }, { label: 'Make / Outright purchase' }],
         rows,
         empty: 'No products on this order.',
       },

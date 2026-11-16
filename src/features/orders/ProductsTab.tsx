@@ -104,7 +104,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} vsPlan={vsPlan} order={orderOf(l.id)} onRush={(on) => setRush(l.id, on)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} vsPlan={vsPlan} no={i + 1} order={orderOf(l.id)} onRush={(on) => setRush(l.id, on)} />
           </li>
         ))}
       </ul>
@@ -137,6 +137,8 @@ function LineCard(props: {
   suppliers: (Supplier & { id: string })[];
   onSteps: (steps: JoStep[], what: string) => void;
   vsPlan: PlanCompare | null;
+  /** Number of the product on the order (1 = first listed), as in the documents. */
+  no: number;
   /** Place at shared processes (item order, 2+ items); null = not shown. */
   order: LineOrder | null;
   onRush: (on: boolean) => void;
@@ -153,7 +155,9 @@ function LineCard(props: {
   const head = (
     <div className="row between">
       <span>
-        <strong>{line.productName}</strong>
+        <strong>
+          {props.no}. {line.productName}
+        </strong>
         <span className="muted small block">
           {formatQty(line.qty)} {unitLabel(line.unit)} · {supply}
         </span>
@@ -357,7 +361,9 @@ function LineCard(props: {
     <div className="card edge" style={{ ['--edge' as string]: color }}>
       <div className="row between">
         <span>
-          <strong>{line.productName}</strong>
+          <strong>
+          {props.no}. {line.productName}
+        </strong>
           <span className="muted small block">
             {formatQty(line.qty)} {unitLabel(line.unit)} · {supply}
           </span>

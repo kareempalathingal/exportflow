@@ -386,84 +386,244 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
   if (model.roadMap) drawRoadMap(model.roadMap);
 
   if (model.timeline && model.timeline.rows.length) {
+    // Timeline (redrawn 16 Nov 2026): legend, month band, a line and label every Monday,
+    // days off shaded, each product numbered with a summary bar, every bar with its dates.
     const tl = model.timeline;
     const d0 = dayNum(tl.from);
-    const d1 = Math.max(d0 + 1, dayNum(tl.to));
-    const labelW = 52;
+    const d1 = Math.max(d0 + 1, dayNum(tl.to) + 1);
+    const labelW = 50;
     const x0 = M + labelW;
     const span = W - M - x0;
-    const xOf = (d: string) => x0 + ((dayNum(d) - d0) / (d1 - d0)) * span;
+    const dayW = span / (d1 - d0);
+    const xOf = (d: string) => x0 + (dayNum(d) - d0) * dayW;
+    const dateOf = (dn: number) => new Date(dn * 86_400_000);
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const shortDate = (d: string) => {
+      const t = dateOf(dayNum(d));
+      return `${t.getUTCDate()} ${MON[t.getUTCMonth()]}`;
+    };
+    const range = (a: string, b: string) => {
+      if (a === b) return shortDate(a);
+      const ta = dateOf(dayNum(a));
+      const tb = dateOf(dayNum(b));
+      return ta.getUTCMonth() === tb.getUTCMonth() ? `${ta.getUTCDate()}-${shortDate(b)}` : `${shortDate(a)} - ${shortDate(b)}`;
+    };
     const rowH = 5;
-    heading(tl.title, 22, 7);
-    // date ticks (about 6)
+    const groupH = 5 + rowH; // name row + summary row
+    const COLORS: Record<string, RGB> = { done: [120, 170, 110], now: NAVY, planned: [150, 180, 215], late: [200, 60, 50] };
+    const SUMMARY: RGB = [150, 156, 166];
+    const markers = tl.markers.filter((mk) => dayNum(mk.date) >= d0 && dayNum(mk.date) < d1).sort((x, z) => dayNum(x.date) - dayNum(z.date));
+    const off = new Set(tl.offDays ?? []);
+
+    // Groups of rows (one per product), kept on one page when they fit.
+    const groups: { name: string; rows: typeof tl.rows }[] = [];
+    for (const r of tl.rows) {
+      if (groups.at(-1)?.name !== r.group) groups.push({ name: r.group, rows: [] });
+      groups.at(-1)!.rows.push(r);
+    }
+    const headH = 11 + 6 + 4; // legend (up to two lines) + month band + week labels
+
+    const drawLegend = () => {
+      let lx = M;
+      const ly = y;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      let ly2 = ly;
+      const item = (label: string, draw: (x: number, yy: number) => void, w = 3.2) => {
+        if (lx + w + 1.2 + doc.getTextWidth(s(label)) > W - M) {
+          lx = M;
+          ly2 += 4.5;
+        }
+        const yy = ly2;
+        draw(lx, yy);
+        doc.setTextColor(...MUTED);
+        doc.text(s(label), lx + w + 1.2, yy + 2.5);
+        lx += w + 1.2 + doc.getTextWidth(s(label)) + 4;
+      };
+      const box = (c: RGB) => (x: number, yy: number) => {
+        doc.setFillColor(...c);
+        doc.rect(x, yy, 3.2, 3, 'F');
+      };
+      item('Done', box(COLORS.done!));
+      item('Running now', box(COLORS.now!));
+      item('Planned', box(COLORS.planned!));
+      item('Approx. date', (x, yy) => {
+        doc.setDrawColor(...COLORS.planned!);
+        doc.setLineWidth(0.35);
+        dashed(true);
+        doc.rect(x, yy, 3.2, 3, 'S');
+        dashed(false);
+      });
+      item('Over plan / late', box(COLORS.late!));
+      item('All steps of a product', box(SUMMARY));
+      for (const mk of markers) {
+        item(mk.label, (x, yy) => {
+          doc.setDrawColor(...mk.color);
+          doc.setLineWidth(0.5);
+          doc.line(x + 1.6, yy - 0.5, x + 1.6, yy + 3.5);
+        });
+      }
+      y = ly2 + 7;
+    };
     const drawAxis = () => {
+      // Month band.
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      let dn = d0;
+      while (dn < d1) {
+        const t = dateOf(dn);
+        const next = Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 1) / 86_400_000;
+        const end = Math.min(d1, next);
+        const xa = x0 + (dn - d0) * dayW;
+        const xb = x0 + (end - d0) * dayW;
+        doc.setFillColor(...SOFT);
+        doc.rect(xa, y, xb - xa - 0.3, 4.5, 'F');
+        doc.setTextColor(...INK);
+        const label = xb - xa > 30 ? `${MONTH_FULL[t.getUTCMonth()]} ${t.getUTCFullYear()}` : MON[t.getUTCMonth()]!;
+        if (xb - xa > 8) doc.text(label, (xa + xb) / 2, y + 3.2, { align: 'center' });
+        dn = end;
+      }
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7);
       doc.setTextColor(...MUTED);
-      const ticks = 6;
-      for (let i = 0; i <= ticks; i++) {
-        const dn = Math.round(d0 + ((d1 - d0) * i) / ticks);
-        const x = x0 + ((dn - d0) / (d1 - d0)) * span;
-        const label = new Date(dn * 86_400_000).toISOString().slice(5, 10).split('-').reverse().join('/');
-        doc.text(label, x, y + 2.5, { align: i === 0 ? 'left' : i === ticks ? 'right' : 'center' });
+      doc.text('Product · step', M, y + 3.2);
+      y += 6;
+      // A label at every Monday (every day when there is room).
+      const every = dayW >= 9 ? 1 : 7;
+      for (let k = d0; k < d1; k++) {
+        const t = dateOf(k);
+        if (every === 7 && t.getUTCDay() !== 1) continue;
+        const x = x0 + (k - d0) * dayW;
+        const label = every === 7 ? `Mon ${t.getUTCDate()}` : `${t.getUTCDate()}`;
+        if (x + doc.getTextWidth(label) > W - M + 1) continue;
+        doc.text(label, x + 0.5, y + 2.5);
       }
-      y += 4.5;
+      y += 4;
     };
-    drawAxis();
-    let top = y;
-    // Today / deadline / delivery lines on every page of the chart, labels under them (staggered when close).
-    const drawMarkers = () => {
-      let lastX = -99;
-      let level = 0;
-      const shown = tl.markers.filter((mk) => dayNum(mk.date) >= d0 && dayNum(mk.date) <= d1).sort((a, b) => dayNum(a.date) - dayNum(b.date));
-      for (const mk of shown) {
-        const x = xOf(mk.date) + (span / (d1 - d0)) * 0.5;
+    // Shading for days off and a line at every Monday, from top to bottom of this page's rows.
+    const drawGrid = (top: number, bottom: number) => {
+      doc.setFillColor(236, 236, 236);
+      for (let k = d0; k < d1; k++) {
+        const iso = dateOf(k).toISOString().slice(0, 10);
+        if (off.has(iso)) doc.rect(x0 + (k - d0) * dayW, top, dayW, bottom - top, 'F');
+      }
+      doc.setDrawColor(...RULE);
+      doc.setLineWidth(0.15);
+      for (let k = d0; k <= d1; k++) {
+        if (dateOf(k).getUTCDay() !== 1 && k !== d0) continue;
+        const x = x0 + (k - d0) * dayW;
+        doc.line(x, top, x, bottom);
+      }
+    };
+    const drawMarkers = (top: number, bottom: number) => {
+      for (const mk of markers) {
+        const x = xOf(mk.date) + dayW / 2;
         doc.setDrawColor(...mk.color);
-        doc.setLineWidth(0.4);
-        doc.line(x, top - 1, x, y);
-        level = x - lastX < 24 ? level + 1 : 0;
-        lastX = x;
+        doc.setLineWidth(0.45);
+        doc.line(x, top, x, bottom);
+      }
+    };
+    const barText = (text: string, xa: number, xb: number, ty: number, color: RGB = MUTED) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...color);
+      const w = doc.getTextWidth(s(text));
+      if (xb + 1 + w <= W - M) doc.text(s(text), xb + 1, ty);
+      else doc.text(s(text), Math.max(x0 + 0.5, xa - 1), ty, { align: xa - 1 - w >= x0 ? 'right' : 'left' });
+    };
+
+    // Page by page: work out which groups fit, then grid, rows and markers.
+    heading(tl.title, headH + groupH + rowH * Math.min(3, groups[0]!.rows.length), 7);
+    let gi = 0;
+    while (gi < groups.length) {
+      drawLegend();
+      drawAxis();
+      const top = y;
+      const room = H - 24 - top;
+      let used = 0;
+      const page: typeof groups = [];
+      while (gi < groups.length) {
+        const g = groups[gi]!;
+        const h = groupH + g.rows.length * rowH;
+        if (used + h > room) {
+          if (page.length === 0) {
+            // A product taller than a page: as many of its rows as fit, the rest on the next page.
+            const fit = Math.max(1, Math.floor((room - groupH) / rowH));
+            page.push({ name: g.name, rows: g.rows.slice(0, fit) });
+            groups[gi] = { name: `${g.name} (continued)`, rows: g.rows.slice(fit) };
+            used = room;
+          }
+          break;
+        }
+        page.push(g);
+        used += h;
+        gi++;
+      }
+      const bottom = top + used;
+      drawGrid(top, bottom);
+      for (const g of page) {
+        const dated = g.rows.filter((r) => r.from && r.to);
+        // Product name across the whole width (on white, above the grid), then its summary bar.
+        doc.setFillColor(...WHITE);
+        doc.rect(M, y, W - 2 * M, 5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...INK);
+        doc.text((doc.splitTextToSize(s(g.name), W - 2 * M) as string[])[0] ?? '', M, y + 3.8);
+        y += 5;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
-        doc.setTextColor(...mk.color);
-        const align = x > W - M - 12 ? 'right' : x < x0 + 12 ? 'left' : 'center';
-        doc.text(s(mk.label), x, y + 3 + level * 3, { align });
-      }
-      return shown.length ? 3 + level * 3 : 0;
-    };
-    let group = '';
-    for (const r of tl.rows) {
-      if (y + rowH > H - 22) {
-        drawMarkers();
-        newPage();
-        drawAxis();
-        top = y;
-      }
-      if (r.group !== group) {
-        group = r.group;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(...INK);
-        doc.text(s(group), M, y + 3.4);
+        doc.setTextColor(...MUTED);
+        doc.text('All steps', M + 2.5, y + 3.4);
+        if (dated.length) {
+          const from = dated.map((r) => r.from!).sort()[0]!;
+          const to = dated.map((r) => r.to!).sort().at(-1)!;
+          const xa = xOf(from);
+          const xb = Math.min(W - M, xOf(to) + dayW);
+          doc.setFillColor(...SUMMARY);
+          doc.rect(xa, y + 1, Math.max(0.8, xb - xa), rowH - 2, 'F');
+          barText(`${range(from, to)}${dated.length < g.rows.length ? ' (some dates to be confirmed)' : ''}`, xa, xb, y + 3.4, INK);
+        }
         y += rowH;
+        for (const r of g.rows) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(...INK);
+          doc.text((doc.splitTextToSize(s(r.label), labelW - 4) as string[])[0] ?? '', M + 2.5, y + 3.4);
+          if (r.from && r.to) {
+            const xa = xOf(r.from);
+            const xb = Math.min(W - M, xOf(r.to) + dayW);
+            const c = COLORS[r.kind] ?? COLORS.planned!;
+            if (r.approx) {
+              doc.setFillColor(232, 240, 250);
+              doc.rect(xa, y + 1, Math.max(0.8, xb - xa), rowH - 2, 'F');
+              doc.setDrawColor(...c);
+              doc.setLineWidth(0.35);
+              dashed(true);
+              doc.rect(xa, y + 1, Math.max(0.8, xb - xa), rowH - 2, 'S');
+              dashed(false);
+            } else {
+              doc.setFillColor(...c);
+              doc.rect(xa, y + 1, Math.max(0.8, xb - xa), rowH - 2, 'F');
+            }
+            barText(`${range(r.from, r.to)}${r.approx ? ' approx.' : ''}${r.note ? ` · ${r.note}` : ''}`, xa, xb, y + 3.4, r.kind === 'late' ? RED_INK : MUTED);
+          } else {
+            doc.setFontSize(7);
+            doc.setTextColor(...AMBER_INK);
+            doc.text('date to be confirmed', x0 + 1, y + 3.4);
+          }
+          y += rowH;
+        }
       }
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...INK);
-      doc.text((doc.splitTextToSize(s(r.label), labelW - 3) as string[])[0] ?? '', M + 2, y + 3.4);
-      if (r.from && r.to) {
-        const color: [number, number, number] = r.kind === 'done' ? [120, 170, 140] : r.kind === 'now' ? NAVY : r.kind === 'late' ? [190, 60, 50] : [150, 175, 210];
-        doc.setFillColor(...color);
-        const xa = xOf(r.from);
-        const xb = Math.max(xa + 0.8, xOf(r.to) + (span / (d1 - d0)) * 0.9);
-        doc.rect(xa, y + 0.8, Math.min(xb, W - M) - xa, rowH - 1.8, 'F');
-      } else {
-        doc.setTextColor(...AMBER_INK);
-        doc.text('to be confirmed', x0 + 1, y + 3.4);
-      }
-      y += rowH;
+      drawMarkers(top, bottom);
+      if (gi < groups.length) newPage();
     }
-    y += drawMarkers() + 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text('Shaded columns = Sundays and company holidays (not worked). Lines mark each Monday.', M, y + 3);
+    y += 9;
   }
 
   for (const ch of model.charts ?? []) {

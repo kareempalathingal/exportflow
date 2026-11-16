@@ -3,7 +3,7 @@
  * of a Work Order (`productionPlanDoc()`), with the overview used by the plan to submit.
  */
 import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, effectiveSupply, type JobOrder } from '../jobOrders';
-import { workingDaysBetween, type WorkCalendar } from '../calendar';
+import { isWorkingDay, workingDaysBetween, type WorkCalendar } from '../calendar';
 import { ITEM_ORDER_RULE, LISTED_RULE, daysLeftText, gainText } from '../itemOrder';
 import { compareToPlan, diffText as baselineDiffText, stepKey } from '../baseline';
 import { buildLineSteps, hoursText, isLandingStep, DEFAULT_PLANNING_DAYS, isBuiltIn, lineProgress, MATERIALS_KEY, lineSchedule, orderPlan, orderStart, orderTrack, planLines, PLANNING_KEY, processPlanRows, type ItemOrder, type PlanContext } from '../route';
@@ -241,6 +241,13 @@ function itemOrderMeta(io: ItemOrder, clean: boolean): [string, string][] {
   return [['Item order', `${rule}. ${vs}.\n${items}`]];
 }
 
+/** Days off (Sundays, company holidays) from `from` to `to`, for the timeline's shading. */
+function offDaysBetween(from: string, to: string, cal: WorkCalendar): string[] {
+  const out: string[] = [];
+  for (let d = from; d <= to && out.length < 400; d = addDays(d, 1)!) if (!isWorkingDay(d, cal)) out.push(d);
+  return out;
+}
+
 export function productionPlanDoc(input: PlanDocInput): DocModel {
   const { jo, md, ctx, today } = input;
   const cal = ctx.cal;
@@ -378,20 +385,30 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   // Timeline (Gantt): one row per step, grouped by product.
   const rowsTl: DocTimeline['rows'] = [];
   let lastDate = order.deliveryDate;
-  for (const { line, sched } of lines) {
+  for (const [n, { line, sched }] of lines.entries()) {
     for (const st of sched) {
       const s = st.view.step;
+      const over = st.view.overrunDays ?? 0;
       const kind: DocTimeline['rows'][number]['kind'] =
-        st.view.state === 'DONE' ? 'done' : !st.finish ? 'unknown' : st.finish > deadline ? 'late' : st.view.state === 'NOW' ? 'now' : 'planned';
-      rowsTl.push({ label: s.key === PLANNING_KEY ? 'Planning (order)' : `${s.label}${s.forProduct !== line.productName ? ` · ${s.forProduct}` : ''}`, group: line.productName, from: st.start, to: st.finish, kind });
+        st.view.state === 'DONE' ? (over > 0 ? 'late' : 'done') : !st.finish ? 'unknown' : over > 0 || st.finish > deadline ? 'late' : st.view.state === 'NOW' ? 'now' : 'planned';
+      const note = over > 0 ? `${plural(over, 'day')} over` : st.finish && st.view.state !== 'DONE' && st.finish > deadline ? 'after the deadline' : undefined;
+      rowsTl.push({
+        label: s.key === PLANNING_KEY ? 'Planning (order)' : `${s.label}${s.forProduct !== line.productName ? ` · ${s.forProduct}` : ''}`,
+        group: `${n + 1}. ${line.productName}`,
+        from: st.start,
+        to: st.finish,
+        kind,
+        ...(st.view.state !== 'DONE' && (s.estimated || s.leadNote) ? { approx: true } : {}),
+        ...(note ? { note } : {}),
+      });
       if (st.finish && st.finish > lastDate) lastDate = st.finish;
     }
   }
 
-  const tables: DocTable[] = lines.map(({ line, lp, sched }) => {
+  const tables: DocTable[] = lines.map(({ line, lp, sched }, n) => {
     const supply = effectiveSupply(line, md.products.get(line.productId));
     return {
-      title: `${line.productName} - ${qty(line.qty, line.unit)} · ${supply === 'MAKE' ? 'Make' : supply === 'BUY' ? 'Outright purchase' : 'Make or outright purchase not decided'}`,
+      title: `${n + 1}. ${line.productName} - ${qty(line.qty, line.unit)} · ${supply === 'MAKE' ? 'Make' : supply === 'BUY' ? 'Outright purchase' : 'Make or outright purchase not decided'}`,
       columns: clean
         ? [{ label: 'Step' }, { label: 'Quantity', align: 'right' }, { label: 'Start' }, { label: 'Finish' }, { label: 'Status' }]
         : [{ label: 'Step' }, { label: 'Quantity / basis' }, { label: 'Days', align: 'right' }, { label: 'Start' }, { label: 'Finish' }, { label: 'Status' }],
@@ -538,7 +555,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     meta,
     ...(overview ? { roadMap: overview.roadMap, stepRoads: overview.stepRoads } : {}),
     timeline: overview ? undefined : {
-      title: 'Timeline (working days; Sundays and company holidays are not worked)',
+      title: 'Timeline',
       from: order.receivedDate,
       to: addDays(lastDate, 1)!,
       markers: [
@@ -547,6 +564,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
         { date: order.deliveryDate, label: 'Cargo ready', color: [180, 40, 30] },
       ],
       rows: rowsTl,
+      offDays: offDaysBetween(order.receivedDate, addDays(lastDate, 1)!, cal),
     },
     tables: overview ? [overview.table, ...tables.slice(lines.length)] : tables,
     notes: clean

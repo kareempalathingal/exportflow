@@ -118,7 +118,7 @@ describe('plan document', () => {
     expect(m.tables.at(-1)!.rows[0]![0]).toBe('Planning is 1 working day over its benchmark - confirm the plan to start production');
     expect(m.provisional).toBe(true);
     expect(m.signature).toEqual({ preparedBy: 'Kareem', designation: 'Production Manager', date: '20 Oct 2026' });
-    expect(m.timeline!.rows[0]).toMatchObject({ group: 'Rubber-backed mat 50×80 (sample)', label: 'Planning (order)', kind: 'now' });
+    expect(m.timeline!.rows[0]).toMatchObject({ group: '1. Rubber-backed mat 50×80 (sample)', label: 'Planning (order)', kind: 'late', note: expect.stringMatching(/over$/) }); // planning past its benchmark shows red (16 Nov 2026)
   });
   it('a confirmed order gives the PRODUCTION plan with actual and planned dates', async () => {
     const { productionPlanDoc } = await import('../../src/lib/docs/model');
