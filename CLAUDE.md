@@ -325,7 +325,7 @@ report the discrepancy and ask; do not silently choose.
     comparison.
 -   Rush: optional `JoLine.rush` (true or absent). Set on the WO form
     ("Rush: plan this item first", shown when the WO has 2+ lines) and on
-    the Products tab (Item order card, confirmed WOs); each change is a
+    the Products tab (button on each product card, confirmed WOs); each change is a
     history entry ("Rush on / off: <product>"). No rules change.
 -   `orderPlan()` returns `itemOrder` (`ItemOrder`): rule, items in the
     rule's order with the current step and days after it, WO ready (last
@@ -333,7 +333,9 @@ report the discrepancy and ask; do not silently choose.
     `gainDays` (priority vs listed, working days; positive = earlier).
     Rush buttons show only on WOs using PRIORITY (LISTED ignores Rush).
 -   Shown: Products tab "Item order" card (rule, WO ready vs listed order
-    with "N working days earlier / later", items with Rush and days left);
+    with "N working days earlier / later"; since 16 Nov 2026 no item list:
+    each product card shows "Nth at shared processes · N days of work
+    after <step>" and its Rush button under the track label);
     Reports → "Item priority: effect" (`src/lib/itemOrder.ts`): every open
     WO (drafts planned from the product routes, marked) with 2+ items,
     listed vs priority ready date and the difference (−N earlier, +N

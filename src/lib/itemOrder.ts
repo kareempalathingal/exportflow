@@ -121,3 +121,34 @@ export function itemPriorityDoc(rows: ItemPriorityRow[], opts: { company: string
     fileName: `item-priority_${opts.today}.pdf`,
   };
 }
+
+/** One item's place in the item order, shown on its own card (16 Nov 2026). */
+export interface LineOrder {
+  place: number; // 1 = goes first at shared processes
+  of: number;
+  rush: boolean;
+  /** Rush can be switched: confirmed WO on item priority. */
+  canRush: boolean;
+  text: string;
+}
+
+const ordinal = (n: number): string => {
+  const t = n % 100;
+  if (t >= 11 && t <= 13) return `${n}th`;
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+};
+
+/** Work after the current step (the card already says which step is now). */
+const afterText = (i: ItemOrder['items'][number]): string =>
+  i.partUnknown && i.daysLeft === 0 ? `work after ${i.step} not known yet` : `${i.daysLeft} day${i.daysLeft === 1 ? '' : 's'} of work after ${i.step}${i.partUnknown ? ' (part unknown)' : ''}`;
+
+/** Null for a WO with fewer than 2 items in the order, or an item not in it (no steps yet). */
+export function lineOrderOf(io: ItemOrder, lineId: string, editable: boolean): LineOrder | null {
+  if (io.items.length < 2) return null;
+  const i = io.items.findIndex((x) => x.lineId === lineId);
+  if (i < 0) return null;
+  const it = io.items[i]!;
+  const prio = io.rule === 'PRIORITY';
+  const where = `${ordinal(i + 1)} at shared processes${prio ? '' : ' (listed order)'}`;
+  return { place: i + 1, of: io.items.length, rush: prio && it.rush, canRush: editable && prio, text: it.step ? `${where} · ${afterText(it)}` : `${where} · done` };
+}

@@ -18,7 +18,7 @@ import { useCollection, type WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { jobOrderData } from './MaterialsTab';
 import { TrackBar } from './TrackBar';
-import { gainText } from '../../lib/itemOrder';
+import { gainText, lineOrderOf, type LineOrder } from '../../lib/itemOrder';
 import { compareToPlan, type PlanCompare } from '../../lib/baseline';
 import { ItemOrderCard, ProcessPlanCard } from './ProductsCards';
 import { OutputForm, PromiseEditor, ReadyRow, StepDate, StepEditor, StepRow, planNote } from './StepParts';
@@ -55,6 +55,8 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
     const data = p ? { ...next, progress: { pct: p.actual, on: today, at: new Date().toISOString() }, progressLog: appendProgress(jo.progressLog, { pct: p.actual, on: today, at: new Date().toISOString() }) } : next;
     saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Work Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>, reason: what });
   }
+
+  const orderOf = (lineId: string): LineOrder | null => (oplan ? lineOrderOf(oplan.itemOrder, lineId, editable) : null);
 
   function setRush(lineId: string, on: boolean) {
     const name = jo.lines.find((l) => l.id === lineId)?.productName ?? 'item';
@@ -98,11 +100,11 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
           </button>
         </div>
       )}
-      {oplan && oplan.itemOrder.items.length > 1 && <ItemOrderCard io={oplan.itemOrder} editable={editable} onRush={setRush} onUsePriority={usePriority} />}
+      {oplan && oplan.itemOrder.items.length > 1 && <ItemOrderCard io={oplan.itemOrder} editable={editable} onUsePriority={usePriority} />}
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} vsPlan={vsPlan} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} vsPlan={vsPlan} order={orderOf(l.id)} onRush={(on) => setRush(l.id, on)} />
           </li>
         ))}
       </ul>
@@ -135,6 +137,9 @@ function LineCard(props: {
   suppliers: (Supplier & { id: string })[];
   onSteps: (steps: JoStep[], what: string) => void;
   vsPlan: PlanCompare | null;
+  /** Place at shared processes (item order, 2+ items); null = not shown. */
+  order: LineOrder | null;
+  onRush: (on: boolean) => void;
 }) {
   const { jo, line, raw, today, editable, ctx } = props;
   const cal = ctx.cal;
@@ -357,9 +362,18 @@ function LineCard(props: {
             {formatQty(line.qty)} {unitLabel(line.unit)} · {supply}
           </span>
         </span>
-        <span className="track-label">
-          <span className="dot" style={{ background: color }} aria-hidden="true" />
-          {lp.done ? 'Done' : trackLabel(track)}
+        <span className="line-side">
+          <span className="track-label">
+            <span className="dot" style={{ background: color }} aria-hidden="true" />
+            {lp.done ? 'Done' : trackLabel(track)}
+          </span>
+          {props.order?.canRush && !lp.done ? (
+            <button type="button" className={`secondary small rush-btn${props.order.rush ? ' on' : ''}`} aria-pressed={props.order.rush} onClick={() => props.onRush(!props.order!.rush)}>
+              {props.order.rush ? 'Rush on' : 'Rush'}
+            </button>
+          ) : (
+            props.order?.rush && <span className="pill warn inline-pill">Rush</span>
+          )}
         </span>
       </div>
       <TrackBar track={track} color={color} />
@@ -368,6 +382,7 @@ function LineCard(props: {
         <span>Should be {track.planned}%</span>
         <span>{nowText ? `Now: ${nowText}` : 'All steps done'}</span>
       </div>
+      {props.order && <p className="muted small">{props.order.text}</p>}
       {lp.plannedPct === null && <p className="muted small">Some steps have no planned time yet, so “should be” follows the deadline.</p>}
       {lp.expectedFinish && !lp.done && (
         <p className="small">

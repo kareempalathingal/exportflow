@@ -3,6 +3,7 @@ import { DEFAULT_CALENDAR, workingDaysBetween } from '../../src/lib/calendar';
 import type { JoLine } from '../../src/lib/jobOrders';
 import type { MasterData, Process, Product, RouteStep } from '../../src/lib/masters';
 import { buildLineSteps, completeCurrent, orderPlan, processPlanRows, startCurrent } from '../../src/lib/route';
+import { lineOrderOf } from '../../src/lib/itemOrder';
 
 // Within-order capacity (5 Nov 2026): items of one order queue for each process.
 const na = { value: null, status: 'UNAVAILABLE' as const, source: '' };
@@ -137,6 +138,20 @@ describe('item priority (15 Nov 2026)', () => {
     expect(at(p, 0, 'Tufting').start).toBe(at(p, 1, 'Tufting').finish);
     expect(p.itemOrder.items.map((i) => i.lineId)).toEqual(['2', '1']);
     expect(p.itemOrder.gainDays! >= 0).toBe(true);
+  });
+  it('each item card gets its place and Rush (16 Nov 2026)', () => {
+    const p = orderPlan(porder([pline('1', 'short', 300, true), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    const first = lineOrderOf(p.itemOrder, '1', true)!;
+    expect(first).toMatchObject({ place: 1, of: 2, rush: true, canRush: true });
+    expect(first.text).toMatch(/^1st at shared processes · \d+ days? of work after Tufting$/);
+    expect(lineOrderOf(p.itemOrder, '2', true)).toMatchObject({ place: 2, rush: false });
+    expect(lineOrderOf(p.itemOrder, '2', false)!.canRush).toBe(false); // not editable
+    expect(lineOrderOf(p.itemOrder, 'none', true)).toBeNull();
+    const listed = orderPlan(order([pline('1', 'short', 300, true), pline('2', 'long', 300)]), '2026-11-02', pctx());
+    expect(lineOrderOf(listed.itemOrder, '1', true)).toMatchObject({ rush: false, canRush: false }); // listed order ignores Rush
+    expect(lineOrderOf(listed.itemOrder, '1', true)!.text).toContain('(listed order)');
+    const single = orderPlan(porder([pline('1', 'short', 300)]), '2026-11-02', pctx());
+    expect(lineOrderOf(single.itemOrder, '1', true)).toBeNull();
   });
   it('Rush goes first whatever the work left', () => {
     const p = orderPlan(porder([pline('1', 'short', 300, true), pline('2', 'long', 300)]), '2026-11-02', pctx());

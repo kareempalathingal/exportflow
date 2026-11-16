@@ -4,11 +4,11 @@ import { type Department, type Process } from '../../lib/masters';
 import { departmentsFor } from '../../lib/contacts';
 import { hoursText, processPlanRows } from '../../lib/route';
 import { formatQty } from '../../lib/units';
-import { daysLeftText, gainText, itemOrderRule } from '../../lib/itemOrder';
+import { gainText, itemOrderRule } from '../../lib/itemOrder';
 import type { ItemOrder } from '../../lib/route';
 
-/** Item order (15 Nov 2026): who goes first at a shared process, and what it changes against the other rule. */
-export function ItemOrderCard({ io, editable, onRush, onUsePriority }: { io: ItemOrder; editable: boolean; onRush: (lineId: string, on: boolean) => void; onUsePriority: () => void }) {
+/** Item order (15 Nov 2026): the rule and what it changes against the other rule. Each item's place and Rush are on its own card (16 Nov 2026). */
+export function ItemOrderCard({ io, editable, onUsePriority }: { io: ItemOrder; editable: boolean; onUsePriority: () => void }) {
   const gain = gainText(io.gainDays);
   const prio = io.rule === 'PRIORITY';
   const other = prio ? io.readyListed : io.readyPriority;
@@ -28,22 +28,6 @@ export function ItemOrderCard({ io, editable, onRush, onUsePriority }: { io: Ite
         {gain && gain.tone !== 'neutral' && <span className={`pill ${gain.tone} inline-pill`}>{prio ? gain.text : `priority: ${gain.text}`}</span>}
         {gain && gain.tone === 'neutral' && <span className="muted"> · {gain.text}</span>}
       </p>
-      <ol className="small plain-list">
-        {io.items.map((i, n) => (
-          <li key={i.lineId} className="row between">
-            <span>
-              {n + 1}. {i.product}
-              {prio && i.rush && <span className="pill warn inline-pill">Rush</span>}
-              <span className="muted"> · {daysLeftText(i)}</span>
-            </span>
-            {editable && prio && (
-              <button type="button" className="secondary small" onClick={() => onRush(i.lineId, !i.rush)}>
-                {i.rush ? 'Rush off' : 'Rush'}
-              </button>
-            )}
-          </li>
-        ))}
-      </ol>
       {!prio && editable && (
         <>
           <p className="muted small">This WO was confirmed before item priority, so its plan keeps the listed order. Switching changes its expected dates{gain ? ` (${gain.text})` : ''}; the internal deadline stays.</p>
@@ -113,7 +97,7 @@ export function ProcessPlanCard({ rows, processes, departments, workHours }: { r
         </table>
       </div>
       <p className="muted small">
-        Days = work at the planned output, on the process's parallel units (Masters → Processes). A step starts once the previous step has one day of its work ready; items waiting for the same process go in the order set in the Item order card. Quantities are never added across
+        Days = work at the planned output, on the process's parallel units (Masters → Processes). A step starts once the previous step has one day of its work ready; items waiting for the same process go in the item order (each product card shows its place). Quantities are never added across
         units.
       </p>
     </details>
