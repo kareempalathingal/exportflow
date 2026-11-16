@@ -47,9 +47,9 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     doc.setFontSize(9);
     doc.setTextColor(...MUTED);
     if (model.company) doc.text(s(model.company), M, 12);
-    // A WO No. is as large and bold as the title (16 Nov 2026); a long title shrinks, never the WO No.
+    // A WO No. is 13 pt bold (16 Nov 2026); a long title shrinks, never the WO No.
     doc.setFont('helvetica', model.referenceStrong ? 'bold' : 'normal');
-    doc.setFontSize(model.referenceStrong ? 16 : 11);
+    doc.setFontSize(model.referenceStrong ? 13 : 11);
     doc.setTextColor(...INK);
     const refW = doc.getTextWidth(s(model.reference));
     doc.text(s(model.reference), W - M, 19.5, { align: 'right' });
@@ -89,19 +89,17 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     y = headerH + 4;
   };
   /**
-   * Sub-heading (16 Nov 2026): a light band with a navy bar on the left, kept on the
+   * Sub-heading (16 Nov 2026): a light band with navy text, kept on the
    * same page as the first `need` mm of what follows it.
    */
   const heading = (title: string, need: number, gapAfter = 7) => {
     if (y + 8 + need > H - 16) newPage();
     doc.setFillColor(...BAND);
     doc.rect(M, y - 1.5, W - 2 * M, 7, 'F');
-    doc.setFillColor(...NAVY);
-    doc.rect(M, y - 1.5, 1.4, 7, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11.5);
     doc.setTextColor(...NAVY);
-    doc.text(s(title), M + 3.5, y + 3.6);
+    doc.text(s(title), M + 2.5, y + 3.6);
     y += gapAfter + 1.5;
   };
   const dashed = (on: boolean) => doc.setLineDashPattern(on ? [1.2, 0.9] : [], 0);
@@ -516,7 +514,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     if (roads && ti === roads.afterTables) drawStepRoads(roads);
     // The title is the table's first head row (16 Nov 2026): it stays with the column
     // heads and the first row, and comes back as "(continued)" on every next page.
-    const titleRow = [{ content: s(t.title), colSpan: t.columns.length, styles: { fillColor: BAND, textColor: NAVY, fontSize: 11.5, fontStyle: 'bold' as const, halign: 'left' as const, lineWidth: 0, cellPadding: { top: 1.6, bottom: 1.6, left: 3.5, right: 2 } } }];
+    const titleRow = [{ content: s(t.title), colSpan: t.columns.length, styles: { fillColor: BAND, textColor: NAVY, fontSize: 11.5, fontStyle: 'bold' as const, halign: 'left' as const, lineWidth: 0, cellPadding: { top: 1.6, bottom: 1.6, left: 2.5, right: 2 } } }];
     const body: RowInput[] = t.rows.length ? t.rows.map((r) => r.map((c) => c.split('\n').map(s).join('\n'))) : [[{ content: s(t.empty), colSpan: t.columns.length, styles: { textColor: MUTED, fontStyle: 'italic' as const } }]];
     const options = (rows: RowInput[]): Parameters<typeof autoTable>[1] => ({
       head: t.noHead ? [titleRow] : [titleRow, t.columns.map((c) => s(c.label))],
@@ -555,7 +553,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
       willDrawCell: (cell) => {
         if (cell.section === 'head' && cell.row.index === 0 && cell.pageNumber > 1) {
           // "(continued)" only when it fits in the lines the title already has.
-          const width = cell.cell.width - 5.5;
+          const width = cell.cell.width - 4.5;
           for (const tail of [' (continued)', ' (cont.)']) {
             const lines = doc.splitTextToSize(`${s(t.title)}${tail}`, width) as string[];
             if (lines.length <= cell.cell.text.length) {
@@ -565,18 +563,12 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
           }
         }
       },
-      didDrawCell: (cell) => {
-        if (cell.section === 'head' && cell.row.index === 0 && cell.column.index === 0) {
-          doc.setFillColor(...NAVY);
-          doc.rect(cell.cell.x, cell.cell.y, 1.4, cell.cell.height, 'F');
-        }
-      },
       margin: { left: M, right: M, top: headerH + 2, bottom: 16 },
       didDrawPage: drawHeader,
     });
     // Keep the title, column heads and the first row together: measure them on a scratch page.
     const scratch = new jsPDF({ unit: 'mm', format: 'a4' });
-    autoTable(scratch, { ...options(body.slice(0, 1)), startY: 0, margin: { left: M, right: M, top: 0, bottom: 0 }, willDrawCell: undefined, didDrawCell: undefined, didDrawPage: undefined });
+    autoTable(scratch, { ...options(body.slice(0, 1)), startY: 0, margin: { left: M, right: M, top: 0, bottom: 0 }, willDrawCell: undefined, didDrawPage: undefined });
     const firstH = Math.min((scratch as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY, H - headerH - 24);
     if (y + firstH > H - 16) newPage();
     autoTable(doc, { ...options(body), startY: y });

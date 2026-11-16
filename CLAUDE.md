@@ -187,9 +187,9 @@ report the discrepancy and ask; do not silently choose.
     company name from Settings or nothing; footer "Generated <time>"; Excel
     creator = company; Today share text starts with the company; department
     email preview subject = company). WO documents show "WO No. <no.>"
-    (`woRef()`, `referenceStrong`) at the right, as large and bold as the
-    title (a long title shrinks, never the WO No.). Sub-headings are a light
-    band with a navy bar; each stays on the page of the first block that
+    (`woRef()`, `referenceStrong`) at the right in 13 pt bold (title 16 pt;
+    a long title shrinks, never the WO No.). Sub-headings are a light
+    band with navy text (no side bar); each stays on the page of the first block that
     follows it (tables: title + column heads + first row, measured on a
     scratch page); table rows never split across pages; a table that runs
     on repeats its title "(continued)" and its column heads.
