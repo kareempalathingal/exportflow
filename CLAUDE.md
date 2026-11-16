@@ -655,6 +655,20 @@ report the discrepancy and ask; do not silently choose.
     "Share summary" passes plain text to the share sheet (or copies it);
     the app never sends anything. Backup reminders stay in Needs
     attention.
+-   Today by department (confirmed 16 Nov 2026, `todayByDepartment()`):
+    the Today card (Home and Reports) has "By department" (default) and "By
+    time", remembered on the phone (`exportflow:todayView`). A step goes to
+    the department that handles its process (dispatch / landing: the
+    outside process), a task to its department; bought items and raw
+    materials to "Purchase and suppliers"; deadlines, planning, holidays and
+    the backup to "Whole order and general"; unlinked processes to "No
+    department linked". Departments with overdue items first. Each group:
+    counts, the main contact's buttons (the draft holds the list), "Share
+    list" (`todayGroupText()`); "Share summary" follows the chosen view. The
+    daily summary PDF (Reports) has one table per department too.
+    Departments and their duties are not confirmed yet: the grouping uses
+    the current Departments master; a "handles purchase" department comes
+    later.
 -   WO performance report (`src/lib/performance.ts`, Reports →
     Work Order performance): presets This month / Last month / Last 90
     days / Custom. Completed orders in the range: working days vs

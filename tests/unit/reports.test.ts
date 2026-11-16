@@ -5,7 +5,7 @@ import type { JobOrder, JoStep } from '../../src/lib/jobOrders';
 import type { Bom, MasterData, Product, RawMaterial } from '../../src/lib/masters';
 import { buildPerformance, changesAfterConfirm } from '../../src/lib/performance';
 import { buildSampleData } from '../../src/lib/sampleData';
-import { buildToday, todayText } from '../../src/lib/today';
+import { buildToday, NO_DEPT_GROUP, ORDER_GROUP, PURCHASE_GROUP, todayByDepartment, todayGroupText, todayText, type TodayItem } from '../../src/lib/today';
 
 const TODAY = '2026-10-20';
 const writes = buildSampleData(TODAY);
@@ -91,11 +91,41 @@ describe('daily summary', () => {
   it('mentions an upcoming company holiday and makes shareable text and a PDF', () => {
     const cal = { weeklyOff: [0], holidays: { '2026-10-21': 'Puja' } };
     const s = buildToday({ jobOrders: [], ctx: { md, cal }, today: TODAY });
-    expect(s.items).toEqual([{ when: 'SOON', date: '2026-10-21', text: '21 Oct 2026: Puja (no work)', link: '/' }]);
+    expect(s.items).toEqual([{ when: 'SOON', date: '2026-10-21', text: '21 Oct 2026: Puja (no work)', link: '/', area: { kind: 'ORDER' } }]);
     expect(todayText(s, 'Co')).toContain('Next 2 working days:\n• 21 Oct 2026: Puja (no work)');
     expect(todayText(buildToday({ jobOrders: [], ctx, today: TODAY }), '')).toContain('Nothing due today');
     expect(todayText(s, 'Co').split('\n')[0]).toMatch(/^Co · \d/); // no app name in what is shared
     expect(todayDoc(s, { company: 'Co', generatedAt: 'now' }).tables[2]!.rows).toEqual([['21 Oct 2026: Puja (no work)']]);
+  });
+  it('groups the items by department (16 Nov 2026)', () => {
+    const it = (when: 'OVERDUE' | 'TODAY' | 'SOON', area: TodayItem['area'], text: string): TodayItem => ({ when, date: null, text, link: '/', area });
+    const s = {
+      today: TODAY,
+      soonUntil: TODAY,
+      items: [
+        it('TODAY', { kind: 'ORDER' }, 'WO-1: internal deadline today'),
+        it('SOON', { kind: 'PROCESS', id: 'print' }, 'Printing should finish'),
+        it('OVERDUE', { kind: 'PROCESS', id: 'tuft' }, 'Tufting over plan'),
+        it('TODAY', { kind: 'PURCHASE' }, 'Yarn expected - confirm'),
+        it('SOON', { kind: 'PROCESS', id: 'pack' }, 'Packing should finish'),
+        it('TODAY', { kind: 'DEPT', id: 'd2' }, 'Task: check stencils'),
+      ],
+    };
+    const depts = [
+      { id: 'd1', name: 'Production', active: true, notes: '', people: [], processIds: ['tuft'] },
+      { id: 'd2', name: 'Design', active: true, notes: '', people: [], processIds: ['print'] },
+    ];
+    const g = todayByDepartment(s, depts);
+    expect(g.map((x) => x.name)).toEqual(['Production', 'Design', NO_DEPT_GROUP, PURCHASE_GROUP, ORDER_GROUP]);
+    expect(g[1]!.items.map((i) => i.text)).toEqual(['Printing should finish', 'Task: check stencils']);
+    expect(g[0]!.counts.OVERDUE).toBe(1);
+    const text = todayText(s, 'Co', depts);
+    expect(text).toContain('Production (1 overdue):\n• [Overdue] Tufting over plan');
+    expect(text).toContain('Design (1 today, 1 soon):');
+    expect(todayGroupText(g[1]!, TODAY, 'Co').split('\n')[0]).toMatch(/^Design · Co · /);
+    const pdf = todayDoc(s, { company: 'Co', generatedAt: 'now', departments: depts });
+    expect(pdf.tables.map((t) => t.title)).toEqual(['Production (1 overdue)', 'Design (1 today, 1 soon)', `${NO_DEPT_GROUP} (1 soon)`, `${PURCHASE_GROUP} (1 today)`, `${ORDER_GROUP} (1 today)`]);
+    expect(pdf.tables[0]!.rows).toEqual([['Overdue', 'Tufting over plan']]);
   });
 });
 

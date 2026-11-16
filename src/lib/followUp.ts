@@ -23,6 +23,8 @@ export interface AwaitedItem {
   joNumber: string;
   /** e.g. "Embossing", "Woven mat", "Dolomite". */
   what: string;
+  /** Job work: the outside process (for its department, 16 Nov 2026). */
+  processId?: string | null;
   /** Ordered product (for job work / bought items). */
   product: string | null;
   supplierId: string | null;
@@ -113,6 +115,7 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
         out.push({
           ...base,
           kind: 'JOB_WORK',
+          processId: s.processId,
           bucket: bucket(exp),
           what: s.label.replace(/ \(outside\)$/, ''),
           product: s.forProduct || line.productName,

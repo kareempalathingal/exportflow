@@ -5,11 +5,11 @@
 import { bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, type WorkCalendar } from '../calendar';
 import { orderStepProgress, orderTrack } from '../route';
-import type { MasterData } from '../masters';
+import type { Department, MasterData } from '../masters';
 import { type BuyTotal, type MaterialPlan, type PlanRow } from '../materials';
 import { formatQty, unitLabel } from '../units';
 import type { PerformanceReport } from '../performance';
-import { TODAY_HEADINGS, type TodaySummary, type TodayWhen } from '../today';
+import { countsText, TODAY_HEADINGS, todayByDepartment, type TodaySummary, type TodayWhen } from '../today';
 
 export interface DocTable {
   title: string;
@@ -462,7 +462,18 @@ export function performanceDoc(r: PerformanceReport, opts: { company: string; ge
   };
 }
 
-export function todayDoc(t: TodaySummary, opts: { company: string; generatedAt: string }): DocModel {
+/** Daily summary PDF; one table per department when departments are given (16 Nov 2026). */
+export function todayDoc(t: TodaySummary, opts: { company: string; generatedAt: string; departments?: (Department & { id?: string })[] }): DocModel {
+  const WHEN: Record<TodayWhen, string> = { OVERDUE: 'Overdue', TODAY: 'Today', SOON: 'Next 2 days' };
+  const byDept: DocTable[] | null = opts.departments
+    ? todayByDepartment(t, opts.departments).map((g) => ({
+        title: `${g.name} (${countsText(g.counts)})`,
+        columns: [{ label: 'When' }, { label: 'What' }],
+        rows: g.items.map((i) => [WHEN[i.when], i.text]),
+        rowTones: g.items.map((i) => (i.when === 'OVERDUE' ? 'late' : null)),
+        empty: 'Nothing.',
+      }))
+    : null;
   const table = (w: TodayWhen): DocTable => ({
     title: TODAY_HEADINGS[w],
     columns: [{ label: 'What' }],
@@ -474,7 +485,7 @@ export function todayDoc(t: TodaySummary, opts: { company: string; generatedAt: 
     reference: formatDay(t.today),
     company: opts.company,
     meta: [['Covers', `Today and the next 2 working days (to ${formatDay(t.soonUntil)})`]],
-    tables: [table('OVERDUE'), table('TODAY'), table('SOON')],
+    tables: byDept ? (byDept.length ? byDept : [table('TODAY')]) : [table('OVERDUE'), table('TODAY'), table('SOON')],
     notes: ['Working days exclude Sundays and company holidays.'],
     provisional: false,
     provisionalReasons: [],

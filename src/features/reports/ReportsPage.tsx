@@ -88,7 +88,7 @@ export function ReportsPage() {
           >
             <TodayCard summary={summary} company={company} departments={departments.items} />
             <div className="card doc-card">
-              <DocButtons label="Daily summary (PDF)" build={() => todayDoc(summary, { company, generatedAt: generatedAt() })} />
+              <DocButtons label="Daily summary (PDF)" build={() => todayDoc(summary, { company, generatedAt: generatedAt(), departments: departments.items })} />
             </div>
           </SettingSection>
 

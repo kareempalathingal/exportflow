@@ -153,6 +153,8 @@ button:disabled { opacity: 0.6; }
 .segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .segmented button { border-radius: 0; background: transparent; color: var(--ink); min-width: 96px; }
 .segmented button.on { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.today-view { margin: 0.4rem 0; }
+.dept-group { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 
 .badge { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 999px; background: var(--surface-2); }
 .badge.inline { margin-left: 0.4rem; }
