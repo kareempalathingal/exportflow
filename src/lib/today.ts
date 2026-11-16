@@ -140,7 +140,7 @@ const HEAD: Record<TodayWhen, string> = { OVERDUE: 'Overdue / running late', TOD
 
 /** Plain text to paste into WhatsApp or email. */
 export function todayText(s: TodaySummary, company: string): string {
-  const out = [`ExportFlow · ${company ? `${company} · ` : ''}${formatDay(s.today)}`];
+  const out = [`${company ? `${company} · ` : ''}${formatDay(s.today)}`];
   if (s.items.length === 0) out.push('', 'Nothing due today or in the next 2 working days.');
   for (const w of ['OVERDUE', 'TODAY', 'SOON'] as TodayWhen[]) {
     const list = s.items.filter((i) => i.when === w);

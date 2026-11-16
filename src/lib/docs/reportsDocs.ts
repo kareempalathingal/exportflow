@@ -72,7 +72,7 @@ export function myReportDoc(
       ['Compared with', `${formatDay(r.prevFrom)} - ${formatDay(r.prevTo)}`],
     ],
     tables,
-    notes: ['Built from the records in ExportFlow; figures can be checked against each order and task.', 'Working days exclude Sundays and company holidays.'],
+    notes: ['Built from the records kept for each order and task; every figure can be checked against them.', 'Working days exclude Sundays and company holidays.'],
     provisional: false,
     provisionalReasons: [],
     signature: { preparedBy: opts.preparedBy.name, designation: opts.preparedBy.designation, date: formatDay(opts.today) },

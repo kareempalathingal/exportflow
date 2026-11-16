@@ -100,7 +100,9 @@ export interface DocSignature {
 
 export interface DocModel {
   title: string; // e.g. "Work Order Summary"
-  reference: string; // printed under the title, e.g. "WO-1042"
+  reference: string; // printed right of the title, e.g. "WO No. 95/2026"
+  /** The reference is a WO No.: printed as large and bold as the title (16 Nov 2026). */
+  referenceStrong?: boolean;
   company: string;
   /** Status band under the header (e.g. "PROPOSED PLAN"). */
   banner?: string;
@@ -125,10 +127,14 @@ export function safeFileName(s: string): string {
   return s.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'document';
 }
 
+/** How a WO is named at the top of its documents. */
+export const woRef = (joNumber: string) => `WO No. ${joNumber}`;
+
 export function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'>, company: string, generatedAt: string) {
   return {
     company,
-    reference: jo.joNumber,
+    reference: woRef(jo.joNumber),
+    referenceStrong: true,
     generatedAt,
     meta: [
       ['Customer', jo.customerName || '—'],

@@ -94,6 +94,7 @@ describe('daily summary', () => {
     expect(s.items).toEqual([{ when: 'SOON', date: '2026-10-21', text: '21 Oct 2026: Puja (no work)', link: '/' }]);
     expect(todayText(s, 'Co')).toContain('Next 2 working days:\n• 21 Oct 2026: Puja (no work)');
     expect(todayText(buildToday({ jobOrders: [], ctx, today: TODAY }), '')).toContain('Nothing due today');
+    expect(todayText(s, 'Co').split('\n')[0]).toMatch(/^Co · \d/); // no app name in what is shared
     expect(todayDoc(s, { company: 'Co', generatedAt: 'now' }).tables[2]!.rows).toEqual([['21 Oct 2026: Puja (no work)']]);
   });
 });

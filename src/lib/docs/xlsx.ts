@@ -111,7 +111,7 @@ export function xlsxFileName(pdfName: string): string {
 export async function renderXlsx(model: DocModel): Promise<Blob> {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'ExportFlow';
+  wb.creator = model.company || '';
   wb.created = new Date();
   for (const sh of docSheets(model)) {
     const ws = wb.addWorksheet(sh.name, sh.head ? { views: [{ state: 'frozen', ySplit: 1 }] } : {});

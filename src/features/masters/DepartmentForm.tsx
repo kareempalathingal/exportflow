@@ -9,6 +9,7 @@ import { PersonContact } from './ContactButtons';
 import { FormShell } from './FormShell';
 import { TextField } from './fields';
 import { safeReturnTo } from './returnTo';
+import { useProfile } from '../settings/useProfile';
 import { newId, useCollection, useDocument } from './useCollection';
 
 const EMPTY: Department = { name: '', active: true, notes: '', people: [], processIds: [] };
@@ -32,6 +33,7 @@ export function DepartmentForm() {
   const { id = 'new' } = useParams();
   const isNew = id === 'new';
   const { workspaceId, t } = useApp();
+  const company = useProfile(workspaceId).profile?.companyName?.value ?? '';
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const returnTo = safeReturnTo(params);
@@ -79,7 +81,7 @@ export function DepartmentForm() {
   }
 
   const available = processes.items.filter((p) => p.active !== false && !d.processIds.includes(p.id)).sort((a, b) => a.name.localeCompare(b.name));
-  const preview = (p: Person) => ({ subject: 'ExportFlow', body: `Hi ${p.name.split(' ')[0]},` });
+  const preview = (p: Person) => ({ subject: company, body: `Hi ${p.name.split(' ')[0]},` });
 
   return (
     <FormShell

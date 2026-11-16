@@ -1,5 +1,6 @@
 /** Draws a DocModel as an A4 PDF (jsPDF + autotable, loaded on demand). */
 import { pdfSafe, type DocModel, type DocRoadMap, type DocStepRoads, type DocTone } from './model';
+import type { RowInput } from 'jspdf-autotable';
 
 const NAVY: [number, number, number] = [31, 58, 95];
 const INK: [number, number, number] = [23, 32, 43];
@@ -11,6 +12,7 @@ const RED: [number, number, number] = [163, 38, 30];
 const RED_INK: [number, number, number] = [126, 29, 23];
 const GREY: [number, number, number] = [107, 114, 128];
 const SOFT: [number, number, number] = [244, 246, 249];
+const BAND: [number, number, number] = [228, 236, 246]; // sub-heading band
 const RULE: [number, number, number] = [195, 205, 217];
 const WHITE: [number, number, number] = [255, 255, 255];
 type RGB = [number, number, number];
@@ -44,14 +46,18 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(...MUTED);
-    doc.text(s(model.company || 'ExportFlow'), M, 12);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    if (model.company) doc.text(s(model.company), M, 12);
+    // A WO No. is as large and bold as the title (16 Nov 2026); a long title shrinks, never the WO No.
+    doc.setFont('helvetica', model.referenceStrong ? 'bold' : 'normal');
+    doc.setFontSize(model.referenceStrong ? 16 : 11);
     doc.setTextColor(...INK);
-    doc.text(s(model.title), M, 19.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
+    const refW = doc.getTextWidth(s(model.reference));
     doc.text(s(model.reference), W - M, 19.5, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    let size = 16;
+    doc.setFontSize(size);
+    while (size > 11 && doc.getTextWidth(s(model.title)) + refW + 8 > W - 2 * M) doc.setFontSize((size -= 0.5));
+    doc.text(s(model.title), M, 19.5);
     doc.setDrawColor(...NAVY);
     doc.setLineWidth(0.6);
     doc.line(M, 22.5, W - M, 22.5);
@@ -82,6 +88,22 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     drawHeader();
     y = headerH + 4;
   };
+  /**
+   * Sub-heading (16 Nov 2026): a light band with a navy bar on the left, kept on the
+   * same page as the first `need` mm of what follows it.
+   */
+  const heading = (title: string, need: number, gapAfter = 7) => {
+    if (y + 8 + need > H - 16) newPage();
+    doc.setFillColor(...BAND);
+    doc.rect(M, y - 1.5, W - 2 * M, 7, 'F');
+    doc.setFillColor(...NAVY);
+    doc.rect(M, y - 1.5, 1.4, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11.5);
+    doc.setTextColor(...NAVY);
+    doc.text(s(title), M + 3.5, y + 3.6);
+    y += gapAfter + 1.5;
+  };
   const dashed = (on: boolean) => doc.setLineDashPattern(on ? [1.2, 0.9] : [], 0);
   const pill = (text: string, cx: number | null, x: number, top: number, tone: DocTone, strong: boolean, size = 7.5) => {
     doc.setFont('helvetica', 'bold');
@@ -105,12 +127,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
 
   /** The order's journey: received → plan → production → internal deadline → delivery. */
   const drawRoadMap = (rm: DocRoadMap) => {
-    if (y + 52 > H - 16) newPage();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...INK);
-    doc.text(s(rm.title), M, y + 3);
-    y += 9;
+    heading(rm.title, 43, 9);
     const n = rm.stops.length;
     const colW = (W - 2 * M) / n;
     const cx = (i: number) => M + colW * (i + 0.5);
@@ -180,20 +197,19 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
 
   /** Each product's steps as landmarks ending in "Ready" (cards; small ones in pairs). */
   const drawStepRoads = (sr: DocStepRoads) => {
-    if (y + 45 > H - 16) newPage();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...INK);
-    doc.text(s(sr.title), M, y + 3);
-    let px = W - M;
-    for (const c of [...sr.counts].reverse()) {
-      doc.setFontSize(7.5);
-      const w = doc.getTextWidth(s(c.text)) + 5;
-      px -= w;
-      pill(c.text, null, px, y - 0.6, c.tone, false);
-      px -= 2;
-    }
-    y += 8;
+    const title = (need: number) => {
+      heading(sr.title, need, 0);
+      const top = y - 1.5;
+      let px = W - M - 1.5;
+      for (const c of [...sr.counts].reverse()) {
+        doc.setFontSize(7.5);
+        const w = doc.getTextWidth(s(c.text)) + 5;
+        px -= w;
+        pill(c.text, null, px, top - 0.4, c.tone, false);
+        px -= 2;
+      }
+      y = top + 8.5;
+    };
     const FULL = 7;
     const HALF = 3;
     const nodeCount = (r: DocStepRoads['items'][number]) => (r.empty ? 0 : r.nodes.length + 1);
@@ -316,20 +332,23 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
         });
       }
     };
-    for (const row of rows) {
+    rows.forEach((row, ri) => {
       const two = row.length === 2;
       const w = two ? (W - 2 * M - 5) / 2 : W - 2 * M;
       const cols = two ? HALF : FULL;
       const h = Math.max(...row.map((r) => cardH(cols, w, r)));
-      if (y + h > H - 16) newPage();
+      if (ri === 0) title(h);
+      else if (y + h > H - 16) newPage();
       row.forEach((r, i) => drawCard(r, M + i * (w + 5), y, w, h, cols, ++num));
       y += h + 4;
-    }
+    });
+    if (!rows.length) title(0);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text(s(sr.note), M, y + 2);
-    y += 9;
+    const noteLines = doc.splitTextToSize(s(sr.note), W - 2 * M) as string[];
+    doc.text(noteLines, M, y + 2);
+    y += 5 + noteLines.length * 3.6;
   };
 
   // Key facts
@@ -337,6 +356,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     startY: y,
     body: model.meta.map(([k, v]) => [s(k), s(v)]),
     theme: 'plain',
+    rowPageBreak: 'avoid',
     styles: { fontSize: 9.5, cellPadding: { top: 0.8, bottom: 0.8, left: 0, right: 2 }, textColor: INK },
     columnStyles: { 0: { cellWidth: 38, textColor: MUTED } },
     margin: { left: M, right: M, top: headerH + 2 },
@@ -353,6 +373,12 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     y += 4.5;
     for (const r of model.provisionalReasons) {
       const lines = doc.splitTextToSize(s(`- ${r}`), W - 2 * M);
+      if (y + lines.length * 4.2 > H - 16) {
+        newPage();
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        doc.setTextColor(...AMBER_INK);
+      }
       doc.text(lines, M, y);
       y += lines.length * 4.2;
     }
@@ -370,12 +396,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     const span = W - M - x0;
     const xOf = (d: string) => x0 + ((dayNum(d) - d0) / (d1 - d0)) * span;
     const rowH = 5;
-    if (y + 30 > H - 16) newPage();
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...INK);
-    doc.text(s(tl.title), M, y + 3);
-    y += 7;
+    heading(tl.title, 22, 7);
     // date ticks (about 6)
     const drawAxis = () => {
       doc.setFont('helvetica', 'normal');
@@ -452,15 +473,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     const gap = 2.5;
     const groupH = ch.series.length * rowH + gap;
     const needed = 12 + ch.rows.length * groupH;
-    if (y + needed > H - 16) {
-      doc.addPage();
-      drawHeader();
-      y = headerH + 4;
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...INK);
-    doc.text(s(ch.title), M, y + 3);
+    heading(ch.title, Math.min(needed, 12 + 2 * groupH), 2);
     // legend
     let lx = M;
     doc.setFont('helvetica', 'normal');
@@ -501,19 +514,14 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
   const roads = model.stepRoads;
   for (const [ti, t] of model.tables.entries()) {
     if (roads && ti === roads.afterTables) drawStepRoads(roads);
-    if (y > H - 40) {
-      doc.addPage();
-      drawHeader();
-      y = headerH + 4;
-    }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(...INK);
-    doc.text(s(t.title), M, y + 3);
-    autoTable(doc, {
-      startY: y + 5,
-      head: t.noHead ? [] : [t.columns.map((c) => s(c.label))],
-      body: t.rows.length ? t.rows.map((r) => r.map((c) => c.split('\n').map(s).join('\n'))) : [[{ content: s(t.empty), colSpan: t.columns.length, styles: { textColor: MUTED, fontStyle: 'italic' } }]],
+    // The title is the table's first head row (16 Nov 2026): it stays with the column
+    // heads and the first row, and comes back as "(continued)" on every next page.
+    const titleRow = [{ content: s(t.title), colSpan: t.columns.length, styles: { fillColor: BAND, textColor: NAVY, fontSize: 11.5, fontStyle: 'bold' as const, halign: 'left' as const, lineWidth: 0, cellPadding: { top: 1.6, bottom: 1.6, left: 3.5, right: 2 } } }];
+    const body: RowInput[] = t.rows.length ? t.rows.map((r) => r.map((c) => c.split('\n').map(s).join('\n'))) : [[{ content: s(t.empty), colSpan: t.columns.length, styles: { textColor: MUTED, fontStyle: 'italic' as const } }]];
+    const options = (rows: RowInput[]): Parameters<typeof autoTable>[1] => ({
+      head: t.noHead ? [titleRow] : [titleRow, t.columns.map((c) => s(c.label))],
+      rowPageBreak: 'avoid',
+      body: rows,
       theme: 'grid',
       headStyles: { fillColor: NAVY, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 },
       styles: { fontSize: 9.5, cellPadding: 2, textColor: INK, lineColor: [220, 216, 207], lineWidth: 0.2, overflow: 'linebreak' },
@@ -528,7 +536,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
         ]),
       ),
       didParseCell: (cell) => {
-        if (cell.section === 'head') cell.cell.styles.halign = t.columns[cell.column.index]?.align ?? 'left';
+        if (cell.section === 'head' && cell.row.index > 0) cell.cell.styles.halign = t.columns[cell.column.index]?.align ?? 'left';
         const level = cell.section === 'body' ? (t.cellLevels?.[cell.row.index]?.[cell.column.index] ?? 0) : 0;
         if (level > 0) {
           cell.cell.styles.fillColor = HEAT[Math.min(3, level) - 1]!;
@@ -544,9 +552,34 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
           }
         }
       },
+      willDrawCell: (cell) => {
+        if (cell.section === 'head' && cell.row.index === 0 && cell.pageNumber > 1) {
+          // "(continued)" only when it fits in the lines the title already has.
+          const width = cell.cell.width - 5.5;
+          for (const tail of [' (continued)', ' (cont.)']) {
+            const lines = doc.splitTextToSize(`${s(t.title)}${tail}`, width) as string[];
+            if (lines.length <= cell.cell.text.length) {
+              cell.cell.text = lines;
+              break;
+            }
+          }
+        }
+      },
+      didDrawCell: (cell) => {
+        if (cell.section === 'head' && cell.row.index === 0 && cell.column.index === 0) {
+          doc.setFillColor(...NAVY);
+          doc.rect(cell.cell.x, cell.cell.y, 1.4, cell.cell.height, 'F');
+        }
+      },
       margin: { left: M, right: M, top: headerH + 2, bottom: 16 },
       didDrawPage: drawHeader,
     });
+    // Keep the title, column heads and the first row together: measure them on a scratch page.
+    const scratch = new jsPDF({ unit: 'mm', format: 'a4' });
+    autoTable(scratch, { ...options(body.slice(0, 1)), startY: 0, margin: { left: M, right: M, top: 0, bottom: 0 }, willDrawCell: undefined, didDrawCell: undefined, didDrawPage: undefined });
+    const firstH = Math.min((scratch as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY, H - headerH - 24);
+    if (y + firstH > H - 16) newPage();
+    autoTable(doc, { ...options(body), startY: y });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
   }
 
@@ -617,7 +650,7 @@ export async function renderPdf(model: DocModel): Promise<Blob> {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text(s(`ExportFlow · generated ${model.generatedAt}`), M, H - 8);
+    doc.text(s(`Generated ${model.generatedAt}`), M, H - 8);
     doc.text(`Page ${i} of ${pages}`, W - M, H - 8, { align: 'right' });
   }
   return doc.output('blob');

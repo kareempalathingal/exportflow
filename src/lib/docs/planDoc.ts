@@ -11,7 +11,7 @@ import type { Department, MasterData, Process } from '../masters';
 import { departmentsFor } from '../contacts';
 import { planMaterials, type PlanRow } from '../materials';
 import { formatQty, unitLabel } from '../units';
-import { type DocModel, type DocRoadMap, type DocRoadStop, type DocStepNode, type DocStepRoad, type DocStepRoads, type DocTable, type DocTimeline, type DocTone, type SupplierNames, directForText, madeFromText, orderedProductCount, qty, safeFileName, supplierCell } from './model';
+import { type DocModel, type DocRoadMap, type DocRoadStop, type DocStepNode, type DocStepRoad, type DocStepRoads, type DocTable, type DocTimeline, type DocTone, type SupplierNames, directForText, madeFromText, orderedProductCount, qty, safeFileName, supplierCell, woRef } from './model';
 
 export interface PlanDocInput {
   jo: JobOrder & { rev?: number };
@@ -527,7 +527,8 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   const overview = clean ? planOverview({ order, lines, md, cal, today, draft, track, expected, spare }) : null;
   return {
     title: clean ? (draft ? 'Proposed Plan' : 'Production Plan') : draft ? 'Working Plan (proposed)' : 'Working Plan',
-    reference: order.joNumber,
+    reference: woRef(order.joNumber),
+    referenceStrong: true,
     company: input.company,
     banner: clean
       ? draft
@@ -553,7 +554,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
       : [
       'Day counts are working days. Each step starts on the day the previous one finishes; planned days = quantity / output per day + fixed days, rounded up to half a day.',
       'Items of this order share each process, first come first served (a process with several units works on that many items at once). A step starts once the previous step has one day of its work ready, unless it waits for the whole quantity. Times are worked out exactly and shown rounded up to half a day. Other orders in the same department are not counted yet (capacity across orders is not planned).',
-      'Times and quantities come from the benchmarks and BOMs entered in ExportFlow. Times marked "my estimate" are approximate; items marked * use estimated or unconfirmed data.',
+      'Times and quantities come from the benchmarks and BOMs entered for this order. Times marked "my estimate" are approximate; items marked * use estimated or unconfirmed data.',
       `Prepared from the data available on ${formatDay(today)}.`,
     ],
     provisional: !clean && uniq.length > 0,

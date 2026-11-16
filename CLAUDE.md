@@ -182,6 +182,17 @@ report the discrepancy and ask; do not silently choose.
     per-department daily to-do/targets, all-department review summary
     (evening/next morning), supplier RFQ letters and purchase orders —
     always drafts the user sends; no invented prices or supplier data.
+-   Document look (confirmed 16 Nov 2026, `src/lib/docs/pdf.ts`): the app's
+    name never appears in what is submitted or shared (PDF header shows the
+    company name from Settings or nothing; footer "Generated <time>"; Excel
+    creator = company; Today share text starts with the company; department
+    email preview subject = company). WO documents show "WO No. <no.>"
+    (`woRef()`, `referenceStrong`) at the right, as large and bold as the
+    title (a long title shrinks, never the WO No.). Sub-headings are a light
+    band with a navy bar; each stays on the page of the first block that
+    follows it (tables: title + column heads + first row, measured on a
+    scratch page); table rows never split across pages; a table that runs
+    on repeats its title "(continued)" and its column heads.
 -   Performance reports (confirmed 20 Oct 2026), PDF, any date range:
     WO-wise (on time vs internal deadline / delivery, buffer used,
     schedule gap over time, changes after confirmation) and, once stages

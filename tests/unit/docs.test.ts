@@ -71,6 +71,16 @@ describe('PDF output', () => {
     expect(text).toMatch(/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/); // A4
     expect(bytes.length).toBeGreaterThan(2000);
   });
+  it('names the WO, never the app, and repeats a long table title as continued (16 Nov 2026)', async () => {
+    const m = joSummaryDoc(jo, md, opts);
+    expect(m.reference).toBe(`WO No. ${jo.joNumber}`);
+    expect(m.referenceStrong).toBe(true);
+    const long = { ...m, company: '', tables: [{ title: 'Long list', columns: [{ label: 'Item' }, { label: 'Note' }], rows: Array.from({ length: 120 }, (_, i) => [`Item ${i}`, 'a note that is long enough to wrap onto a second line in the cell of this table']), empty: '' }] };
+    const text = new TextDecoder('latin1').decode(new Uint8Array(await (await renderPdf(long)).arrayBuffer()));
+    expect(text).not.toMatch(/ExportFlow/);
+    expect(text).toMatch(/Generated /);
+    expect(text).toContain('Long list \\(continued\\)'); // the PDF escapes brackets
+  });
 });
 
 describe('To buy: orders column (5 Nov 2026)', async () => {
