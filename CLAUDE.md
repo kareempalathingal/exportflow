@@ -278,6 +278,52 @@ report the discrepancy and ask; do not silently choose.
 -   Not yet: text PDFs (pdf.js text), "Share → ExportFlow" (share target),
     a WO line field for pack quantity (with packing, after joining).
 
+## Round 1 from the WO 12/2026 files (confirmed 17 Nov 2026)
+
+-   Source: the company files of WO 12/2026, sampling WOs 240 and 266/2025
+    and the customer costing / product spec sheet (kept in the private project, never in
+    this repo); analysis in the project's open-points notes. Rounds: 1 =
+    the items below; 2 = product design fields (colours, stencil plates,
+    shape), order requirements (stencil plates, plotter prints, tags,
+    labels, shipping marks with supplier, PO and dates, needed before a
+    step) and a customer requirements checklist; 3 = actual material
+    consumption vs BOM (cross-check).
+-   Order references (`JobOrder.refs`, `ORDER_REF_FIELDS`, all optional):
+    Customer Code, Customer PO date, PI No., PI date, PI confirmed on,
+    Revision; a collapsed "Order references" row on the WO form; shown in
+    every WO document's details. WO line: customer article no. and barcode
+    (`JoLine.articleNo` / `barcode`, per order, not on the product: the
+    same design can go to another customer under another number); a WO
+    summary column only when a line has them.
+-   Import: the company WO form keeps the header in one cell of
+    "Label : value" lines; these cells are read first (`linesValues()`),
+    "1234 dated 17-04-2026" also gives the PO / PI date, empty or "Nil"
+    values are skipped, a "... form" title is never a label. New order
+    fields above and item columns "Customer article no." / "Barcode" (before
+    the item code, so ITEM REF NO. stays the code). No customer name on the
+    form: an earlier WO with the same Customer Code gives the customer
+    (`customerByCode()`). Review labels "WO date" / "Cargo ready date".
+-   In-house or outside per order (Edit steps on the Products tab): a to-do
+    in-house step can be switched to "Outside (job work)" for this order
+    only (`toOutside()`: "Dispatch for X" + "X (outside)" + "Landing from X",
+    pass-through); back to in-house only while nothing was dispatched or
+    landed and none of the three is done (`toInHouse()`; vendor details are
+    dropped). Product routes do not change. Outside steps are not moved
+    with ↑ / ↓ (switch back first).
+-   Indent on an in-house step (`JoStep.indentNo`, `indentOn`, `requiredBy`;
+    "+ Indent" on the step, `IndentEditor`, `setIndent()`): shown in the step
+    details; "Required by passed · N working days" on the step and a Today
+    item (Overdue after the date, Today / Soon before it) in the process's
+    department. A target only: the plan still uses the benchmarks.
+-   "Waits for all items of this order" (`JoStep.waitsForOrder`, per order
+    in Edit steps, shown when the WO has 2+ products; e.g. packing mixed
+    designs on one pallet): in the plan the step starts only after every
+    other item has finished its steps before its own step of the same
+    process (all its steps when it has none); if one of them cannot be
+    dated, this step stays "to be confirmed". Tick it on the same step of
+    every product that goes together. Pill "waits for all items".
+-   No Firestore rules change (no key lists on Work Orders).
+
 ## Order items at a glance (confirmed 26 Oct 2026)
 
 -   WO page, under the deadline / delivery / buffer boxes: numbered list

@@ -231,6 +231,24 @@ export function scheduleOrder(
       const after = si === 0 ? 0 : res[li]![si - 1]!.finish;
       if (after === null || s.plannedDays === null) return void (stopped[li] = true); // unknown from here on
       let ready = si === 0 ? 0 : overlapReady(ss[realPrev(ss, si)]!, res[li]![si - 1]!, s);
+      // "Waits for all items of this order" (17 Nov 2026): every other item first finishes its steps
+      // before its own step of this process (all its steps when it has none).
+      if (s.waitsForOrder) {
+        let gate = 0;
+        let wait = false;
+        steps.forEach((oo, lj) => {
+          if (lj === li || !oo || !oo.length) return;
+          const k = s.processId ? oo.findIndex((x) => x.processId === s.processId) : -1;
+          const end = k >= 0 ? k : oo.length;
+          if (end === 0) return;
+          const f = res[lj]![end - 1]!.finish;
+          if (f === null) wait = true;
+          else gate = Math.max(gate, f);
+        });
+        // Placed later, once the other items are; if one of them can never be dated, this step stays undated too.
+        if (wait) return;
+        ready = Math.max(ready, gate);
+      }
       // A step that has not started cannot start in the past (the running step keeps its date).
       if (actuals && si > first[li]! && ready < todayOff) ready = Math.min(after, todayOff);
       let at = ready;

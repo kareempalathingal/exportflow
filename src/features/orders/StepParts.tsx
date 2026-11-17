@@ -5,7 +5,7 @@ import { productContext, type Product, type Supplier } from '../../lib/masters';
 import { firstPromise, type StepOutput } from '../../lib/jobOrders';
 import { parseNum } from '../masters/fields';
 import { type Process } from '../../lib/masters';
-import { hoursText, isBuiltIn, MATERIALS_KEY, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
+import { hoursText, isBuiltIn, MATERIALS_KEY, toInHouse, toOutside, type PlannedStep, type ReadyDate, type StepDate, type StepView } from '../../lib/route';
 import { istDateKey } from '../../lib/time';
 import { availableUnits, convert, formatQty, unitLabel } from '../../lib/units';
 import { stepKey, type PlanCompare } from '../../lib/baseline';
@@ -177,6 +177,7 @@ export function StepRow({ v, date, productName, parts, focus = false, id }: { v:
             {v.state === 'NOW' && (v.queued ? ' · next' : ' · now')}
             {s.estimated && s.plannedDays !== null && v.state !== 'DONE' && <span className="pill warn"> estimate</span>}
             {(s.outside || s.outsideOf) && <span className="pill"> outside</span>}
+            {s.waitsForOrder && <span className="pill"> waits for all items</span>}
             {parts.plan?.pill}
             <span className="muted small">{sub}</span>
             <span className="step-more muted small" aria-hidden="true">
@@ -201,7 +202,7 @@ export function StepRow({ v, date, productName, parts, focus = false, id }: { v:
 }
 
 /** Change the steps still to do, for this order only (product routes stay as they are). */
-export function StepEditor({ steps, processes, productName, onSave }: { steps: JoStep[]; processes: Map<string, Process>; productName: string; onSave: (s: JoStep[]) => void }) {
+export function StepEditor({ steps, processes, productName, onSave, multi = false }: { steps: JoStep[]; processes: Map<string, Process>; productName: string; onSave: (s: JoStep[]) => void; multi?: boolean }) {
   const [draft, setDraft] = useState(steps);
   const firstTodo = draft.findIndex((s) => !s.doneAt);
   const canEdit = (i: number) => firstTodo >= 0 && i >= firstTodo;
@@ -223,7 +224,7 @@ export function StepEditor({ steps, processes, productName, onSave }: { steps: J
               {i + 1}. {s.label}
               {s.doneAt && ' ✓'}
             </span>
-            {canEdit(i) && (
+            {canEdit(i) && !s.outsideOf && !s.outside && (
               <span className="row gap">
                 <button type="button" className="secondary small icon" aria-label="Move up" disabled={!canEdit(i - 1)} onClick={() => move(i, -1)}>
                   ↑
@@ -236,9 +237,29 @@ export function StepEditor({ steps, processes, productName, onSave }: { steps: J
                 </button>
               </span>
             )}
+            {canEdit(i) && s.processId && !isBuiltIn(s) && (
+              <span className="step-edit-opts small">
+                {/* Per order (17 Nov 2026): in-house or job work for this order only. */}
+                <span className="segmented">
+                  <button type="button" className={s.outside ? undefined : 'on'} aria-pressed={!s.outside} onClick={() => s.outside && setDraft(toInHouse(draft, i) ?? draft)} disabled={!!s.outside && !toInHouse(draft, i)}>
+                    In-house
+                  </button>
+                  <button type="button" className={s.outside ? 'on' : undefined} aria-pressed={!!s.outside} onClick={() => !s.outside && setDraft(toOutside(draft, i) ?? draft)}>
+                    Outside (job work)
+                  </button>
+                </span>
+                {s.outside && !toInHouse(draft, i) && <span className="muted"> · already dispatched or landed</span>}
+                {multi && (
+                  <label className="check">
+                    <input type="checkbox" checked={!!s.waitsForOrder} onChange={(e) => setDraft(draft.map((x, j) => (j === i ? { ...x, waitsForOrder: e.target.checked || undefined } : x)))} /> Waits for all items of this order
+                  </label>
+                )}
+              </span>
+            )}
           </li>
         ))}
       </ol>
+      {multi && <p className="muted small">"Waits for all items" (e.g. packing mixed designs on one pallet): tick it on the same step of every product that goes together.</p>}
       <label>
         Add a step at the end
         <select
@@ -364,6 +385,46 @@ export function OutputForm(props: { step: PlannedStep; product: Product | undefi
 }
 
 /** Supplier / vendor, PO and dates (mockup B, confirmed 5 Nov 2026). Prices are never asked. */
+/** Indent of an in-house step (17 Nov 2026): number, issued on, required by. */
+export function IndentEditor(props: { step: JoStep; today: string; onSave: (p: { indentNo: string; indentOn: string | null; requiredBy: string | null }, what: string) => void }) {
+  const { step, today } = props;
+  const [no, setNo] = useState(step.indentNo ?? '');
+  const [on, setOn] = useState(step.indentOn ?? '');
+  const [by, setBy] = useState(step.requiredBy ?? '');
+  const bad = on && on > today ? 'The issue date cannot be in the future.' : by && on && by < on ? 'Required by is before the issue date.' : null;
+  return (
+    <div className="card subtle output-form">
+      <label className="small">
+        Indent No. (optional)
+        <input value={no} maxLength={40} placeholder="production / processing indent" onChange={(e) => setNo(e.target.value)} />
+      </label>
+      <div className="grid2">
+        <label className="small">
+          Issued on
+          <input type="date" value={on} max={today} onChange={(e) => setOn(e.target.value)} />
+        </label>
+        <label className="small">
+          Required by
+          <input type="date" value={by} onChange={(e) => setBy(e.target.value)} />
+        </label>
+      </div>
+      <span className="muted small">A target from the indent: shown, and overdue in Today when passed. The plan still uses the benchmarks.</span>
+      {bad && <p className="error small">{bad}</p>}
+      <button
+        type="button"
+        className="primary small"
+        disabled={!!bad}
+        onClick={() => {
+          const parts = [no.trim() && `indent ${no.trim()}`, on && `issued ${formatDay(on)}`, by && `required by ${formatDay(by)}`].filter(Boolean);
+          props.onSave({ indentNo: no, indentOn: on || null, requiredBy: by || null }, parts.length ? parts.join(', ') : 'indent cleared');
+        }}
+      >
+        Save
+      </button>
+    </div>
+  );
+}
+
 export function PromiseEditor(props: { step: JoStep; outside: boolean; suppliers: (Supplier & { id: string })[]; today: string; onSave: (p: { supplierId: string | null; poNo: string; orderedOn: string | null; expectedOn: string | null }, what: string) => void }) {
   const { step, outside, today } = props;
   const [supplierId, setSupplierId] = useState(step.supplierId ?? '');

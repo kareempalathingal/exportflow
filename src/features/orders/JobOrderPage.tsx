@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent }
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import {
+  cleanRefs,
+  ORDER_REF_FIELDS,
+  type OrderRefs,
   changedBoms,
   checkForConfirm,
   COLLECTION_JOB_ORDERS,
@@ -60,6 +63,8 @@ interface LineDraft {
   unit: string;
   supply: SupplyMethod | null;
   rush?: boolean;
+  articleNo?: string;
+  barcode?: string;
 }
 
 interface Draft {
@@ -71,6 +76,7 @@ interface Draft {
   deliveryDateType: DeliveryDateType;
   notes: string;
   lines: LineDraft[];
+  refs: OrderRefs;
 }
 
 const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'outright purchase', BOTH: 'made / outright purchase' } as const;
@@ -81,14 +87,14 @@ function importedDraft(today: string): Draft | null {
     const raw = globalThis.sessionStorage?.getItem(IMPORT_DRAFT_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw) as ImportDraft;
-    return { joNumber: d.joNumber, customerId: d.customerId, poNumber: d.poNumber, receivedDate: d.receivedDate || today, deliveryDate: d.deliveryDate, deliveryDateType: 'FACTORY_DISPATCH', notes: d.notes, lines: d.lines.map((l) => ({ id: newLineId(), ...l })) };
+    return { joNumber: d.joNumber, customerId: d.customerId, poNumber: d.poNumber, receivedDate: d.receivedDate || today, deliveryDate: d.deliveryDate, deliveryDateType: 'FACTORY_DISPATCH', notes: d.notes, lines: d.lines.map((l) => ({ id: newLineId(), ...l })), refs: d.refs ?? {} };
   } catch {
     return null;
   }
 }
 
 function draftFrom(jo: JobOrder | null, today: string): Draft {
-  if (!jo) return { joNumber: '', customerId: '', poNumber: '', receivedDate: today, deliveryDate: '', deliveryDateType: 'FACTORY_DISPATCH', notes: '', lines: [] };
+  if (!jo) return { joNumber: '', customerId: '', poNumber: '', receivedDate: today, deliveryDate: '', deliveryDateType: 'FACTORY_DISPATCH', notes: '', lines: [], refs: {} };
   return {
     joNumber: jo.joNumber,
     customerId: jo.customerId,
@@ -97,7 +103,8 @@ function draftFrom(jo: JobOrder | null, today: string): Draft {
     deliveryDate: jo.deliveryDate,
     deliveryDateType: jo.deliveryDateType,
     notes: jo.notes,
-    lines: jo.lines.map((l) => ({ id: l.id, productId: l.productId, qtyText: String(l.qty), unit: l.unit, supply: l.supply, ...(l.rush ? { rush: true } : {}) })),
+    lines: jo.lines.map((l) => ({ id: l.id, productId: l.productId, qtyText: String(l.qty), unit: l.unit, supply: l.supply, ...(l.rush ? { rush: true } : {}), ...(l.articleNo ? { articleNo: l.articleNo } : {}), ...(l.barcode ? { barcode: l.barcode } : {}) })),
+    refs: jo.refs ?? {},
   };
 }
 
@@ -197,7 +204,7 @@ export function JobOrderPage() {
       const qty = parseNum(l.qtyText);
       if (qty === null || !Number.isFinite(qty) || qty <= 0) return `Line ${i + 1}: enter a quantity above 0`;
       const p = md.products.get(l.productId);
-      out.push({ id: l.id, productId: l.productId, productName: p?.name ?? item?.lines.find((x) => x.id === l.id)?.productName ?? '', qty, unit: l.unit, supply: p ? (fixedSupply(p) ?? l.supply) : l.supply, ...(l.rush ? { rush: true } : {}) });
+      out.push({ id: l.id, productId: l.productId, productName: p?.name ?? item?.lines.find((x) => x.id === l.id)?.productName ?? '', qty, unit: l.unit, supply: p ? (fixedSupply(p) ?? l.supply) : l.supply, ...(l.rush ? { rush: true } : {}), ...(l.articleNo?.trim() ? { articleNo: l.articleNo.trim() } : {}), ...(l.barcode?.trim() ? { barcode: l.barcode.trim() } : {}) });
     }
     return out;
   }
@@ -257,6 +264,7 @@ export function JobOrderPage() {
       // Item priority (15 Nov 2026): saved when the WO is confirmed; older WOs keep the listed order until changed.
       ...(next === 'CONFIRMED' && (isNew || status === 'DRAFT') ? { itemOrderRule: 'PRIORITY' as const } : item?.itemOrderRule ? { itemOrderRule: item.itemOrderRule } : {}),
       ...(item?.baselines ? { baselines: item.baselines } : {}),
+      ...(cleanRefs(d.refs) ? { refs: cleanRefs(d.refs) } : {}),
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;
@@ -496,6 +504,21 @@ export function JobOrderPage() {
             <TextField label="WO No." required value={d.joNumber} onChange={(joNumber) => set({ joNumber })} max={60} placeholder="as on the company Work Order" />
             <TextField label="Customer PO No. (optional)" value={d.poNumber} onChange={(poNumber) => set({ poNumber })} max={60} />
           </div>
+          <details className="refs" open={!!cleanRefs(d.refs)}>
+            <summary className="small">Order references (optional): customer code, PO date, PI, revision</summary>
+            <div className="grid2">
+              {ORDER_REF_FIELDS.map((f) =>
+                f.date ? (
+                  <label key={f.id}>
+                    {f.label}
+                    <input type="date" value={d.refs[f.id] ?? ''} onChange={(e) => set({ refs: { ...d.refs, [f.id]: e.target.value } })} />
+                  </label>
+                ) : (
+                  <TextField key={f.id} label={f.label} value={d.refs[f.id] ?? ''} onChange={(v) => set({ refs: { ...d.refs, [f.id]: v } })} max={60} />
+                ),
+              )}
+            </div>
+          </details>
           <label>
             Customer<span className="req"> *</span>
             <select value={d.customerId} onChange={(e) => set({ customerId: e.target.value })}>
@@ -603,6 +626,10 @@ export function JobOrderPage() {
                     {r.provisional && <span className="pill warn"> estimated conversion</span>}
                   </p>
                 )}
+                <div className="grid2">
+                  <TextField label="Customer article no. (optional)" value={l.articleNo ?? ''} onChange={(articleNo) => setLine(i, { articleNo })} max={40} />
+                  <TextField label="Barcode (optional)" value={l.barcode ?? ''} onChange={(barcode) => setLine(i, { barcode })} max={40} />
+                </div>
                 {d.lines.length > 1 && (
                   <label className="check small">
                     <input type="checkbox" checked={!!l.rush} disabled={!editable} onChange={(e) => setLine(i, { rush: e.target.checked || undefined })} /> Rush: plan this item first

@@ -42,7 +42,7 @@ describe('JO import: headings and order details', () => {
     const h = findHeaderRow(sheet);
     expect(h).toBe(6);
     const cols = guessColumns(sheet[6]!);
-    expect(cols).toEqual({ code: 0, name: 1, size: 2, qty: 4, unit: null, pack: 6 });
+    expect(cols).toEqual({ code: 0, name: 1, size: 2, qty: 4, unit: null, pack: 6, articleNo: null, barcode: null });
     expect(priceColumns(sheet[6]!)).toEqual([5]);
     expect(unitInHeading('QTY (NOS)')).toBe('pcs');
   });

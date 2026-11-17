@@ -626,3 +626,8 @@ table.board tr.muted a { color: var(--muted); }
 .process-card.complete { opacity: 0.6; }
 .idle-row summary { cursor: pointer; color: var(--muted); }
 .idle-row ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
+.step-edit-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; margin: 2px 0 6px 1.2rem; }
+.step-edit-opts .segmented button { min-width: 0; padding: 4px 10px; font-size: 0.8rem; }
+details.refs { margin: 4px 0 8px; }
+details.refs summary { cursor: pointer; color: var(--muted); }
+.step-editor .route-row { flex-wrap: wrap; }

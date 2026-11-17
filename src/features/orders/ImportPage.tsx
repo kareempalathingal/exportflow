@@ -36,7 +36,10 @@ import {
   type OrderField,
 } from '../../lib/joImport';
 import { fileKind, readPhoto, readSheetFile, type ReadSheet } from '../../lib/importRead';
-import { initialSupply, resolveLine } from '../../lib/jobOrders';
+import {
+  cleanRefs,
+  refPairs,
+  type OrderRefs, type JobOrder, COLLECTION_JOB_ORDERS, customerByCode, initialSupply, resolveLine } from '../../lib/jobOrders';
 import { COLLECTIONS, productContext, type Customer } from '../../lib/masters';
 import { istDateKey } from '../../lib/time';
 import { availableUnits, formatQty, unitLabel, UNIT_CHOICES } from '../../lib/units';
@@ -59,7 +62,9 @@ export interface ImportDraft {
   receivedDate: string;
   deliveryDate: string;
   notes: string;
-  lines: { productId: string; qtyText: string; unit: string; supply: 'MAKE' | 'BUY' | null }[];
+  lines: { productId: string; qtyText: string; unit: string; supply: 'MAKE' | 'BUY' | null; articleNo?: string; barcode?: string }[];
+  /** Order references read from the file (17 Nov 2026). */
+  refs?: OrderRefs;
 }
 
 interface ReviewRow extends ImportRow {
@@ -84,7 +89,7 @@ interface Session {
   layoutId: string | null;
   remember: boolean;
   layoutName: string;
-  order: { joNumber: string; customerText: string; customerId: string; poNumber: string; receivedDate: string; deliveryDate: string };
+  order: { joNumber: string; customerText: string; customerId: string; poNumber: string; receivedDate: string; deliveryDate: string; refs?: OrderRefs };
   rows: ReviewRow[];
 }
 
@@ -123,6 +128,7 @@ export function ImportPage() {
   const today = istDateKey(new Date());
   const master = useMasterData(workspaceId);
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
+  const pastJos = useCollection<JobOrder>(workspaceId, COLLECTION_JOB_ORDERS);
   const [layouts, setLayouts] = useState<ImportLayout[]>(() => readJson<ImportLayout[]>(LAYOUTS_KEY, []));
   const [s, setS] = useState<Session | null>(() => loadSession());
   const [busy, setBusy] = useState<string | null>(null);
@@ -221,10 +227,19 @@ export function ImportPage() {
       order: {
         joNumber: vals.joNumber?.value ?? '',
         customerText,
-        customerId: matchCustomer(customerText, customers.items.filter((c) => c.active !== false)) ?? '',
+        // No customer name on the company WO form: an earlier WO with the same Customer Code gives the customer.
+        customerId: matchCustomer(customerText, customers.items.filter((c) => c.active !== false)) ?? customerByCode(vals.customerCode?.value, pastJos.items) ?? '',
         poNumber: vals.poNumber?.value ?? '',
         receivedDate: readDate(vals.receivedDate?.value ?? '') ?? '',
         deliveryDate: readDate(vals.deliveryDate?.value ?? '') ?? '',
+        refs: cleanRefs({
+          customerCode: vals.customerCode?.value,
+          revision: vals.revision?.value,
+          piNo: vals.piNo?.value,
+          poDate: readDate(vals.poDate?.value ?? '') ?? undefined,
+          piDate: readDate(vals.piDate?.value ?? '') ?? undefined,
+          piConfirmedOn: readDate(vals.piConfirmedOn?.value ?? '') ?? undefined,
+        }),
       },
     });
   }
@@ -247,8 +262,9 @@ export function ImportPage() {
       notes: importNote(cur.fileName, today, cur.rows.map((r) => ({ name: master.md.products.get(r.productId)?.name ?? r.name, pack: r.pack }))),
       lines: cur.rows.map((r) => {
         const p = master.md.products.get(r.productId);
-        return { productId: r.productId, qtyText: String(readQty(r.qtyEdit).qty), unit: r.unitEdit, supply: p ? initialSupply(p) : null };
+        return { productId: r.productId, qtyText: String(readQty(r.qtyEdit).qty), unit: r.unitEdit, supply: p ? initialSupply(p) : null, ...(r.articleNo ? { articleNo: r.articleNo } : {}), ...(r.barcode ? { barcode: r.barcode } : {}) };
       }),
+      ...(cur.order.refs ? { refs: cur.order.refs } : {}),
     };
     try {
       globalThis.sessionStorage?.setItem(IMPORT_DRAFT_KEY, JSON.stringify(draft));
@@ -565,11 +581,11 @@ function ReviewStep({
             </select>
           </label>
           <label>
-            Received
+            WO date
             <input type="date" value={s.order.receivedDate} onChange={(e) => setOrder({ receivedDate: e.target.value })} />
           </label>
           <label>
-            Delivery
+            Cargo ready date
             <input type="date" value={s.order.deliveryDate} onChange={(e) => setOrder({ deliveryDate: e.target.value })} />
           </label>
           <label>
@@ -577,6 +593,7 @@ function ReviewStep({
             <input value={s.order.poNumber} maxLength={60} onChange={(e) => setOrder({ poNumber: e.target.value })} />
           </label>
         </div>
+        {refPairs(s.order.refs).length > 0 && <p className="muted small">Also read: {refPairs(s.order.refs).map(([k, v]) => `${k} ${v}`).join(' · ')} (change them in the order form).</p>}
         {!s.order.customerId && <p className="muted small">No match? Add the customer in Masters → Customers, or choose it later in the order form.</p>}
       </div>
 

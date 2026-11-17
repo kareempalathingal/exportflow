@@ -501,6 +501,43 @@ export function undoStartAt(steps: JoStep[], i: number): JoStep[] | null {
 }
 
 /** Adds one day's output to step `i` (kept oldest first). */
+/**
+ * Per order (17 Nov 2026): a to-do in-house step becomes outside work, with "Dispatch for X" before it and
+ * "Landing from X" after it (both without a time of their own). The product route is not changed.
+ */
+export function toOutside(steps: JoStep[], i: number): JoStep[] | null {
+  const s = steps[i];
+  if (!s || s.doneAt || !s.processId || s.outside || s.outsideOf || isBuiltIn(s)) return null;
+  const name = s.label;
+  const none = { perDay: null, perDayUnit: null, fixedDays: null };
+  const common = { forProduct: s.forProduct, productId: s.productId, outsideOf: s.processId, passThrough: true as const, doneAt: null };
+  const rest: JoStep = { ...s };
+  delete rest.indentNo;
+  delete rest.indentOn;
+  delete rest.requiredBy;
+  return [
+    ...steps.slice(0, i),
+    { key: `${s.key}-d`, processId: null, label: `Dispatch for ${name}`, ...none, ...common },
+    { ...rest, label: `${name} (outside)`, outside: true },
+    { key: `${s.key}-l`, processId: null, label: `Landing from ${name}`, ...none, ...common },
+    ...steps.slice(i + 1),
+  ];
+}
+
+/** Back to in-house (this order only): only while nothing was dispatched or landed and none of the three is done. */
+export function toInHouse(steps: JoStep[], i: number): JoStep[] | null {
+  const s = steps[i];
+  if (!s || !s.outside || !s.processId) return null;
+  const d = steps[i - 1]?.outsideOf === s.processId ? i - 1 : -1;
+  const l = steps[i + 1]?.outsideOf === s.processId ? i + 1 : -1;
+  const group = [d, i, l].filter((k) => k >= 0).map((k) => steps[k]!);
+  if (group.some((x) => x.doneAt || (x !== s && x.outputLog?.length))) return null;
+  const rest: JoStep = { ...s };
+  for (const k of ['outside', 'supplierId', 'poNo', 'orderedOn', 'expectedOn', 'expectedHistory'] as const) delete rest[k];
+  const label = s.label.replace(/ \(outside\)$/, '');
+  return [...steps.slice(0, d >= 0 ? d : i), { ...rest, label }, ...steps.slice((l >= 0 ? l : i) + 1)];
+}
+
 export function addOutput(steps: JoStep[], i: number, entry: StepOutput): JoStep[] | null {
   const s = steps[i];
   if (!s || !(entry.qty > 0) || !entry.unit) return null;
@@ -518,6 +555,27 @@ export function setPromise(steps: JoStep[], i: number, p: { supplierId?: string 
   if (p.orderedOn !== undefined) next.orderedOn = p.orderedOn;
   if (p.expectedOn !== undefined) next = withExpected(next, p.expectedOn, at);
   return steps.map((x, j) => (j === i ? next : x));
+}
+
+/** The company's indent on an in-house step (17 Nov 2026): number, issued on, required by. Empty clears. */
+export function setIndent(steps: JoStep[], i: number, p: { indentNo: string; indentOn: string | null; requiredBy: string | null }): JoStep[] | null {
+  const s = steps[i];
+  if (!s) return null;
+  const next: JoStep = { ...s };
+  delete next.indentNo;
+  delete next.indentOn;
+  delete next.requiredBy;
+  if (p.indentNo.trim()) next.indentNo = p.indentNo.trim();
+  if (p.indentOn) next.indentOn = p.indentOn;
+  if (p.requiredBy) next.requiredBy = p.requiredBy;
+  return steps.map((x, j) => (j === i ? next : x));
+}
+
+/** Working days past the indent's "required by" while the step is not done (0 = not late, null = no date). */
+export function indentLateDays(s: Pick<JoStep, 'requiredBy' | 'doneAt'>, today: string, cal: WorkCalendar): number | null {
+  if (!s.requiredBy) return null;
+  if (s.doneAt || today <= s.requiredBy) return 0;
+  return workingDaysBetween(s.requiredBy, today, cal) ?? 0;
 }
 
 /** Ticks or unticks one "Ready to start?" item on step `i`. */

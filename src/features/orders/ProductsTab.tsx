@@ -8,7 +8,7 @@ import { COLLECTIONS, type Department, type MasterData, type Process } from '../
 import { departmentsFor, stepDelay, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
 import { gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { setPromise, buildLineSteps, canStart, isBuiltIn, lineSchedule, orderPlan, processPlanRows, orderStart, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
+import { indentLateDays, setIndent, setPromise, buildLineSteps, canStart, isBuiltIn, lineSchedule, orderPlan, processPlanRows, orderStart, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
@@ -22,7 +22,7 @@ import { TrackBar } from './TrackBar';
 import { gainText, lineOrderOf, type LineOrder } from '../../lib/itemOrder';
 import { compareToPlan, type PlanCompare } from '../../lib/baseline';
 import { ItemOrderCard, ProcessPlanCard } from './ProductsCards';
-import { OutputForm, PromiseEditor, ReadyRow, StepDate, StepEditor, StepRow, planNote } from './StepParts';
+import { IndentEditor, OutputForm, PromiseEditor, ReadyRow, StepDate, StepEditor, StepRow, planNote } from './StepParts';
 
 /** Per-product progress: a bar like the dashboard, and every process step from first to last. */
 export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md: MasterData; processes: Map<string, Process> }) {
@@ -147,6 +147,7 @@ function LineCard(props: {
   const [when, setWhen] = useState(today);
   const [outputFor, setOutputFor] = useState<string | null>(null);
   const [promiseFor, setPromiseFor] = useState<string | null>(null);
+  const [indentFor, setIndentFor] = useState<string | null>(null);
   const start = orderStart(jo);
   const lp = props.lp;
   const supply = line.supply === 'BUY' ? 'Outright purchase' : 'Make';
@@ -207,11 +208,16 @@ function LineCard(props: {
       const back = s.outputQty ?? 0;
       if (sent > 0) out = `${formatQty(Math.max(0, sent - back))} ${unitLabel(s.qtyUnit ?? '')} still with ${supplierName(rawSteps.find((x) => x.outside && x.processId === s.outsideOf)?.supplierId) ?? 'the vendor'}`;
     }
+    // In-house step: the company's indent (17 Nov 2026).
+    if (s.processId && !s.outside && (s.indentNo || s.indentOn || s.requiredBy))
+      parts.push([s.indentNo ? `Indent ${s.indentNo}` : 'Indent', s.indentOn && `issued ${formatDay(s.indentOn)}`, s.requiredBy && `required by ${formatDay(s.requiredBy)}`].filter(Boolean).join(' · '));
+    const indentLate = v.state !== 'DONE' ? (indentLateDays(s, today, cal) ?? 0) : 0;
     return {
       info: parts.length > 0 ? <span className="small block">{parts.join(' · ')}</span> : null,
       alert:
-        out || v.lateDays ? (
+        out || v.lateDays || indentLate ? (
           <>
+            {indentLate > 0 && <span className="small block error">Required by passed · {formatQty(indentLate)} working day{indentLate === 1 ? '' : 's'}</span>}
             {out && <span className="small block warn">{out}</span>}
             {v.lateDays ? <span className="small block error">{formatQty(v.lateDays)} working day{v.lateDays === 1 ? '' : 's'} late · ask for a new date</span> : null}
           </>
@@ -256,6 +262,12 @@ function LineCard(props: {
           {promiseFor === v.step.key ? 'Close' : v.step.supplierId ? 'Supplier & dates' : v.step.outside ? '+ Vendor, Vendor PO, date' : '+ Supplier, Supplier PO, date'}
         </button>,
       );
+    if (v.step.processId && !v.step.outside && !isBuiltIn(v.step))
+      btns.push(
+        <button key="indent" type="button" className="secondary small" onClick={() => setIndentFor(indentFor === v.step.key ? null : v.step.key)}>
+          {indentFor === v.step.key ? 'Close' : v.step.indentNo || v.step.requiredBy ? 'Indent' : '+ Indent'}
+        </button>,
+      );
     if (isFirst)
       mainBtns.push(
         <button
@@ -296,6 +308,16 @@ function LineCard(props: {
             onSave={(p, what) => {
               props.onSteps(setPromise(rawSteps, i, p, new Date().toISOString())!, `${label}: ${what} (${line.productName})`);
               setPromiseFor(null);
+            }}
+          />
+        )}
+        {indentFor === v.step.key && (
+          <IndentEditor
+            step={rawSteps[i]!}
+            today={today}
+            onSave={(p, what) => {
+              props.onSteps(setIndent(rawSteps, i, p)!, `${label}: ${what} (${line.productName})`);
+              setIndentFor(null);
             }}
           />
         )}
@@ -421,7 +443,7 @@ function LineCard(props: {
           </button>
         </div>
       )}
-      {editing && <StepEditor steps={raw.steps!} processes={props.processes} productName={line.productName} onSave={(s) => props.onSteps(s, `Steps changed for this order (${line.productName})`)} />}
+      {editing && <StepEditor steps={raw.steps!} processes={props.processes} productName={line.productName} multi={props.jo.lines.length > 1} onSave={(s) => props.onSteps(s, `Steps changed for this order (${line.productName})`)} />}
     </div>
   );
 }

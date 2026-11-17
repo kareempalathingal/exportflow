@@ -93,6 +93,15 @@ export function buildToday(args: {
 
     for (const { line, lp } of lineProgresses(jo, today, ctx)) {
       const stepLink = (key: string) => `${link}?tab=products&line=${encodeURIComponent(line.id)}&step=${encodeURIComponent(key)}`;
+      // Indent targets of in-house steps (17 Nov 2026): "required by" passed or coming up.
+      for (const v of lp.steps) {
+        const rb = v.step.requiredBy;
+        if (!rb || v.state === 'DONE') continue;
+        const w = rb < today ? 'OVERDUE' : when(rb);
+        if (!w) continue;
+        const what = `${jo.joNumber} · ${line.productName}: ${v.step.label}${v.step.indentNo ? ` (indent ${v.step.indentNo})` : ''}`;
+        items.push({ when: w, date: rb, text: rb < today ? `${what} required by ${formatDay(rb)} - not done yet` : `${what} required by ${day(rb)}`, link: stepLink(v.step.key), area: processArea(v.step.processId), open: { label: 'Open step', link: stepLink(v.step.key) }, act: { kind: 'STEP', joId: jo.id, lineId: line.id, stepKey: v.step.key }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
+      }
       const cur = lp.current;
       if (!cur) continue;
       const name = `${jo.joNumber} · ${line.productName}: ${cur.step.label}`;

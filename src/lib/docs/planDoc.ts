@@ -2,7 +2,7 @@
  * Plan documents (split out of model.ts, 15 Nov 2026): the plan to submit and the working plan
  * of a Work Order (`productionPlanDoc()`), with the overview used by the plan to submit.
  */
-import { addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, effectiveSupply, type JobOrder } from '../jobOrders';
+import { refPairs, addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, effectiveSupply, type JobOrder } from '../jobOrders';
 import { isWorkingDay, workingDaysBetween, type WorkCalendar } from '../calendar';
 import { ITEM_ORDER_RULE, LISTED_RULE, daysLeftText, gainText } from '../itemOrder';
 import { compareToPlan, diffText as baselineDiffText, stepKey } from '../baseline';
@@ -358,6 +358,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
     ['Plan version', `Revision ${jo.rev ?? '-'} · generated ${input.generatedAt}`],
     ['Customer', order.customerName || '—'],
     ...(order.poNumber ? ([['Customer PO No.', order.poNumber]] as [string, string][]) : []),
+    ...refPairs(order.refs),
     ['WO date', formatDay(order.receivedDate)],
     clean
       ? ['Planning', draft ? `Started ${formatDay(order.receivedDate)} - this plan` : `${formatDay(order.receivedDate)} to ${formatDay(order.confirmedOn)}`]

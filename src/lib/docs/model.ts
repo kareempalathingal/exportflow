@@ -2,7 +2,7 @@
  * Printable documents (Phase 3c). A document is built as plain data here
  * (testable, deterministic) and drawn to PDF elsewhere. English only for now.
  */
-import { bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
+import { refPairs, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, type WorkCalendar } from '../calendar';
 import { orderStepProgress, orderTrack } from '../route';
 import type { Department, MasterData } from '../masters';
@@ -142,7 +142,7 @@ export function safeFileName(s: string): string {
 /** How a WO is named at the top of its documents. */
 export const woRef = (joNumber: string) => `WO No. ${joNumber}`;
 
-export function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'>, company: string, generatedAt: string) {
+export function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'> & Partial<Pick<JobOrder, 'refs'>>, company: string, generatedAt: string) {
   return {
     company,
     reference: woRef(jo.joNumber),
@@ -151,6 +151,7 @@ export function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'
     meta: [
       ['Customer', jo.customerName || '—'],
       ...(jo.poNumber ? ([['Customer PO No.', jo.poNumber]] as [string, string][]) : []),
+      ...refPairs(jo.refs),
     ] as [string, string][],
   };
 }
@@ -158,6 +159,7 @@ export function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'
 export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: string; today: string; generatedAt: string; cal?: WorkCalendar }): DocModel {
   const b = base(jo, opts.company, opts.generatedAt);
   const reasons: string[] = [];
+  const withCodes = jo.lines.some((l) => l.articleNo || l.barcode);
   const rows = jo.lines.map((l, n) => {
     const r = resolveLine(l, md);
     const p = md.products.get(l.productId);
@@ -170,6 +172,7 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
       qty(l.qty, l.unit),
       r.baseQty !== null && r.baseUnit && r.baseUnit !== l.unit ? `${qty(r.baseQty, r.baseUnit)}${r.provisional ? ' (est.)' : ''}` : r.baseQty === null ? 'Conversion needed' : '—',
       supply === 'MAKE' ? 'Make' : supply === 'BUY' ? 'Outright purchase' : 'Not decided',
+      ...(withCodes ? [l.articleNo ?? '', l.barcode ?? ''] : []),
     ];
   });
   const ctx = { md, cal: opts.cal ?? DEFAULT_CALENDAR };
@@ -196,7 +199,7 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
     tables: [
       {
         title: 'Products',
-        columns: [{ label: '#' }, { label: 'Product' }, { label: 'Ordered', align: 'right' }, { label: 'In base unit', align: 'right' }, { label: 'Make / Outright purchase' }],
+        columns: [{ label: '#' }, { label: 'Product' }, { label: 'Ordered', align: 'right' }, { label: 'In base unit', align: 'right' }, { label: 'Make / Outright purchase' }, ...(withCodes ? [{ label: 'Article no.' }, { label: 'Barcode' }] : [])],
         rows,
         empty: 'No products on this order.',
       },

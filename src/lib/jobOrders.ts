@@ -145,6 +145,9 @@ export interface JoLine {
   steps?: JoStep[];
   /** Rush (15 Nov 2026): this item goes first when items wait for the same process. */
   rush?: boolean;
+  /** Customer's article no. and barcode for this item on this order (17 Nov 2026, from the company WO form). */
+  articleNo?: string;
+  barcode?: string;
 }
 
 /** One process step of an order line, copied from the product route at confirmation. */
@@ -164,6 +167,14 @@ export interface JoStep {
   waitAll?: boolean;
   /** The time is the user's estimate (route status "My estimate"): used, but marked. */
   estimated?: boolean;
+  /** Set per order (17 Nov 2026): the step starts only when every other item of the order has
+   *  finished its steps before its own step of this process (e.g. packing mixed designs on a pallet). */
+  waitsForOrder?: boolean;
+  /** In-house step: the company's production / processing indent (17 Nov 2026), optional. */
+  indentNo?: string;
+  indentOn?: string | null;
+  /** The indent's "required by" / "work to be completed by" date: a target, not used in the plan. */
+  requiredBy?: string | null;
   /** The step is done outside (job work); its dispatch and landing steps carry `outsideOf`. */
   outside?: boolean;
   /** Dispatch / landing of an outside step: the process id of that step (for grouping). */
@@ -254,6 +265,53 @@ export interface JobOrder {
   itemOrderRule?: 'PRIORITY' | 'LISTED';
   /** Submitted plans (15 Nov 2026), oldest first; compared with the latest. See src/lib/baseline.ts. */
   baselines?: PlanBaseline[];
+  /** Order references from the company WO form (17 Nov 2026): all optional. */
+  refs?: OrderRefs;
+}
+
+/** Order references of the company WO form (customer code, PO date, PI, revision). */
+export interface OrderRefs {
+  customerCode?: string;
+  poDate?: string;
+  piNo?: string;
+  piDate?: string;
+  piConfirmedOn?: string;
+  revision?: string;
+}
+
+export const ORDER_REF_FIELDS: { id: keyof OrderRefs; label: string; date?: boolean }[] = [
+  { id: 'customerCode', label: 'Customer Code' },
+  { id: 'revision', label: 'Revision' },
+  { id: 'poDate', label: 'Customer PO date', date: true },
+  { id: 'piNo', label: 'PI No.' },
+  { id: 'piDate', label: 'PI date', date: true },
+  { id: 'piConfirmedOn', label: 'PI confirmed on', date: true },
+];
+
+/** Trimmed, without empty fields; undefined when nothing is left. */
+export function cleanRefs(r: OrderRefs | undefined): OrderRefs | undefined {
+  if (!r) return undefined;
+  const out: OrderRefs = {};
+  for (const f of ORDER_REF_FIELDS) {
+    const v = (r[f.id] ?? '').trim();
+    if (v) out[f.id] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** The customer of the latest earlier WO with this Customer Code (the company WO form has no customer name). */
+export function customerByCode(code: string | undefined, jos: Pick<JobOrder, 'refs' | 'customerId' | 'receivedDate'>[]): string | null {
+  const c = code?.trim().toLowerCase();
+  if (!c) return null;
+  const hits = jos.filter((j) => j.customerId && j.refs?.customerCode?.trim().toLowerCase() === c).sort((a, b) => b.receivedDate.localeCompare(a.receivedDate));
+  return hits[0]?.customerId ?? null;
+}
+
+/** "Customer Code C-01 · PI date 22 Apr 2026" style pairs for documents. */
+export function refPairs(r: OrderRefs | undefined): [string, string][] {
+  const c = cleanRefs(r);
+  if (!c) return [];
+  return ORDER_REF_FIELDS.filter((f) => c[f.id]).map((f) => [f.label, f.date ? formatDay(c[f.id]!) : c[f.id]!]);
 }
 
 /** Completion date after a status change: set on completion, cleared on reopen, else kept. */

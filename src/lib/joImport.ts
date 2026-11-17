@@ -11,8 +11,8 @@ import { normalizeName } from './masters';
 /** A sheet as text cells (dates already as YYYY-MM-DD). */
 export type Grid = string[][];
 
-export type ItemField = 'name' | 'code' | 'size' | 'qty' | 'unit' | 'pack';
-export type OrderField = 'joNumber' | 'customer' | 'poNumber' | 'receivedDate' | 'deliveryDate';
+export type ItemField = 'name' | 'code' | 'size' | 'qty' | 'unit' | 'pack' | 'articleNo' | 'barcode';
+export type OrderField = 'joNumber' | 'customer' | 'poNumber' | 'receivedDate' | 'deliveryDate' | 'customerCode' | 'poDate' | 'piNo' | 'piDate' | 'piConfirmedOn' | 'revision';
 export type ColumnMap = Record<ItemField, number | null>;
 export interface CellRef {
   r: number; // 0-based
@@ -26,6 +26,8 @@ export const ITEM_FIELDS: { id: ItemField; label: string }[] = [
   { id: 'qty', label: 'Quantity' },
   { id: 'unit', label: 'Unit' },
   { id: 'pack', label: 'Pack quantity' },
+  { id: 'articleNo', label: 'Customer article no.' },
+  { id: 'barcode', label: 'Barcode' },
 ];
 export const ORDER_FIELDS: { id: OrderField; label: string }[] = [
   { id: 'joNumber', label: 'WO No.' },
@@ -33,6 +35,12 @@ export const ORDER_FIELDS: { id: OrderField; label: string }[] = [
   { id: 'poNumber', label: 'Customer PO No.' },
   { id: 'receivedDate', label: 'WO date' },
   { id: 'deliveryDate', label: 'Cargo ready date' },
+  { id: 'customerCode', label: 'Customer Code' },
+  { id: 'poDate', label: 'Customer PO date' },
+  { id: 'piNo', label: 'PI No.' },
+  { id: 'piDate', label: 'PI date' },
+  { id: 'piConfirmedOn', label: 'PI confirmed on' },
+  { id: 'revision', label: 'Revision' },
 ];
 
 /** A remembered layout (kept on the phone). */
@@ -59,6 +67,9 @@ const norm = (s: string) => normalizeName(s.replace(/[×*]/g, 'x').replace(/\s*x
 export const PRICE_HEADING = /price|rate|amount|value|\bfob\b|\bcif\b|\busd\b|\binr\b|\beur\b|cost|\$|₹|€/i;
 
 const HEADING: [ItemField, RegExp][] = [
+  // Before "code": the company WO form has ITEM REF NO. (our code), ARTICLE NO. (the customer's) and BARCODE.
+  ['barcode', /bar\s*code|\bean\b|\bgtin\b|\bupc\b/i],
+  ['articleNo', /\barticle\s*(no|#|number)/i],
   ['pack', /pack|inner|per\s*(carton|ctn|box)|\/\s*ctn|\bctn\b|carton/i],
   ['code', /code|\bart(icle)?\.?\s*(no|#)|\bitem\s*(no|#)|\bsku\b|\bref\b|style\s*no/i],
   ['unit', /^\s*(unit|uom|u\/m)\b/i],
@@ -69,7 +80,7 @@ const HEADING: [ItemField, RegExp][] = [
 
 /** Guesses the item columns from a heading row; price columns are left out. */
 export function guessColumns(header: string[]): ColumnMap {
-  const map: ColumnMap = { name: null, code: null, size: null, qty: null, unit: null, pack: null };
+  const map: ColumnMap = { name: null, code: null, size: null, qty: null, unit: null, pack: null, articleNo: null, barcode: null };
   const used = new Set<number>();
   for (const [field, re] of HEADING) {
     const c = header.findIndex((h, i) => !used.has(i) && h.trim() !== '' && !PRICE_HEADING.test(h) && re.test(h));
@@ -182,6 +193,10 @@ export function readDate(raw: string): string | null {
 // Order details (label → value next to it)
 
 const LABEL: [OrderField, RegExp][] = [
+  ['customerCode', /customer\s*code|buyer\s*code/i],
+  ['piConfirmedOn', /\bp\.?\s?i\.?\s*confirm|proforma.*confirm/i],
+  ['piNo', /proforma|\bp\.?\s?i\.?\s*(no|#|number)/i],
+  ['revision', /revision|\brev\.?\s*(no)?\b/i],
   ['poNumber', /\b(buyer'?s?\s*)?p\.?\s?o\.?\b|purchase\s*order|order\s*ref/i],
   ['joNumber', /\b(w\.?\s?o|j\.?\s?o)\.?\b|work\s*order|job\s*order|\bwo#|\bjo#/i],
   ['deliveryDate', /deliver|cargo|ready|ship|dispatch|\betd\b|ex[\s.-]?factory|due\s*date/i],
@@ -210,10 +225,19 @@ export function findOrderFields(grid: Grid, headerRow: number | null): OrderValu
   const used = new Set<string>(); // cells already taken as a value are not labels
   const last = headerRow ?? Math.min(grid.length, 40);
   const onlyLabel = (v: string) => LABEL.some(([, re]) => re.test(v) && !v.replace(re, '').replace(/\b(no|number|name|date|ref)\b|[:#.\s]/gi, ''));
+  // The company WO form (17 Nov 2026): several "Label : value" lines in one cell. Read first, so that a
+  // title such as "WORK ORDER form" above them is not taken for the WO No. label.
+  for (let r = 0; r < last; r++)
+    (grid[r] ?? []).forEach((cell, c) => {
+      const t = cell.trim();
+      if (cellLines(t).length < 2) return;
+      for (const [field, v] of Object.entries(linesValues(t)) as [OrderField, string][]) if (!out[field]) out[field] = { value: v, at: { r, c } };
+      used.add(`${r}:${c}`);
+    });
   for (let r = 0; r < last; r++) {
     (grid[r] ?? []).forEach((cell, c) => {
       const t = cell.trim();
-      if (!t || t.length > 40 || used.has(`${r}:${c}`)) return;
+      if (!t || t.length > 40 || used.has(`${r}:${c}`) || /\bform\b/i.test(t)) return;
       const label = t.replace(/[:#-]\s*.+$/, '');
       for (const [field, re] of LABEL) {
         if (!re.test(label)) continue;
@@ -222,9 +246,11 @@ export function findOrderFields(grid: Grid, headerRow: number | null): OrderValu
         if (field === 'customer' && LABEL[0]![1].test(label)) continue;
         if (field === 'joNumber' && /date/i.test(label)) continue;
         if ((field === 'receivedDate' || field === 'deliveryDate') && !/date|ready|deliver|ship|etd|dispatch/i.test(label)) continue;
+        if (field === 'customer' && /code/i.test(label)) continue;
         if (out[field]) break;
         const v = valueAt(grid, r, c);
-        if (v && !onlyLabel(v.value)) {
+        // A cell of "Label : value" lines is never the value of another label (e.g. a "WORK ORDER form" title above it).
+        if (v && !onlyLabel(v.value) && cellLines(v.value).length < 2) {
           out[field] = v;
           used.add(`${v.at.r}:${v.at.c}`);
         }
@@ -235,11 +261,42 @@ export function findOrderFields(grid: Grid, headerRow: number | null): OrderValu
   return out;
 }
 
+/** "Label : value" lines of one cell (at least a label and a colon). */
+function cellLines(t: string): [string, string][] {
+  return t
+    .split(/\r?\n/)
+    .map((l) => /^\s*([^:]{2,40}?)\s*:\s*(.*)$/.exec(l))
+    .filter((m): m is RegExpExecArray => !!m)
+    .map((m) => [m[1]!.trim(), m[2]!.trim()]);
+}
+
+/** The order fields in a multi-line cell; "1234 dated 17-04-2026" also gives the PO / PI date. */
+export function linesValues(t: string): Partial<Record<OrderField, string>> {
+  const out: Partial<Record<OrderField, string>> = {};
+  for (const [label, value] of cellLines(t)) {
+    const field = LABEL.find(([f, re]) => re.test(label) && !(f === 'customer' && /code/i.test(label)) && !(f === 'joNumber' && /date/i.test(label)))?.[0];
+    if (!field || out[field]) continue;
+    const dated = /^(.*?)\s+(?:dated|dtd\.?|date|of)\s+(.+)$/i.exec(value);
+    const main = (dated ? dated[1]! : value).trim();
+    if (main && !/^(nil|n\/?a|-|none)$/i.test(main)) out[field] = main;
+    if (dated) {
+      const dateField: OrderField | null = field === 'poNumber' ? 'poDate' : field === 'piNo' ? 'piDate' : null;
+      if (dateField && !out[dateField]) out[dateField] = dated[2]!.trim();
+    }
+  }
+  return out;
+}
+
 /** Reads a remembered cell (layout). */
 export function orderFromCells(grid: Grid, cells: Partial<Record<OrderField, CellRef>>): OrderValues {
   const out: OrderValues = {};
   for (const [k, at] of Object.entries(cells) as [OrderField, CellRef][]) {
     const v = (grid[at.r]?.[at.c] ?? '').trim();
+    if (cellLines(v).length >= 2) {
+      const lv = linesValues(v)[k];
+      if (lv) out[k] = { value: lv, at };
+      continue;
+    }
     const after = /[:#]\s*(.+)$/.exec(v);
     if (v) out[k] = { value: after ? after[1]!.trim() : v, at };
   }
@@ -270,6 +327,8 @@ export interface ImportRow {
   qty: number | null;
   unit: string | null;
   pack: string;
+  articleNo: string;
+  barcode: string;
   unclear: boolean;
 }
 
@@ -297,6 +356,8 @@ export function extractRows(grid: Grid, headerRow: number | null, cols: ColumnMa
       qty: q.qty,
       unit: unitFromText(get(cells, cols.unit)) ?? q.unit ?? fixedUnit,
       pack: get(cells, cols.pack),
+      articleNo: get(cells, cols.articleNo),
+      barcode: get(cells, cols.barcode),
       unclear: q.unclear || (fromPhoto && q.qty === null),
     });
   }
