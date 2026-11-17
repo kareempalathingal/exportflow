@@ -704,7 +704,8 @@ report the discrepancy and ask; do not silently choose.
     its share); with several units the item average and a "check the product
     routes" warning; none seen in the data), the WO-card bar with the
     should-be mark (planned share by today from each item's planned start /
-    finish) and gap colour, "made / total unit" at the right end of the bar,
+    finish) and gap colour, "made / total unit" at the right end of the bar
+    and "N unit still to make / land" under it,
     benchmark (rate or range, parallel units), running / next / done,
     items over the planned time, last update (date + time). Processes
     without work stay as faded cards ("No work now"). Outside work: one card
@@ -714,7 +715,10 @@ report the discrepancy and ask; do not silently choose.
     the TOTAL made that day so far; the app adds only the difference to
     what is already recorded that day (less = refused). Outside work:
     Dispatched / Landed with the quantity of that lot; landing at most what
-    was dispatched. The quantity is filled into the items automatically in
+    was dispatched. "All remaining: N unit" (one tap, when the department
+    says everything is done) fills the figure with what the open items can
+    still take (in-house: the day's recorded total + that); items that
+    cannot take it yet are counted beside it. The quantity is filled into the items automatically in
     plan order (running first, then the planned start; ties internal
     deadline, WO, product no.), each up to what it can still take; no
     manual re-ordering (priority / Rush is set in the plan); more than the

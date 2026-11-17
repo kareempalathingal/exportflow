@@ -104,6 +104,14 @@ function ProcessCardView({ c, open, onToggle, jos, today, ctx, workspaceId }: { 
               </span>
             )}
           </div>
+          {c.total !== null && c.made !== null && c.total - c.made > 1e-9 && (
+            <div className="small">
+              <strong>
+                {formatQty(c.total - c.made)} {unitLabel(c.units[0]!)}
+              </strong>{' '}
+              still to {c.outside ? 'land' : 'make'}
+            </div>
+          )}
           <div className="small muted">
             {c.benchmark ? `Benchmark ${c.benchmark}` : 'No benchmark yet'}
             {c.parallel > 1 ? ` · ${c.parallel} units` : ''}
@@ -138,7 +146,11 @@ function ProcessCardView({ c, open, onToggle, jos, today, ctx, workspaceId }: { 
 }
 
 function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCard; jos: Jos; today: string; ctx: Ctx; workspaceId: string | null; onDone: () => void }) {
-  const [mode, setMode] = useState<BoardMode>(c.outside ? 'DISPATCH' : 'MAKE');
+  // Outside work: "Dispatched" only while something is left to dispatch (e.g. not already
+  // entered on the WO's Products tab); otherwise the form opens on "Landed".
+  const canDispatch = c.outside && boardRows(jos, c.processId, today, today, ctx, 'DISPATCH').some((r) => r.open);
+  const canLand = c.outside && boardRows(jos, c.processId, today, today, ctx, 'LAND').some((r) => r.open);
+  const [mode, setMode] = useState<BoardMode>(c.outside ? (canDispatch || !canLand ? 'DISPATCH' : 'LAND') : 'MAKE');
   const [date, setDate] = useState(today);
   const [time, setTime] = useState(istTimeKey(new Date()));
   const [figure, setFigure] = useState('');
@@ -166,6 +178,10 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
             ? `${formatQty(alloc.extra)} ${unitLabel(unit!)} more than the items can take. Check the figure.`
             : null;
   const dayLog = rows.filter((r) => r.onDate > 0);
+  // One tap when the department says everything is done: what the open items can still take.
+  const canTake = unit ? rows.filter((r) => r.open && r.unit === unit).reduce((a, r) => a + (r.left ?? 0), 0) : 0;
+  const cannot = rows.filter((r) => !r.open && (r.left ?? 0) > 1e-9).length;
+  const fillAll = () => setFigure(String(Math.round((mode === 'MAKE' ? already + canTake : canTake) * 1000) / 1000));
 
   function save() {
     if (!alloc || !workspaceId || bad || alloc.given.size === 0) return;
@@ -187,19 +203,23 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
 
   const pickMode = (m: BoardMode) => {
     setMode(m);
-    setFigure('');
     setMsg(null);
   };
 
   return (
     <div className="update-form">
       {c.outside && (
-        <div className="row gap">
-          {(['DISPATCH', 'LAND'] as const).map((m) => (
-            <button key={m} type="button" className={mode === m ? 'small primary' : 'small'} onClick={() => pickMode(m)}>
-              {m === 'DISPATCH' ? 'Dispatched' : 'Landed'}
-            </button>
-          ))}
+        <div className="small">
+          What happened?{' '}
+          <span className="segmented">
+            {(['DISPATCH', 'LAND'] as const).map((m) => (
+              <button key={m} type="button" className={mode === m ? 'on' : undefined} aria-pressed={mode === m} onClick={() => pickMode(m)}>
+                {m === 'DISPATCH' ? 'Dispatched' : 'Landed'}
+              </button>
+            ))}
+          </span>
+          {!canDispatch && <span className="muted"> · nothing left to dispatch</span>}
+          {!canLand && mode === 'LAND' && <span className="muted"> · nothing dispatched to land yet</span>}
         </div>
       )}
       <div className="row gap wrap">
@@ -235,7 +255,21 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
             </span>
           )}
         </label>
-      ) : (
+      ) : null}
+      {unit && canTake > 1e-9 && (
+        <p className="small">
+          <button type="button" className="small" onClick={fillAll}>
+            All remaining: {formatQty(canTake)} {unitLabel(unit)}
+          </button>
+          {cannot > 0 && (
+            <span className="muted">
+              {' '}
+              {cannot} item{cannot === 1 ? '' : 's'} cannot take it yet (see below)
+            </span>
+          )}
+        </p>
+      )}
+      {unit ? null : (
         <p className="muted small">
           No item can take {mode === 'DISPATCH' ? 'a dispatch' : mode === 'LAND' ? 'a landing' : 'output'} on {formatDay(date)}.
         </p>
@@ -284,7 +318,7 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
             Cancel
           </button>{' '}
           <button type="button" className="primary small" disabled={!alloc || !!bad || alloc.given.size === 0} onClick={save}>
-            Save
+            {mode === 'DISPATCH' ? 'Save dispatch' : mode === 'LAND' ? 'Save landing' : 'Save'}
           </button>
         </span>
       </div>
