@@ -56,9 +56,29 @@ export function DashboardPage() {
         </p>
       )}
       {cards.length === 0 && <p className="muted">No processes yet. Add them in Masters → Processes.</p>}
-      {shown.map((c) => (
-        <ProcessCardView key={c.processId} c={c} open={open === c.processId} onToggle={() => setOpen(open === c.processId ? null : c.processId)} jos={jos.items} today={today} ctx={ctx} workspaceId={workspaceId} />
-      ))}
+      {shown
+        .filter((c) => c.items > 0)
+        .map((c) => (
+          <ProcessCardView key={c.processId} c={c} open={open === c.processId} onToggle={() => setOpen(open === c.processId ? null : c.processId)} jos={jos.items} today={today} ctx={ctx} workspaceId={workspaceId} />
+        ))}
+      {/* Processes without work on any open confirmed WO: one collapsed row at the end (17 Nov 2026). */}
+      {shown.some((c) => c.items === 0) && (
+        <details className="card idle-row">
+          <summary>
+            No work now ({shown.filter((c) => c.items === 0).length})
+          </summary>
+          <ul className="small muted">
+            {shown
+              .filter((c) => c.items === 0)
+              .map((c) => (
+                <li key={c.processId}>
+                  {c.name}
+                  {c.department ? ` · ${c.department.name}` : ''}
+                </li>
+              ))}
+          </ul>
+        </details>
+      )}
       <p className="small muted">Bar = done · thin line = where it should be today by the plan · colour = behind or ahead, as on the WO cards. Open confirmed WOs only.</p>
     </section>
   );
@@ -81,7 +101,7 @@ function ProcessCardView({ c, open, onToggle, jos, today, ctx, workspaceId }: { 
   const [saved, setSaved] = useState<string | null>(null);
   const counts = [c.running && `${c.running} running`, c.next && `${c.next} next`, c.done && `${c.done} done`].filter(Boolean).join(' · ');
   return (
-    <div className={`card process-card${idle ? ' idle' : ''}`}>
+    <div className={`card process-card${idle ? ' idle' : ''}${!idle && c.done === c.items ? ' complete' : ''}`}>
       <div className="row between">
         <span>
           <strong>{c.name}</strong>{' '}

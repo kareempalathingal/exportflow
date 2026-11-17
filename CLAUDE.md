@@ -707,8 +707,10 @@ report the discrepancy and ask; do not silently choose.
     finish) and gap colour, "made / total unit" at the right end of the bar
     and "N unit still to make / land" under it,
     benchmark (rate or range, parallel units), running / next / done,
-    items over the planned time, last update (date + time). Processes
-    without work stay as faded cards ("No work now"). Outside work: one card
+    items over the planned time, last update (date + time). A card whose
+    items are all done stays in its place, green and faded (until its WOs
+    are Completed); processes without work on any open confirmed WO are one
+    collapsed row "No work now (N)" at the end. Outside work: one card
     (dispatched, landed; landed counts as done).
 -   Dashboard top (moved from Home, 17 Nov 2026, `src/features/home/
     OrdersStanding.tsx`): the order status counts and "Planned vs actual"

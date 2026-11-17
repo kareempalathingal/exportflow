@@ -623,3 +623,6 @@ table.board tr.muted a { color: var(--muted); }
 .update-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .nowrap { white-space: nowrap; }
 
+.process-card.complete { opacity: 0.6; }
+.idle-row summary { cursor: pointer; color: var(--muted); }
+.idle-row ul { margin: 0.5rem 0 0; padding-left: 1.2rem; }
