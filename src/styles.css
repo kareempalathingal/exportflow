@@ -155,6 +155,11 @@ button:disabled { opacity: 0.6; }
 .segmented button.on { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
 .today-view { margin: 0.4rem 0; }
 .dept-group { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
+.today-item { margin-bottom: 0.6rem; }
+.today-actions { margin-top: 0.3rem; }
+.today-item.handled { opacity: 0.6; }
+.step.focus { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 8px; }
+.today-item.handled .handled-text { text-decoration: line-through; }
 
 .badge { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 999px; background: var(--surface-2); }
 .badge.inline { margin-left: 0.4rem; }

@@ -32,6 +32,7 @@ export function TaskForm() {
     ...(qp.get('person') ? { person: qp.get('person')! } : {}),
     ...(qp.get('due') ? { dueDate: qp.get('due')! } : {}),
     ...(qp.get('jo') ? { joId: qp.get('jo')!, joNumber: qp.get('joNo') ?? '' } : {}),
+    ...(qp.get('dept') ? { departmentId: qp.get('dept')! } : {}),
   });
   const [t, setT] = useState<Task>(() => (item ? ({ ...emptyTask(), ...strip(item as Task) } as Task) : prefill()));
   const [kind, setKind] = useState<RepeatKind>(() => item?.repeat?.kind ?? 'NONE');

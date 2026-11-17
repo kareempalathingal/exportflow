@@ -86,6 +86,10 @@ describe('daily summary', () => {
     expect(s.items.find((i) => i.text.startsWith('DEMO-101: internal deadline passed'))?.when).toBe('OVERDUE');
     expect(s.items.find((i) => i.text.startsWith('DEMO-101: cargo ready'))).toBeUndefined(); // delivery is 3 days away (beyond 2 working days)
     expect(s.items.some((i) => i.when === 'OVERDUE' && i.text.includes('over plan'))).toBe(true);
+    const over = s.items.find((i) => i.when === 'OVERDUE' && i.text.includes('over plan'))!;
+    expect(over.open?.label).toBe('Open step'); // leads to the step itself (17 Nov 2026)
+    expect(over.open?.link).toMatch(/\?tab=products&line=.+&step=.+/);
+    expect(over.followUp?.joNumber).toBeTruthy();
     expect(s.items.every((i, n) => n === 0 || ['OVERDUE', 'TODAY', 'SOON'].indexOf(s.items[n - 1]!.when) <= ['OVERDUE', 'TODAY', 'SOON'].indexOf(i.when))).toBe(true);
   });
   it('mentions an upcoming company holiday and makes shareable text and a PDF', () => {

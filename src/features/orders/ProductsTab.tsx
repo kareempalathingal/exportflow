@@ -35,12 +35,13 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const suppliers = useCollection<Supplier>(workspaceId, COLLECTIONS.suppliers);
   const [params] = useSearchParams();
   const focusLine = params.get('line');
+  const focusStep = params.get('step');
   // Opened from the items list at the top: bring that product into view.
   useEffect(() => {
     if (!focusLine) return;
-    const t = setTimeout(() => document.getElementById(`line-${focusLine}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    const t = setTimeout(() => (document.getElementById(`step-${focusLine}-${focusStep ?? ''}`) ?? document.getElementById(`line-${focusLine}`))?.scrollIntoView({ behavior: 'smooth', block: focusStep ? 'center' : 'start' }), 50);
     return () => clearTimeout(t);
-  }, [focusLine]);
+  }, [focusLine, focusStep]);
   const missing = jo.lines.filter((l) => !l.steps || l.steps.length === 0);
   const planned = planLines(jo, md);
   // Whole-order plan: the items share each process (5 Nov 2026).
@@ -104,7 +105,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
       <ul className="master-list">
         {jo.lines.map((l, i) => (
           <li key={l.id} id={`line-${l.id}`}>
-            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} vsPlan={vsPlan} no={i + 1} order={orderOf(l.id)} onRush={(on) => setRush(l.id, on)} />
+            <LineCard jo={jo} raw={l} line={planned[i]!} lp={lpByLine.get(l.id) ?? null} ctx={ctx} today={today} editable={editable} processes={processes} departments={departments.items} suppliers={suppliers.items} onSteps={(steps, what) => saveLines(jo.lines.map((x, j) => (j === i ? { ...x, steps } : x)), what)} vsPlan={vsPlan} no={i + 1} focusStep={focusLine === l.id ? focusStep : null} order={orderOf(l.id)} onRush={(on) => setRush(l.id, on)} />
           </li>
         ))}
       </ul>
@@ -137,6 +138,8 @@ function LineCard(props: {
   suppliers: (Supplier & { id: string })[];
   onSteps: (steps: JoStep[], what: string) => void;
   vsPlan: PlanCompare | null;
+  /** Step to open (from a Today link), when this is the line asked for. */
+  focusStep: string | null;
   /** Number of the product on the order (1 = first listed), as in the documents. */
   no: number;
   /** Place at shared processes (item order, 2+ items); null = not shown. */
@@ -404,7 +407,7 @@ function LineCard(props: {
 
       <ol className="stepper">
         {lp.steps.map((v, i) => (
-          <StepRow key={v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} parts={{ ...actionsFor(v), ...followFor(v), contacts: contactFor(v), contactsOpen: delayed(v, dates.steps[i]!), workHours: props.ctx.workHours, plan: props.vsPlan ? planNote(props.vsPlan, line.id, v) : null }} />
+          <StepRow key={v.step.key} id={`step-${line.id}-${v.step.key}`} focus={props.focusStep === v.step.key} v={v} date={dates.steps[i]!} productName={line.productName} parts={{ ...actionsFor(v), ...followFor(v), contacts: contactFor(v), contactsOpen: delayed(v, dates.steps[i]!), workHours: props.ctx.workHours, plan: props.vsPlan ? planNote(props.vsPlan, line.id, v) : null }} />
         ))}
       </ol>
       {dates.ready && <ReadyRow ready={dates.ready} />}

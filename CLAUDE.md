@@ -669,6 +669,19 @@ report the discrepancy and ask; do not silently choose.
     Departments and their duties are not confirmed yet: the grouping uses
     the current Departments master; a "handles purchase" department comes
     later.
+-   Today items lead to the fix (confirmed 17 Nov 2026, round 1): each
+    item carries `open` (the button: "Open step" = WO Products tab with
+    `?line=&step=`, the step opened and outlined; "Landed or new date";
+    "Open WO" / "Open WO to confirm"; "Open task"; "Back up now") and
+    `followUp` ("+ Follow-up task", prefilled title, due today, WO and the
+    group's department via `/work/new?…&dept=`). "Handled" with an
+    optional note (`src/lib/handled.ts`, `exportflow:todayHandled:<ws>`,
+    phone only, today only: still there tomorrow = open again): the item is
+    greyed and struck through, moves last, leaves the counts ("N handled"),
+    Undo; share texts say "[Handled 11:40] … - note". Holidays have no
+    buttons (information). Round 2 (not built): "X done", "+ Day's
+    output", "Landed", "New date" and task "Done" right on Home with the
+    same checks as the WO page.
 -   WO performance report (`src/lib/performance.ts`, Reports →
     Work Order performance): presets This month / Last month / Last 90
     days / Custom. Completed orders in the range: working days vs

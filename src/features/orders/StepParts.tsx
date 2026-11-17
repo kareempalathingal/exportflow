@@ -121,8 +121,9 @@ export interface StepRowParts {
  * One step, compact (15 Nov 2026): name, one date line and any warning; details (basis,
  * waited / worked, output, supplier, submitted plan, contacts, other buttons) open on tap.
  */
-export function StepRow({ v, date, productName, parts }: { v: StepView; date: StepDate; productName: string; parts: StepRowParts }) {
-  const [open, setOpen] = useState(false);
+export function StepRow({ v, date, productName, parts, focus = false, id }: { v: StepView; date: StepDate; productName: string; parts: StepRowParts; focus?: boolean; id?: string }) {
+  // A link from Today (?line=&step=) opens the step with its details (17 Nov 2026).
+  const [open, setOpen] = useState(focus);
   const s = v.step;
   const sub = s.forProduct !== productName ? ` · ${s.forProduct}` : '';
   const over = v.overrunDays !== null && v.overrunDays > 0;
@@ -165,7 +166,7 @@ export function StepRow({ v, date, productName, parts }: { v: StepView; date: St
     </>
   );
   return (
-    <li className={`step ${v.state.toLowerCase()}${open ? ' open' : ''}`}>
+    <li id={id} className={`step ${v.state.toLowerCase()}${open ? ' open' : ''}${focus ? ' focus' : ''}`}>
       <span className="step-dot" aria-hidden="true">
         {v.state === 'DONE' ? '✓' : ''}
       </span>

@@ -24,6 +24,10 @@ export interface TodayItem {
   link: string;
   /** Who it is for (16 Nov 2026): a process (its department), a department (tasks), purchase, or the whole order / general. */
   area: TodayArea;
+  /** The button that leads to where it is solved (17 Nov 2026); absent for information only (holidays). */
+  open?: { label: string; link: string };
+  /** "+ Follow-up task" prefill: the WO it is about (tasks themselves have none). */
+  followUp?: { joId: string; joNumber: string };
   /** For process steps: what to ask the department about (contact buttons). */
   step?: { processId: string | null; joNumber: string; product: string; label: string; quantity: string | null; finish: string | null; late: boolean };
 }
@@ -64,12 +68,13 @@ export function buildToday(args: {
   const planningDays = ctx.planningDays === undefined ? DEFAULT_PLANNING_DAYS : ctx.planningDays;
   for (const jo of args.jobOrders) {
     const link = `/orders/${jo.id}`;
+    const woActs = { open: { label: jo.status === 'DRAFT' ? 'Open WO to confirm' : 'Open WO', link }, followUp: { joId: jo.id, joNumber: jo.joNumber } };
     // Drafts: planning is the first stage of the order clock.
     if (jo.status === 'DRAFT' && planningDays !== null) {
       const used = workingDaysBetween(jo.receivedDate, today, cal) ?? 0;
       const due = addWorkingDays(jo.receivedDate, planningDays, cal) ?? today;
-      if (used > planningDays) items.push({ when: 'OVERDUE', date: null, text: `${jo.joNumber}: still in planning after ${formatQty(used)} working days (benchmark ${formatQty(planningDays)}) — confirm the plan`, link, area: ORDER_AREA });
-      else if (when(due) === 'TODAY' || when(due) === 'SOON') items.push({ when: when(due)!, date: due, text: `${jo.joNumber}: plan to be confirmed by ${day(due)}`, link, area: ORDER_AREA });
+      if (used > planningDays) items.push({ when: 'OVERDUE', date: null, text: `${jo.joNumber}: still in planning after ${formatQty(used)} working days (benchmark ${formatQty(planningDays)}) — confirm the plan`, link, area: ORDER_AREA, ...woActs });
+      else if (when(due) === 'TODAY' || when(due) === 'SOON') items.push({ when: when(due)!, date: due, text: `${jo.joNumber}: plan to be confirmed by ${day(due)}`, link, area: ORDER_AREA, ...woActs });
       continue;
     }
     if (jo.status !== 'CONFIRMED') continue;
@@ -77,12 +82,13 @@ export function buildToday(args: {
     const w = when(d);
     if (w === 'OVERDUE') {
       const n = daysBetween(d, today) ?? 0;
-      items.push({ when: w, date: d, text: `${jo.joNumber}: internal deadline passed ${n} day${n === 1 ? '' : 's'} ago (${formatDay(d)})`, link, area: ORDER_AREA });
-    } else if (w) items.push({ when: w, date: d, text: `${jo.joNumber}: internal deadline ${day(d)}`, link, area: ORDER_AREA });
+      items.push({ when: w, date: d, text: `${jo.joNumber}: internal deadline passed ${n} day${n === 1 ? '' : 's'} ago (${formatDay(d)})`, link, area: ORDER_AREA, ...woActs });
+    } else if (w) items.push({ when: w, date: d, text: `${jo.joNumber}: internal deadline ${day(d)}`, link, area: ORDER_AREA, ...woActs });
     const dw = when(jo.deliveryDate);
-    if (dw && dw !== 'OVERDUE') items.push({ when: dw, date: jo.deliveryDate, text: `${jo.joNumber}: cargo ready ${day(jo.deliveryDate)}`, link, area: ORDER_AREA });
+    if (dw && dw !== 'OVERDUE') items.push({ when: dw, date: jo.deliveryDate, text: `${jo.joNumber}: cargo ready ${day(jo.deliveryDate)}`, link, area: ORDER_AREA, ...woActs });
 
     for (const { line, lp } of lineProgresses(jo, today, ctx)) {
+      const stepLink = (key: string) => `${link}?tab=products&line=${encodeURIComponent(line.id)}&step=${encodeURIComponent(key)}`;
       const cur = lp.current;
       if (!cur) continue;
       const name = `${jo.joNumber} · ${line.productName}: ${cur.step.label}`;
@@ -99,25 +105,26 @@ export function buildToday(args: {
         late,
       };
       if (late) {
-        items.push({ when: 'OVERDUE', date: null, text: `${name} running ${formatQty(cur.overrunDays!)} working day${cur.overrunDays === 1 ? '' : 's'} over plan`, link: `${link}?tab=products`, step, area });
+        items.push({ when: 'OVERDUE', date: null, text: `${name} running ${formatQty(cur.overrunDays!)} working day${cur.overrunDays === 1 ? '' : 's'} over plan`, link: stepLink(cur.step.key), step, area, open: { label: 'Open step', link: stepLink(cur.step.key) }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
       } else if (end) {
         const ew = when(end);
-        if (ew === 'TODAY' || ew === 'SOON') items.push({ when: ew, date: end, text: `${name} should finish ${day(end)}`, link: `${link}?tab=products`, step, area });
+        if (ew === 'TODAY' || ew === 'SOON') items.push({ when: ew, date: end, text: `${name} should finish ${day(end)}`, link: stepLink(cur.step.key), step, area, open: { label: 'Open step', link: stepLink(cur.step.key) }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
       }
     }
   }
 
   // Steps starting soon that are not ready, and what is awaited from outside.
   if (args.processes) {
+    const stepOf = (c: { joId: string; lineId: string; stepKey: string }) => `/orders/${c.joId}?tab=products&line=${encodeURIComponent(c.lineId)}&step=${encodeURIComponent(c.stepKey)}`;
     for (const c of startChecks(args.jobOrders, ctx, today, args.processes, args.suppliers ?? new Map(), args.alertDays)) {
       if (c.ready) continue;
       const w: TodayWhen = c.start <= today ? 'OVERDUE' : 'SOON';
-      items.push({ when: w, date: c.start, text: `${c.joNumber} · ${c.product}: ${c.label} ${c.start <= today ? 'due to start' : `starts ${day(c.start)}`} - ready ${c.readyCount} of ${c.total}`, link: '/', area: processArea(c.processId) });
+      items.push({ when: w, date: c.start, text: `${c.joNumber} · ${c.product}: ${c.label} ${c.start <= today ? 'due to start' : `starts ${day(c.start)}`} - ready ${c.readyCount} of ${c.total}`, link: stepOf(c), area: processArea(c.processId), open: { label: 'Open step', link: stepOf(c) }, followUp: { joId: c.joId, joNumber: c.joNumber } });
     }
     const name = (id: string | null) => (id ? (args.suppliers?.get(id)?.name ?? 'supplier') : 'no supplier yet');
     for (const a of awaitedItems(args.jobOrders, ctx, today, args.alertDays)) {
-      if (a.bucket === 'LATE') items.push({ when: 'OVERDUE', date: a.expectedOn, text: `${a.joNumber}: ${a.what} from ${name(a.supplierId)} ${a.lateDays} working day${a.lateDays === 1 ? '' : 's'} late (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA });
-      else if (a.bucket === 'SOON') items.push({ when: a.expectedOn === today ? 'TODAY' : 'SOON', date: a.expectedOn, text: `${a.joNumber}: ${a.what} expected from ${name(a.supplierId)} ${day(a.expectedOn!)} - confirm (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA });
+      if (a.bucket === 'LATE') items.push({ when: 'OVERDUE', date: a.expectedOn, text: `${a.joNumber}: ${a.what} from ${name(a.supplierId)} ${a.lateDays} working day${a.lateDays === 1 ? '' : 's'} late (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA, open: { label: 'Landed or new date', link: a.link }, followUp: { joId: a.joId, joNumber: a.joNumber } });
+      else if (a.bucket === 'SOON') items.push({ when: a.expectedOn === today ? 'TODAY' : 'SOON', date: a.expectedOn, text: `${a.joNumber}: ${a.what} expected from ${name(a.supplierId)} ${day(a.expectedOn!)} - confirm (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA, open: { label: 'Landed or new date', link: a.link }, followUp: { joId: a.joId, joNumber: a.joNumber } });
     }
   }
 
@@ -134,11 +141,11 @@ export function buildToday(args: {
     const who = [t.departmentId && args.deptName ? args.deptName(t.departmentId) : '', t.person].filter(Boolean).join(' · ');
     const lateBy = w === 'OVERDUE' ? ` - due ${formatDay(t.dueDate)}` : w === 'SOON' ? ` - ${day(t.dueDate)}` : '';
     const at = t.dueTime ? ` at ${formatClock(t.dueTime)}` : '';
-    items.push({ when: w, date: t.dueDate, text: `Task${t.priority === 'HIGH' ? ' [High]' : ''}: ${t.title}${who ? ` (${who})` : ''}${t.status === 'WAITING' ? ' · waiting' : ''}${lateBy}${at}`, link: `/work/${t.id}`, area: t.departmentId ? { kind: 'DEPT', id: t.departmentId } : ORDER_AREA });
+    items.push({ when: w, date: t.dueDate, text: `Task${t.priority === 'HIGH' ? ' [High]' : ''}: ${t.title}${who ? ` (${who})` : ''}${t.status === 'WAITING' ? ' · waiting' : ''}${lateBy}${at}`, link: `/work/${t.id}`, open: { label: 'Open task', link: `/work/${t.id}` }, area: t.departmentId ? { kind: 'DEPT', id: t.departmentId } : ORDER_AREA });
   }
 
   if (args.backupDue) {
-    items.push({ when: 'TODAY', date: null, text: args.backupDue.days === null ? 'Backup: none taken on this phone yet' : `Backup: last one ${args.backupDue.days} days ago`, link: '/settings', area: ORDER_AREA });
+    items.push({ when: 'TODAY', date: null, text: args.backupDue.days === null ? 'Backup: none taken on this phone yet' : `Backup: last one ${args.backupDue.days} days ago`, link: '/settings', area: ORDER_AREA, open: { label: 'Back up now', link: '/settings' } });
   }
 
   items.sort((a, b) => ORDER[a.when] - ORDER[b.when] || (a.date ?? '').localeCompare(b.date ?? '') || a.text.localeCompare(b.text));
@@ -153,7 +160,9 @@ export interface TodayGroup {
   /** The department (contacts), when the group is one. */
   department: Department | null;
   items: TodayItem[];
+  /** Open (not handled) items per when. */
   counts: Record<TodayWhen, number>;
+  handled: number;
 }
 
 export const NO_DEPT_GROUP = 'No department linked';
@@ -166,13 +175,14 @@ export const ORDER_GROUP = 'Whole order and general';
  * and suppliers"; deadlines, planning, holidays and the backup to "Whole order and general".
  * Departments with overdue items first; the three other groups last.
  */
-export function todayByDepartment(s: TodaySummary, departments: (Department & { id?: string })[]): TodayGroup[] {
+export function todayByDepartment(s: TodaySummary, departments: (Department & { id?: string })[], h?: HandledOf): TodayGroup[] {
   const groups = new Map<string, TodayGroup>();
   const add = (key: string, name: string, department: Department | null, item: TodayItem) => {
     let g = groups.get(key);
-    if (!g) groups.set(key, (g = { key, name, department, items: [], counts: { OVERDUE: 0, TODAY: 0, SOON: 0 } }));
+    if (!g) groups.set(key, (g = { key, name, department, items: [], counts: { OVERDUE: 0, TODAY: 0, SOON: 0 }, handled: 0 }));
     g.items.push(item);
-    g.counts[item.when]++;
+    if (h?.(item)) g.handled++;
+    else g.counts[item.when]++;
   };
   for (const i of s.items) {
     const a = i.area;
@@ -195,30 +205,47 @@ export function todayByDepartment(s: TodaySummary, departments: (Department & { 
 
 const TAG: Record<TodayWhen, string> = { OVERDUE: 'Overdue', TODAY: 'Today', SOON: 'Next 2 days' };
 
-export function countsText(c: Record<TodayWhen, number>): string {
-  return (['OVERDUE', 'TODAY', 'SOON'] as TodayWhen[])
-    .filter((w) => c[w] > 0)
-    .map((w) => `${c[w]} ${w === 'OVERDUE' ? 'overdue' : w === 'TODAY' ? 'today' : 'soon'}`)
-    .join(', ');
+export function countsText(c: Record<TodayWhen, number>, handled = 0): string {
+  return [
+    ...(['OVERDUE', 'TODAY', 'SOON'] as TodayWhen[]).filter((w) => c[w] > 0).map((w) => `${c[w]} ${w === 'OVERDUE' ? 'overdue' : w === 'TODAY' ? 'today' : 'soon'}`),
+    ...(handled ? [`${handled} handled`] : []),
+  ].join(', ');
+}
+
+/** Marked "Handled" today (on the phone), with an optional note (17 Nov 2026). */
+export interface HandledMark {
+  at: string; // HH:MM
+  note: string;
+}
+export type HandledOf = (i: TodayItem) => HandledMark | undefined;
+/** A stable key of an item within one day. */
+export const todayItemKey = (i: TodayItem) => `${i.link}|${i.text}`;
+const line = (i: TodayItem, h?: HandledOf) => {
+  const m = h?.(i);
+  return m ? `• [Handled ${m.at}] ${i.text}${m.note ? ` - ${m.note}` : ''}` : `• [${TAG[i.when]}] ${i.text}`;
+};
+/** Open items first, handled ones last (keeping the order otherwise). */
+export function handledLast(items: TodayItem[], h?: HandledOf): TodayItem[] {
+  return h ? [...items.filter((i) => !h(i)), ...items.filter((i) => h(i))] : items;
 }
 
 /** One department's list, to send to its team leader (a draft the user sends). */
-export function todayGroupText(g: TodayGroup, today: string, company: string): string {
-  return [`${g.name} · ${company ? `${company} · ` : ''}${formatDay(today)}`, '', ...g.items.map((i) => `• [${TAG[i.when]}] ${i.text}`)].join('\n');
+export function todayGroupText(g: TodayGroup, today: string, company: string, h?: HandledOf): string {
+  return [`${g.name} · ${company ? `${company} · ` : ''}${formatDay(today)}`, '', ...handledLast(g.items, h).map((i) => line(i, h))].join('\n');
 }
 
 /** Plain text to paste into WhatsApp or email; by department when departments are given (16 Nov 2026). */
-export function todayText(s: TodaySummary, company: string, departments?: (Department & { id?: string })[]): string {
+export function todayText(s: TodaySummary, company: string, departments?: (Department & { id?: string })[], h?: HandledOf): string {
   const out = [`${company ? `${company} · ` : ''}${formatDay(s.today)}`];
   if (s.items.length === 0) out.push('', 'Nothing due today or in the next 2 working days.');
   if (departments) {
-    for (const g of todayByDepartment(s, departments)) out.push('', `${g.name} (${countsText(g.counts)}):`, ...g.items.map((i) => `• [${TAG[i.when]}] ${i.text}`));
+    for (const g of todayByDepartment(s, departments, h)) out.push('', `${g.name} (${countsText(g.counts, g.handled)}):`, ...handledLast(g.items, h).map((i) => line(i, h)));
     return out.join('\n');
   }
   for (const w of ['OVERDUE', 'TODAY', 'SOON'] as TodayWhen[]) {
     const list = s.items.filter((i) => i.when === w);
     if (!list.length) continue;
-    out.push('', `${HEAD[w]}:`, ...list.map((i) => `• ${i.text}`));
+    out.push('', `${HEAD[w]}:`, ...handledLast(list, h).map((i) => (h?.(i) ? line(i, h) : `• ${i.text}`)));
   }
   return out.join('\n');
 }
