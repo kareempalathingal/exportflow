@@ -136,9 +136,16 @@ function DeptGroup({ g, compact, text, items, row, onShare, today }: { g: TodayG
         ) : (
           <span />
         )}
-        <button type="button" className="linkish small" onClick={() => onShare(text)}>
-          Share list
-        </button>
+        <span>
+          {g.department && g.key.startsWith('d:') && (
+            <Link className="small" to={`/dashboard?dept=${encodeURIComponent(g.key.slice(2))}`}>
+              Update all
+            </Link>
+          )}{' '}
+          <button type="button" className="linkish small" onClick={() => onShare(text)}>
+            Share list
+          </button>
+        </span>
       </div>
       <ul className="today-list">
         {shown.map((i, n) => row(i, n))}

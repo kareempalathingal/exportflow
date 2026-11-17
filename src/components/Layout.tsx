@@ -53,6 +53,7 @@ export function Layout() {
         <NavLink to="/" end>
           {t('navHome')}
         </NavLink>
+        <NavLink to="/dashboard">{t('navDashboard')}</NavLink>
         <NavLink to="/orders">{t('navOrders')}</NavLink>
         <NavLink to="/work">{t('navWork')}</NavLink>
         <NavLink to="/reports" className={({ isActive }) => (isActive || pathname.startsWith('/history') ? 'active' : '')}>

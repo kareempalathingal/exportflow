@@ -692,6 +692,24 @@ report the discrepancy and ask; do not silently choose.
     as the WO page (`orders/stepSave.ts`, pure parts in
     `src/lib/stepUpdates.ts`): same record, progress and history text.
     Anything else stays behind "Open".
+-   Dashboard (confirmed 17 Nov 2026, `src/lib/processBoard.ts`,
+    `src/features/dashboard/DashboardPage.tsx`, bottom menu Home ·
+    Dashboard · Orders · Work · Reports · Settings): one process across
+    all confirmed WOs (process list grouped by department, open items
+    counted). The department's total for a date (never future) is filled
+    into the items automatically in plan order (running first, then the
+    planned start; ties internal deadline, WO, product no.), each up to
+    what it still needs; no manual re-ordering (priority / Rush is set in
+    the plan); a total above what the items need is refused. Only items
+    that can take output that day: started, or the step before started /
+    done (whole quantity for "waits for"), not before the WO was confirmed;
+    a plan date never blocks. Items not started get "started" on that date;
+    output goes into `outputLog`; whole quantity → one question "mark
+    done?" (only the line's first open step; others are listed). One
+    history entry per WO ("Printing on <date>: … (from the dashboard)"),
+    same save path as the WO page (`saveJoLines`). Items in another unit
+    are entered on the WO. Today department groups have "Update all"
+    (`/dashboard?dept=`).
 -   WO performance report (`src/lib/performance.ts`, Reports →
     Work Order performance): presets This month / Last month / Last 90
     days / Custom. Completed orders in the range: working days vs
@@ -839,7 +857,7 @@ report the discrepancy and ask; do not silently choose.
     app, separate "Work" section, for the user only (no other users).
     What may be kept follows the "Data rule" above (amounts for
     cross-checks only; HR = process steps only).
--   Bottom menu: Home · Orders · Work · Reports · Settings; Masters opens
+-   Bottom menu: Home · Dashboard · Orders · Work · Reports · Settings (Dashboard added 17 Nov 2026); Masters opens
     from Settings (link row; back link on Masters).
 -   Tasks (`tasks` collection, `src/lib/tasks.ts`): title, department
     (or General), whom to ask, due date, priority Normal/High, status

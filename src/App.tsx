@@ -18,6 +18,7 @@ import { FamilyStepsPage } from './features/masters/FamilyStepsPage';
 import { DepartmentForm } from './features/masters/DepartmentForm';
 import { ReadinessPage } from './features/readiness/ReadinessPage';
 import { OrdersPage } from './features/orders/OrdersPage';
+import { DashboardPage } from './features/dashboard/DashboardPage';
 import { JobOrderPage } from './features/orders/JobOrderPage';
 import { ImportPage } from './features/orders/ImportPage';
 import { ToolsPage } from './features/tools/ToolsPage';
@@ -53,6 +54,7 @@ function Gate() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/import" element={<ImportPage />} />
         <Route path="orders/:id" element={<JobOrderPage />} />
