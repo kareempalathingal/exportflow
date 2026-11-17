@@ -87,6 +87,7 @@ const { ProductForm } = await import('../../src/features/masters/ProductForm');
 const { RawMaterialForm } = await import('../../src/features/masters/RawMaterialForm');
 const { CustomerForm } = await import('../../src/features/masters/CustomerForm');
 const { HomePage } = await import('../../src/features/home/HomePage');
+const { DashboardPage } = await import('../../src/features/dashboard/DashboardPage');
 const { SupplierForm } = await import('../../src/features/masters/SupplierForm');
 const { OrdersPage } = await import('../../src/features/orders/OrdersPage');
 const { JobOrderPage } = await import('../../src/features/orders/JobOrderPage');
@@ -184,12 +185,15 @@ describe('Phase 3 Work Order screens render', () => {
     expect(html).toContain('New Work Order');
     expect(html).toContain('Save as draft');
   });
-  it('home is the planned-vs-actual dashboard', () => {
-    const html = render('/', '/', <HomePage />);
-    expect(html).toContain('Where orders stand');
+  it('planned vs actual sits at the top of the Dashboard (moved from Home, 17 Nov 2026)', () => {
+    const home = render('/', '/', <HomePage />);
+    expect(home).toContain('Where orders stand');
+    expect(home).not.toContain('Planned vs actual</h3>');
+    const html = render('/dashboard', '/dashboard', <DashboardPage />);
     expect(html).toContain('Planned vs actual');
     expect(html).toContain('JO-77');
     expect(html).toContain('Not tracked');
+    expect(html.indexOf('Planned vs actual')).toBeLessThan(html.indexOf('Processes'));
   });
 });
 
@@ -248,10 +252,12 @@ describe('Phase 4 process steps', () => {
     const html = render('/orders/j1?tab=products', '/orders/:id', <JobOrderPage />);
     expect(html).toContain('Set up steps from product routes');
   });
-  it('home shows what each product is doing now, and the company calendar', () => {
+  it('the dashboard shows the WO and its processes (no per-product list on the WO card); home keeps the calendar', () => {
+    const dash = render('/dashboard', '/dashboard', <DashboardPage />);
+    expect(dash).toContain('JO-88');
+    expect(dash).not.toContain('Now ·');
+    expect(dash).toContain('Bleaching');
     const html = render('/', '/', <HomePage />);
-    expect(html).toContain('JO-88');
-    expect(html).toContain('Bleaching');
     expect(html).toContain('Calendar');
     expect(html).toContain('Weekly off: Sunday');
   });

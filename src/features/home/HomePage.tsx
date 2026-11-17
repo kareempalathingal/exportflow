@@ -11,10 +11,9 @@ import { addDays, COLLECTION_JOB_ORDERS, deadlineUpdate, formatDay, isEditable, 
 import { useMasterData } from '../masters/useMasterData';
 import { useCollection } from '../masters/useCollection';
 import { permissionHint } from '../orders/OrderBits';
-import { TrackBar } from '../orders/TrackBar';
 import { COLLECTION_STOCK_COUNTS, overAllocated, parseItemKey, planMaterials, toBuyAcrossOrders, type StockCount } from '../../lib/materials';
-import { gapColor, trackGroup, trackLabel, type Track } from '../../lib/progress';
-import { lineProgresses, orderTrack, overrunningSteps } from '../../lib/route';
+import { gapColor } from '../../lib/progress';
+import { orderTrack, overrunningSteps } from '../../lib/route';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { WorkCalendarCard } from '../calendar/WorkCalendarCard';
 import { readRedAt } from '../../lib/theme';
@@ -40,24 +39,10 @@ const JO_KIND: Record<JoAttention['kind'], { title: string; cls: string }> = {
   BOM_CHANGED: { title: 'BOM changed', cls: 'warn' },
 };
 
-const GROUPS = [
-  { id: 'ON_TRACK', label: 'On track', edge: 'oklch(0.58 0.13 150)' },
-  { id: 'BEHIND', label: 'Behind', edge: 'oklch(0.72 0.15 75)' },
-  { id: 'LATE', label: 'Late', edge: 'oklch(0.56 0.19 28)' },
-  { id: 'NOT_TRACKED', label: 'Not tracked', edge: 'var(--line)' },
-] as const;
-
 const STRIP_DAYS = 21;
 const dayHead = new Intl.DateTimeFormat('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-/** Urgency order: late, then furthest behind, then untracked, drafts last. */
-function urgency(t: Track): number {
-  if (t.kind === 'LATE') return -1000 + t.daysLeft;
-  if (t.kind === 'TRACKED') return t.gap ?? 0;
-  if (t.kind === 'NOT_TRACKED') return 500;
-  if (t.kind === 'DONE') return 800;
-  return 900;
-}
+import { urgency } from './OrdersStanding';
 
 export function HomePage() {
   const { t, workspaceId, mode } = useApp();
@@ -88,17 +73,10 @@ export function HomePage() {
       .filter((j) => isEditable(j.status))
       .map((j) => {
         const track = orderTrack(j, today, ctx);
-        const now = j.status === 'DRAFT' ? [] : lineProgresses(j, today, ctx).map(({ line, lp }) => `${line.productName}: ${lp.current ? lp.current.step.label : 'done'}`);
-        return { jo: j, track, now, color: gapColor(track, redAt) };
+        return { jo: j, track, color: gapColor(track, redAt) };
       })
       .sort((a, b) => urgency(a.track) - urgency(b.track));
   }, [jos.items, today, redAt, ctx]);
-
-  const groupCount = useMemo(() => {
-    const c: Record<string, number> = { ON_TRACK: 0, BEHIND: 0, LATE: 0, NOT_TRACKED: 0 };
-    for (const o of open) c[trackGroup(o.track)]! += 1;
-    return c;
-  }, [open]);
 
   // Next three weeks: internal deadlines (solid) and customer deliveries (light).
   const strip = useMemo(() => {
@@ -197,15 +175,6 @@ export function HomePage() {
 
       {!loading && <StartingSoon jos={jos.items} ctx={ctx} today={today} processes={processMap} suppliers={supplierMap} departments={departments.items} alertDays={alertDays} />}
 
-      <section aria-label="Order status counts" className="counts">
-        {GROUPS.map((g) => (
-          <div key={g.id} style={{ boxShadow: `inset 0 4px 0 ${g.edge}` }}>
-            <span className="mono count">{loading ? '–' : groupCount[g.id]}</span>
-            <span className="muted small">{g.label}</span>
-          </div>
-        ))}
-      </section>
-
       <section aria-labelledby="h-strip" className="card">
         <h3 id="h-strip">Next 3 weeks</h3>
         <div className="strip" aria-hidden="true">
@@ -231,55 +200,9 @@ export function HomePage() {
         )}
       </section>
 
-      <section aria-labelledby="h-pva">
-        <h3 id="h-pva">Planned vs actual</h3>
-        {!loading && open.length === 0 && <p className="muted">{t('homeEmpty')}</p>}
-        <ul className="master-list">
-          {open.map(({ jo, track, color, now }) => (
-            <li key={jo.id}>
-              <Link
-                to={`/orders/${jo.id}`}
-                className={`card link edge${jo.status === 'DRAFT' ? ' dashed' : ''}`}
-                style={{ ['--edge' as string]: jo.status === 'DRAFT' ? 'transparent' : color }}
-              >
-                <div className="row between">
-                  <span>
-                    <strong>{jo.joNumber}</strong> <span className="muted small">{jo.customerName}</span>
-                  </span>
-                  <span className="track-label">
-                    <span className="dot" style={{ background: color }} aria-hidden="true" />
-                    {track.kind === 'DRAFT' ? 'Draft' : trackLabel(track)}
-                  </span>
-                </div>
-                {jo.status === 'DRAFT' ? (
-                  <span className="muted small block">Tracking starts when the order is confirmed</span>
-                ) : (
-                  <>
-                    <TrackBar track={track} color={color} />
-                    <div className="row between small">
-                      <span>Is {track.actual === null ? '—' : `${track.actual}%`}</span>
-                      <span>Should be {track.planned}%</span>
-                      <span>{track.daysLeft >= 0 ? `${track.daysLeft} day${track.daysLeft === 1 ? '' : 's'} left` : 'past deadline'}</span>
-                    </div>
-                    {track.updatedDaysAgo !== null && track.updatedDaysAgo > 3 && <span className="muted small block">Progress updated {track.updatedDaysAgo} days ago</span>}
-                    {now.length > 0 && <span className="small block now-line">Now · {now.join(' · ')}</span>}
-                  </>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
-        {open.some((o) => o.jo.status === 'CONFIRMED') && (
-          <p className="muted small legend">
-            <span>
-              <span className="legend-mark" aria-hidden="true" /> Should be here today
-            </span>
-            <span>
-              <span className="legend-gap" aria-hidden="true" /> Gap to catch up
-            </span>
-          </p>
-        )}
-      </section>
+      <p className="small">
+        <Link to="/dashboard">Planned vs actual of each WO and each process: Dashboard ›</Link>
+      </p>
 
       <section aria-label="Materials and purchasing" className="tiles">
         <div className="card">

@@ -710,6 +710,13 @@ report the discrepancy and ask; do not silently choose.
     items over the planned time, last update (date + time). Processes
     without work stay as faded cards ("No work now"). Outside work: one card
     (dispatched, landed; landed counts as done).
+-   Dashboard top (moved from Home, 17 Nov 2026, `src/features/home/
+    OrdersStanding.tsx`): the order status counts and "Planned vs actual"
+    (one card per open WO: bar, is / should be, days left) come first, then
+    "Processes". The WO cards no longer list what each product is doing
+    (the process cards below show it). Home keeps Today,
+    Ready to start, Next 3 weeks, tiles, attention, KPIs and the calendar,
+    with a link to the Dashboard.
 -   "Update now" (per card, several times a day): date (never future) and
     time (HH:MM, `StepOutput.time`, not future; no rules change). In-house:
     the TOTAL made that day so far; the app adds only the difference to
@@ -730,7 +737,8 @@ report the discrepancy and ask; do not silently choose.
     line's first open step; landing also closes the dispatch / outside step
     of that process; others are listed). One history entry per WO
     ("Printing on <date> <time>: … (from the dashboard)"), same save path
-    as the WO page (`saveJoLines`). Plans, expected dates and KPIs stay in
+    as the WO page (`saveJoLines`); after Save the form closes and the card
+    shows what was saved. Plans, expected dates and KPIs stay in
     working days (hour planning later). Today department groups have
     "Update all" (`/dashboard?dept=`: that department's cards).
 -   WO performance report (`src/lib/performance.ts`, Reports →

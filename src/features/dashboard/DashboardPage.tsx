@@ -13,6 +13,7 @@ import { useCollection, type WithMeta } from '../masters/useCollection';
 import { TrackBar } from '../orders/TrackBar';
 import { saveJoLines } from '../orders/stepSave';
 import { usePlanContext } from '../settings/usePlanContext';
+import { OrdersStanding } from '../home/OrdersStanding';
 
 /**
  * Dashboard (confirmed 17 Nov 2026): one card per process in working order, its state across
@@ -44,6 +45,8 @@ export function DashboardPage() {
           {confirmed} confirmed WO{confirmed === 1 ? '' : 's'}
         </span>
       </div>
+      {!dept && <OrdersStanding jos={jos.items} ctx={ctx} today={today} loading={jos.loading} emptyText="No open work orders yet." />}
+      {!dept && <h3>Processes</h3>}
       {dept && (
         <p className="small">
           {shown[0]?.department?.name ?? 'One department'} only ·{' '}
@@ -75,6 +78,7 @@ function ProcessCardView({ c, open, onToggle, jos, today, ctx, workspaceId }: { 
     updatedDaysAgo: null,
   };
   const color = gapColor(track, readRedAt());
+  const [saved, setSaved] = useState<string | null>(null);
   const counts = [c.running && `${c.running} running`, c.next && `${c.next} next`, c.done && `${c.done} done`].filter(Boolean).join(' · ');
   return (
     <div className={`card process-card${idle ? ' idle' : ''}`}>
@@ -134,18 +138,19 @@ function ProcessCardView({ c, open, onToggle, jos, today, ctx, workspaceId }: { 
           )}
           {c.qtyMissing && <div className="small warn">Some items have no quantity yet.</div>}
           {c.done < c.items && (
-            <button type="button" className={open ? 'small' : 'small primary'} onClick={onToggle}>
+            <button type="button" className={open ? 'small' : 'small primary'} onClick={() => { setSaved(null); onToggle(); }}>
               {open ? 'Close' : 'Update now'}
             </button>
           )}
-          {open && <UpdateForm c={c} jos={jos} today={today} ctx={ctx} workspaceId={workspaceId} onDone={onToggle} />}
+          {open && <UpdateForm c={c} jos={jos} today={today} ctx={ctx} workspaceId={workspaceId} onDone={onToggle} onSaved={(m) => { setSaved(m); onToggle(); }} />}
+          {saved && !open && <p className="ok small">{saved}</p>}
         </>
       )}
     </div>
   );
 }
 
-function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCard; jos: Jos; today: string; ctx: Ctx; workspaceId: string | null; onDone: () => void }) {
+function UpdateForm({ c, jos, today, ctx, workspaceId, onDone, onSaved }: { c: ProcessCard; jos: Jos; today: string; ctx: Ctx; workspaceId: string | null; onDone: () => void; onSaved: (msg: string) => void }) {
   // Outside work: "Dispatched" only while something is left to dispatch (e.g. not already
   // entered on the WO's Products tab); otherwise the form opens on "Landed".
   const canDispatch = c.outside && boardRows(jos, c.processId, today, today, ctx, 'DISPATCH').some((r) => r.open);
@@ -155,7 +160,6 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
   const [time, setTime] = useState(istTimeKey(new Date()));
   const [figure, setFigure] = useState('');
   const [unitPick, setUnitPick] = useState<string | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const rows = boardRows(jos, c.processId, date, today, ctx, mode);
   const units = [...new Set(rows.filter((r) => r.open && r.unit).map((r) => r.unit!))];
@@ -193,8 +197,8 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
       const jo = jos.find((j) => j.id === w.joId);
       if (jo) saveJoLines(workspaceId, jo, w.lines, w.what, today, ctx);
     }
-    setFigure('');
-    setMsg(
+    // Saved: the form closes and the card shows what was saved (17 Nov 2026).
+    onSaved(
       `Saved ${formatQty(filled)} ${unitLabel(unit!)} on ${writes.length} WO${writes.length === 1 ? '' : 's'}.` +
         (done.length ? ` Done: ${done.join(', ')}.` : '') +
         (notDone.length ? ` Whole quantity reached, but a step before is not done yet (mark it on the WO): ${notDone.join(', ')}.` : ''),
@@ -203,7 +207,6 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
 
   const pickMode = (m: BoardMode) => {
     setMode(m);
-    setMsg(null);
   };
 
   return (
@@ -322,7 +325,6 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone }: { c: ProcessCar
           </button>
         </span>
       </div>
-      {msg && <p className="ok small">{msg}</p>}
     </div>
   );
 }
