@@ -348,7 +348,7 @@ export function OutputForm(props: { step: PlannedStep; product: Product | undefi
           {step.outputLog!.map((e, k) => (
             <li key={`${e.on}-${e.at}`} className="row between">
               <span>
-                {formatDay(e.on)} · <span className="mono">{formatQty(e.qty)} {unitLabel(e.unit)}</span>
+                {formatDay(e.on)}{e.time ? ` ${e.time}` : ''} · <span className="mono">{formatQty(e.qty)} {unitLabel(e.unit)}</span>
                 {e.note && <span className="muted"> · {e.note}</span>}
               </span>
               <button type="button" className="secondary small icon" aria-label="Remove this entry" onClick={() => props.onRemove(k)}>

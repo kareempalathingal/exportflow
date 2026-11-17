@@ -189,6 +189,8 @@ export interface JoStep {
 /** One day's output of a step (entered by the user; may be back-dated, never in the future). */
 export interface StepOutput {
   on: string; // YYYY-MM-DD
+  /** Clock time of the update (HH:MM, IST), when given (Dashboard "Update now", 17 Nov 2026). */
+  time?: string;
   qty: number;
   unit: string;
   note?: string;

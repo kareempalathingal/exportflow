@@ -692,24 +692,43 @@ report the discrepancy and ask; do not silently choose.
     as the WO page (`orders/stepSave.ts`, pure parts in
     `src/lib/stepUpdates.ts`): same record, progress and history text.
     Anything else stays behind "Open".
--   Dashboard (confirmed 17 Nov 2026, `src/lib/processBoard.ts`,
-    `src/features/dashboard/DashboardPage.tsx`, bottom menu Home ·
-    Dashboard · Orders · Work · Reports · Settings): one process across
-    all confirmed WOs (process list grouped by department, open items
-    counted). The department's total for a date (never future) is filled
-    into the items automatically in plan order (running first, then the
-    planned start; ties internal deadline, WO, product no.), each up to
-    what it still needs; no manual re-ordering (priority / Rush is set in
-    the plan); a total above what the items need is refused. Only items
-    that can take output that day: started, or the step before started /
-    done (whole quantity for "waits for"), not before the WO was confirmed;
-    a plan date never blocks. Items not started get "started" on that date;
-    output goes into `outputLog`; whole quantity → one question "mark
-    done?" (only the line's first open step; others are listed). One
-    history entry per WO ("Printing on <date>: … (from the dashboard)"),
-    same save path as the WO page (`saveJoLines`). Items in another unit
-    are entered on the WO. Today department groups have "Update all"
-    (`/dashboard?dept=`).
+-   Dashboard (confirmed 17 Nov 2026, redone the same day;
+    `src/lib/processBoard.ts`, `src/features/dashboard/DashboardPage.tsx`,
+    bottom menu Home · Dashboard · Orders · Work · Reports · Settings): one
+    card per active process, in working order (`processOrder()`: from the
+    step order of the WO lines and product routes; loops and ties by average
+    place). A card counts the process's steps on open CONFIRMED WOs (done
+    ones included; Completed WOs left out): % done (quantity share in one
+    unit; steps with nothing to make (all from stock) left out; a made
+    sub-product shared by several products counts once (each line holds
+    its share); with several units the item average and a "check the product
+    routes" warning; none seen in the data), the WO-card bar with the
+    should-be mark (planned share by today from each item's planned start /
+    finish) and gap colour, "made / total unit" at the right end of the bar,
+    benchmark (rate or range, parallel units), running / next / done,
+    items over the planned time, last update (date + time). Processes
+    without work stay as faded cards ("No work now"). Outside work: one card
+    (dispatched, landed; landed counts as done).
+-   "Update now" (per card, several times a day): date (never future) and
+    time (HH:MM, `StepOutput.time`, not future; no rules change). In-house:
+    the TOTAL made that day so far; the app adds only the difference to
+    what is already recorded that day (less = refused). Outside work:
+    Dispatched / Landed with the quantity of that lot; landing at most what
+    was dispatched. The quantity is filled into the items automatically in
+    plan order (running first, then the planned start; ties internal
+    deadline, WO, product no.), each up to what it can still take; no
+    manual re-ordering (priority / Rush is set in the plan); more than the
+    items can take is refused. Only items that can take it that day:
+    in-house = started, or the step before started / done (whole quantity
+    for "waits for"), not before the WO was confirmed; a plan date never
+    blocks. In-house items not started get "started" on that date. Whole
+    quantity → one question "mark done?" (in-house / dispatch only the
+    line's first open step; landing also closes the dispatch / outside step
+    of that process; others are listed). One history entry per WO
+    ("Printing on <date> <time>: … (from the dashboard)"), same save path
+    as the WO page (`saveJoLines`). Plans, expected dates and KPIs stay in
+    working days (hour planning later). Today department groups have
+    "Update all" (`/dashboard?dept=`: that department's cards).
 -   WO performance report (`src/lib/performance.ts`, Reports →
     Work Order performance): presets This month / Last month / Last 90
     days / Custom. Completed orders in the range: working days vs

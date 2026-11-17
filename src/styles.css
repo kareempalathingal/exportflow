@@ -615,3 +615,10 @@ table.board { width: 100%; border-collapse: collapse; margin: 10px 0; }
 table.board th, table.board td { padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
 table.board .num { text-align: right; white-space: nowrap; }
 table.board tr.muted a { color: var(--muted); }
+.process-card.idle { opacity: 0.55; }
+.process-card .pc-pct { font-size: 1.15rem; }
+.process-card .pc-bar { display: flex; align-items: center; gap: 8px; margin: 6px 0 4px; }
+.process-card .pc-bar .trackbar { flex: 1; }
+.process-card > button { margin-top: 8px; }
+.update-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.nowrap { white-space: nowrap; }
