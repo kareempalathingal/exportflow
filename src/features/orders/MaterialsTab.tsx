@@ -16,6 +16,7 @@ import { availableUnits, formatQty, unitLabel } from '../../lib/units';
 import { parseNum, UnitSelect } from '../masters/fields';
 import type { WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
+import { jobOrderData, saveMaterialDates } from './stepSave';
 import { useCollection } from '../masters/useCollection';
 import { DocButtons } from '../docs/DocButtons';
 import { directForText, madeFromText, orderedProductCount, planDoc } from '../../lib/docs/model';
@@ -28,31 +29,8 @@ interface EntryDraft {
   remarks: string;
 }
 
-/** The business fields of a Work Order record (without sync metadata). */
-export function jobOrderData(jo: JobOrder): JobOrder {
-  return {
-    joNumber: jo.joNumber,
-    customerId: jo.customerId,
-    customerName: jo.customerName,
-    poNumber: jo.poNumber,
-    receivedDate: jo.receivedDate,
-    deliveryDate: jo.deliveryDate,
-    deliveryDateType: jo.deliveryDateType,
-    deadline: jo.deadline,
-    status: jo.status,
-    lines: jo.lines,
-    notes: jo.notes,
-    bomSnapshot: jo.bomSnapshot,
-    confirmedOn: jo.confirmedOn,
-    stock: jo.stock ?? {},
-    progress: jo.progress ?? null,
-    progressLog: jo.progressLog ?? [],
-    completedOn: jo.completedOn ?? null,
-    ...(jo.materialDates ? { materialDates: jo.materialDates } : {}),
-    ...(jo.itemOrderRule ? { itemOrderRule: jo.itemOrderRule } : {}),
-    ...(jo.baselines ? { baselines: jo.baselines } : {}),
-  };
-}
+// The business fields of a WO record live in ./stepSave.ts (17 Nov 2026); re-exported here for older imports.
+export { jobOrderData } from './stepSave';
 
 function draftsFrom(stock: Record<string, StockEntry> | undefined): Record<string, EntryDraft> {
   const out: Record<string, EntryDraft> = {};
@@ -134,18 +112,7 @@ export function MaterialsTab(props: {
   }
 
   /** Material arrival dates (5 Nov 2026): saved at once, each change a history entry. */
-  function saveDates(materialDates: Record<string, MaterialDates>, what: string) {
-    if (!workspaceId) return;
-    saveRecord({
-      workspaceId,
-      collectionName: COLLECTION_JOB_ORDERS,
-      docId: jo.id,
-      entity: `Work Order: ${jo.joNumber}`,
-      before: jo,
-      data: JSON.parse(JSON.stringify({ ...jobOrderData(jo), materialDates })) as Record<string, unknown>,
-      reason: what,
-    });
-  }
+  const saveDates = (materialDates: Record<string, MaterialDates>, what: string) => saveMaterialDates(workspaceId, jo, materialDates, what);
 
   const orderedCount = orderedProductCount(jo);
   const rowView = (r: PlanRow, verb: string) => {

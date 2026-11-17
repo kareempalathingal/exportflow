@@ -86,7 +86,7 @@ export function ReportsPage() {
             flag={counts.OVERDUE ? 'bad' : null}
             flagLabel="Overdue or running late"
           >
-            <TodayCard summary={summary} company={company} departments={departments.items} />
+            <TodayCard summary={summary} company={company} departments={departments.items} actx={{ jos: jos.items, tasks: tasks.items, ctx, departments: departments.items }} />
             <div className="card doc-card">
               <DocButtons label="Daily summary (PDF)" build={() => todayDoc(summary, { company, generatedAt: generatedAt(), departments: departments.items })} />
             </div>

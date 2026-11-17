@@ -157,6 +157,7 @@ button:disabled { opacity: 0.6; }
 .dept-group { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
 .today-item { margin-bottom: 0.6rem; }
 .today-actions { margin-top: 0.3rem; }
+.today-quick { margin-top: 0.35rem; display: flex; flex-direction: column; gap: 0.35rem; }
 .today-item.handled { opacity: 0.6; }
 .step.focus { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 8px; }
 .today-item.handled .handled-text { text-decoration: line-through; }

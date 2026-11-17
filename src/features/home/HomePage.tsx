@@ -193,7 +193,7 @@ export function HomePage() {
 
       {jos.error && <p className="error small">{permissionHint(jos.error)}</p>}
 
-      {!loading && (jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') || tasks.items.some(isActive)) && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} />}
+      {!loading && (jos.items.some((j) => j.status === 'CONFIRMED' || j.status === 'DRAFT') || tasks.items.some(isActive)) && <TodayCard summary={todaySummary} company={company ?? ''} compact departments={departments.items} actx={{ jos: jos.items, tasks: tasks.items, ctx, departments: departments.items }} />}
 
       {!loading && <StartingSoon jos={jos.items} ctx={ctx} today={today} processes={processMap} suppliers={supplierMap} departments={departments.items} alertDays={alertDays} />}
 

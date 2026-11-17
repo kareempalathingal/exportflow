@@ -679,9 +679,19 @@ report the discrepancy and ask; do not silently choose.
     phone only, today only: still there tomorrow = open again): the item is
     greyed and struck through, moves last, leaves the counts ("N handled"),
     Undo; share texts say "[Handled 11:40] … - note". Holidays have no
-    buttons (information). Round 2 (not built): "X done", "+ Day's
-    output", "Landed", "New date" and task "Done" right on Home with the
-    same checks as the WO page.
+    buttons (information).
+-   Today actions round 2 (built 17 Nov 2026, `TodayActions.tsx`, item
+    `act`): on confirmed WOs, right in the card: a running step's "X done"
+    (only the first open step; "Date of this update", never future, never
+    before the step's start) and "+ Day's output" (same OutputForm; whole
+    quantity → asks "mark done?"); awaited materials "Landed" (date, not
+    future) and "New date" (not past, old date kept in the history);
+    bought items / job work "+ Landed" (part landings on the landing step)
+    and "New date" (on the Ordered / outside step); tasks "Done" with "How
+    did it end?" (same CloseTask). Every write goes through the same code
+    as the WO page (`orders/stepSave.ts`, pure parts in
+    `src/lib/stepUpdates.ts`): same record, progress and history text.
+    Anything else stays behind "Open".
 -   WO performance report (`src/lib/performance.ts`, Reports →
     Work Order performance): presets This month / Last month / Last 90
     days / Custom. Completed orders in the range: working days vs

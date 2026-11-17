@@ -7,8 +7,8 @@ import { firstPromise } from '../../lib/jobOrders';
 import { COLLECTIONS, type Department, type MasterData, type Process } from '../../lib/masters';
 import { departmentsFor, stepDelay, stepMessage } from '../../lib/contacts';
 import { StepContacts } from '../masters/ContactButtons';
-import { appendProgress, gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
-import { addOutput, setPromise, buildLineSteps, canStart, completeCurrent, isBuiltIn, lineSchedule, orderPlan, processPlanRows, orderStart, orderStepProgress, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
+import { gapColor, plannedPct, trackLabel, trackOf } from '../../lib/progress';
+import { setPromise, buildLineSteps, canStart, isBuiltIn, lineSchedule, orderPlan, processPlanRows, orderStart, planLines, removeOutput, routeFits, startStepAt, stepDates, stepTime, undoLast, undoStartAt, unitsMap, type LineProgress, type PlanContext, type PlannedLine, type StepView } from '../../lib/route';
 import { useProfile } from '../settings/useProfile';
 import { useWorkCalendar } from '../calendar/useWorkCalendar';
 import { readRedAt } from '../../lib/theme';
@@ -17,6 +17,7 @@ import { formatQty, unitLabel } from '../../lib/units';
 import { useCollection, type WithMeta } from '../masters/useCollection';
 import { saveRecord } from '../sync/records';
 import { jobOrderData } from './MaterialsTab';
+import { canEnterOutput, doneUpdate, outputUpdate, saveJoLines } from './stepSave';
 import { TrackBar } from './TrackBar';
 import { gainText, lineOrderOf, type LineOrder } from '../../lib/itemOrder';
 import { compareToPlan, type PlanCompare } from '../../lib/baseline';
@@ -49,13 +50,7 @@ export function ProductsTab({ jo, md, processes }: { jo: WithMeta<JobOrder>; md:
   const lpByLine = new Map((oplan?.lines ?? []).map((x) => [x.line.id, x.lp]));
   const vsPlan = oplan ? compareToPlan(jo, oplan, cal) : null;
 
-  function saveLines(lines: JoLine[], what: string) {
-    if (!workspaceId) return;
-    const next = { ...jobOrderData(jo), lines };
-    const p = orderStepProgress(next, today, ctx);
-    const data = p ? { ...next, progress: { pct: p.actual, on: today, at: new Date().toISOString() }, progressLog: appendProgress(jo.progressLog, { pct: p.actual, on: today, at: new Date().toISOString() }) } : next;
-    saveRecord({ workspaceId, collectionName: COLLECTION_JOB_ORDERS, docId: jo.id, entity: `Work Order: ${jo.joNumber}`, before: jo, data: JSON.parse(JSON.stringify(data)) as Record<string, unknown>, reason: what });
-  }
+  const saveLines = (lines: JoLine[], what: string) => saveJoLines(workspaceId, jo, lines, what, today, ctx);
 
   const orderOf = (lineId: string): LineOrder | null => (oplan ? lineOrderOf(oplan.itemOrder, lineId, editable) : null);
 
@@ -234,7 +229,7 @@ function LineCard(props: {
     const startMin = isFirst ? v.startOn : prevStart;
     const doneMin = v.startedOn ?? v.startOn;
     const isReceipt = v.step.processId === null && !isBuiltIn(v.step);
-    const canOutput = (v.state === 'NOW' || v.step.startedAt || isReceipt) && v.step.qty !== null && (isReceipt || !v.step.passThrough) && v.step.label !== 'Ordered';
+    const canOutput = canEnterOutput(v);
     const outLabel = v.step.outsideOf && v.step.passThrough && v.step.label.startsWith('Dispatch') ? '+ Dispatched' : v.step.outsideOf ? '+ Landed' : isReceipt ? '+ Landed' : "+ Day's output";
     const holdsPromise = v.step.outside || (v.step.processId === null && !v.step.outsideOf && v.step.label === 'Ordered');
     const label = v.step.label;
@@ -269,7 +264,8 @@ function LineCard(props: {
           className="primary small"
           disabled={when > today || (doneMin !== null && when < doneMin)}
           onClick={() => {
-            props.onSteps(completeCurrent(rawSteps, stepTime(when, today))!, `${label} done ${when === today ? 'today' : formatDay(when)} (${line.productName})`);
+            const u = doneUpdate(rawSteps, label, line.productName, when, today);
+            if (u) props.onSteps(u.steps, u.what);
             setWhen(today);
           }}
         >
@@ -309,12 +305,8 @@ function LineCard(props: {
             product={product}
             today={today}
             onAdd={(entry) => {
-              const next = addOutput(rawSteps, i, entry);
-              if (!next) return;
-              const total = (v.step.outputQty ?? 0) + (entry.unit === v.step.qtyUnit ? entry.qty : 0);
-              const whole = v.step.qty !== null && entry.unit === v.step.qtyUnit && total >= v.step.qty - 1e-9;
-              if (whole && isFirst && window.confirm(`Whole quantity ${isReceipt ? 'in' : 'made'}: mark ${label} done?`)) props.onSteps(completeCurrent(next, stepTime(entry.on, today))!, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)}; done (${line.productName})`);
-              else props.onSteps(next, `${label}: ${formatQty(entry.qty)} ${unitLabel(entry.unit)} on ${formatDay(entry.on)} (${line.productName})`);
+              const u = outputUpdate(rawSteps, i, v, entry, isFirst, line.productName, today, (q) => window.confirm(q));
+              if (u) props.onSteps(u.steps, u.what);
             }}
             onRemove={(k) => window.confirm(`Remove this ${label} entry?`) && props.onSteps(removeOutput(rawSteps, i, k)!, `${label}: output entry removed (${line.productName})`)}
           />

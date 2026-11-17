@@ -16,6 +16,9 @@ export const DEFAULT_ALERT_DAYS = 2;
 export type AwaitedKind = 'JOB_WORK' | 'BOUGHT' | 'MATERIAL';
 export type AwaitedBucket = 'LATE' | 'SOON' | 'LATER' | 'UNKNOWN';
 
+/** A material of the WO (materialDates key), or the steps of a line: where the promise sits and where it lands. */
+export type AwaitTarget = { kind: 'MATERIAL'; key: string; name: string } | { kind: 'STEPS'; lineId: string; promiseKey: string; landingKey: string };
+
 export interface AwaitedItem {
   kind: AwaitedKind;
   bucket: AwaitedBucket;
@@ -23,6 +26,8 @@ export interface AwaitedItem {
   joNumber: string;
   /** e.g. "Embossing", "Woven mat", "Dolomite". */
   what: string;
+  /** What to update when it lands or gets a new date (Today actions, 17 Nov 2026). */
+  target: AwaitTarget;
   /** Job work: the outside process (for its department, 16 Nov 2026). */
   processId?: string | null;
   /** Ordered product (for job work / bought items). */
@@ -60,6 +65,7 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
         out.push({
           ...base,
           kind: 'MATERIAL',
+          target: { kind: 'MATERIAL', key: r.key, name: r.name },
           bucket: bucket(exp),
           what: r.name,
           product: null,
@@ -86,6 +92,7 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
           out.push({
             ...base,
             kind: 'BOUGHT',
+            target: { kind: 'STEPS', lineId: line.id, promiseKey: o.key, landingKey: r.key },
             bucket: bucket(exp),
             what: line.productName,
             product: line.productName,
@@ -115,6 +122,7 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
         out.push({
           ...base,
           kind: 'JOB_WORK',
+          target: { kind: 'STEPS', lineId: line.id, promiseKey: s.key, landingKey: (land ?? s).key },
           processId: s.processId,
           bucket: bucket(exp),
           what: s.label.replace(/ \(outside\)$/, ''),

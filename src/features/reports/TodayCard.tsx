@@ -24,6 +24,7 @@ import {
   type TodayWhen,
 } from '../../lib/today';
 import { readPref, writePref } from '../../lib/storage';
+import { TodayActions, type TodayActContext } from './TodayActions';
 
 const CLS: Record<TodayWhen, string> = { OVERDUE: 'bad', TODAY: 'warn', SOON: 'neutral' };
 const WHEN: Record<TodayWhen, string> = { OVERDUE: 'Overdue', TODAY: 'Today', SOON: 'Soon' };
@@ -35,7 +36,7 @@ type View = 'DEPT' | 'TIME';
  * by time. Every item leads to where it is solved and can be marked "Handled" for today
  * (on the phone, 17 Nov 2026).
  */
-export function TodayCard({ summary, company, compact = false, departments = [] }: { summary: TodaySummary; company: string; compact?: boolean; departments?: Department[] }) {
+export function TodayCard({ summary, company, compact = false, departments = [], actx }: { summary: TodaySummary; company: string; compact?: boolean; departments?: Department[]; actx?: TodayActContext }) {
   const ws = useApp().workspaceId ?? '';
   const [msg, setMsg] = useState<string | null>(null);
   const [view, setViewState] = useState<View>(() => (readPref('todayView') === 'TIME' ? 'TIME' : 'DEPT'));
@@ -54,7 +55,7 @@ export function TodayCard({ summary, company, compact = false, departments = [] 
     }
   }
   const row = (i: TodayItem, n: number, deptId: string | null, showContacts: boolean) => (
-    <TodayRow key={`${todayItemKey(i)}-${n}`} i={i} m={handled(i)} departments={departments} deptId={deptId} showContacts={showContacts} today={summary.today} onMark={(m) => mark(i, m)} />
+    <TodayRow key={`${todayItemKey(i)}-${n}`} actx={actx} i={i} m={handled(i)} departments={departments} deptId={deptId} showContacts={showContacts} today={summary.today} onMark={(m) => mark(i, m)} />
   );
   const groups = view === 'DEPT' ? todayByDepartment(summary, departments, handled) : [];
   return (
@@ -152,7 +153,7 @@ function DeptGroup({ g, compact, text, items, row, onShare, today }: { g: TodayG
 }
 
 /** One item: what it is, the way to solve it, "+ Follow-up task" and "Handled" (with an optional note). */
-function TodayRow({ i, m, departments, deptId, showContacts, today, onMark }: { i: TodayItem; m: HandledMark | undefined; departments: Department[]; deptId: string | null; showContacts: boolean; today: string; onMark: (m: HandledMark | null) => void }) {
+function TodayRow({ i, m, departments, deptId, showContacts, today, onMark, actx }: { actx?: TodayActContext; i: TodayItem; m: HandledMark | undefined; departments: Department[]; deptId: string | null; showContacts: boolean; today: string; onMark: (m: HandledMark | null) => void }) {
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState('');
   const st = i.step;
@@ -176,6 +177,7 @@ function TodayRow({ i, m, departments, deptId, showContacts, today, onMark }: { 
   return (
     <li className={`today-item${i.when === 'OVERDUE' ? ' bad' : ''}`}>
       <span className={`pill ${CLS[i.when]} inline-pill`}>{WHEN[i.when]}</span> {i.open ? <Link to={i.open.link}>{i.text}</Link> : i.text}
+      {i.act && actx && <TodayActions act={i.act} c={actx} today={today} />}
       {i.open && (
         <div className="row gap wrap today-actions">
           <Link className="button secondary small" to={i.open.link}>

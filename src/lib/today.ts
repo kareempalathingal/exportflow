@@ -9,7 +9,7 @@ import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route
 import { formatQty, unitLabel } from './units';
 import { isActive, type Task } from './tasks';
 import { formatClock } from './time';
-import { awaitedItems, startChecks } from './followUp';
+import { awaitedItems, startChecks, type AwaitTarget } from './followUp';
 import type { Department, Process, Supplier } from './masters';
 import { departmentsFor } from './contacts';
 
@@ -26,11 +26,15 @@ export interface TodayItem {
   area: TodayArea;
   /** The button that leads to where it is solved (17 Nov 2026); absent for information only (holidays). */
   open?: { label: string; link: string };
+  /** What can be done right here (round 2, 17 Nov 2026): a step, an awaited item or a task. */
+  act?: TodayAct;
   /** "+ Follow-up task" prefill: the WO it is about (tasks themselves have none). */
   followUp?: { joId: string; joNumber: string };
   /** For process steps: what to ask the department about (contact buttons). */
   step?: { processId: string | null; joNumber: string; product: string; label: string; quantity: string | null; finish: string | null; late: boolean };
 }
+
+export type TodayAct = { kind: 'STEP'; joId: string; lineId: string; stepKey: string } | { kind: 'AWAIT'; joId: string; target: AwaitTarget } | { kind: 'TASK'; taskId: string };
 
 export type TodayArea = { kind: 'PROCESS'; id: string } | { kind: 'DEPT'; id: string } | { kind: 'PURCHASE' } | { kind: 'ORDER' };
 const ORDER_AREA: TodayArea = { kind: 'ORDER' };
@@ -105,10 +109,10 @@ export function buildToday(args: {
         late,
       };
       if (late) {
-        items.push({ when: 'OVERDUE', date: null, text: `${name} running ${formatQty(cur.overrunDays!)} working day${cur.overrunDays === 1 ? '' : 's'} over plan`, link: stepLink(cur.step.key), step, area, open: { label: 'Open step', link: stepLink(cur.step.key) }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
+        items.push({ when: 'OVERDUE', date: null, text: `${name} running ${formatQty(cur.overrunDays!)} working day${cur.overrunDays === 1 ? '' : 's'} over plan`, link: stepLink(cur.step.key), step, area, open: { label: 'Open step', link: stepLink(cur.step.key) }, act: { kind: 'STEP', joId: jo.id, lineId: line.id, stepKey: cur.step.key }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
       } else if (end) {
         const ew = when(end);
-        if (ew === 'TODAY' || ew === 'SOON') items.push({ when: ew, date: end, text: `${name} should finish ${day(end)}`, link: stepLink(cur.step.key), step, area, open: { label: 'Open step', link: stepLink(cur.step.key) }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
+        if (ew === 'TODAY' || ew === 'SOON') items.push({ when: ew, date: end, text: `${name} should finish ${day(end)}`, link: stepLink(cur.step.key), step, area, open: { label: 'Open step', link: stepLink(cur.step.key) }, act: { kind: 'STEP', joId: jo.id, lineId: line.id, stepKey: cur.step.key }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
       }
     }
   }
@@ -123,8 +127,8 @@ export function buildToday(args: {
     }
     const name = (id: string | null) => (id ? (args.suppliers?.get(id)?.name ?? 'supplier') : 'no supplier yet');
     for (const a of awaitedItems(args.jobOrders, ctx, today, args.alertDays)) {
-      if (a.bucket === 'LATE') items.push({ when: 'OVERDUE', date: a.expectedOn, text: `${a.joNumber}: ${a.what} from ${name(a.supplierId)} ${a.lateDays} working day${a.lateDays === 1 ? '' : 's'} late (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA, open: { label: 'Landed or new date', link: a.link }, followUp: { joId: a.joId, joNumber: a.joNumber } });
-      else if (a.bucket === 'SOON') items.push({ when: a.expectedOn === today ? 'TODAY' : 'SOON', date: a.expectedOn, text: `${a.joNumber}: ${a.what} expected from ${name(a.supplierId)} ${day(a.expectedOn!)} - confirm (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA, open: { label: 'Landed or new date', link: a.link }, followUp: { joId: a.joId, joNumber: a.joNumber } });
+      if (a.bucket === 'LATE') items.push({ when: 'OVERDUE', date: a.expectedOn, text: `${a.joNumber}: ${a.what} from ${name(a.supplierId)} ${a.lateDays} working day${a.lateDays === 1 ? '' : 's'} late (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA, open: { label: 'Open', link: a.link }, act: { kind: 'AWAIT', joId: a.joId, target: a.target }, followUp: { joId: a.joId, joNumber: a.joNumber } });
+      else if (a.bucket === 'SOON') items.push({ when: a.expectedOn === today ? 'TODAY' : 'SOON', date: a.expectedOn, text: `${a.joNumber}: ${a.what} expected from ${name(a.supplierId)} ${day(a.expectedOn!)} - confirm (${a.outstanding})`, link: a.link, area: a.kind === 'JOB_WORK' ? processArea(a.processId) : PURCHASE_AREA, open: { label: 'Open', link: a.link }, act: { kind: 'AWAIT', joId: a.joId, target: a.target }, followUp: { joId: a.joId, joNumber: a.joNumber } });
     }
   }
 
@@ -141,7 +145,7 @@ export function buildToday(args: {
     const who = [t.departmentId && args.deptName ? args.deptName(t.departmentId) : '', t.person].filter(Boolean).join(' · ');
     const lateBy = w === 'OVERDUE' ? ` - due ${formatDay(t.dueDate)}` : w === 'SOON' ? ` - ${day(t.dueDate)}` : '';
     const at = t.dueTime ? ` at ${formatClock(t.dueTime)}` : '';
-    items.push({ when: w, date: t.dueDate, text: `Task${t.priority === 'HIGH' ? ' [High]' : ''}: ${t.title}${who ? ` (${who})` : ''}${t.status === 'WAITING' ? ' · waiting' : ''}${lateBy}${at}`, link: `/work/${t.id}`, open: { label: 'Open task', link: `/work/${t.id}` }, area: t.departmentId ? { kind: 'DEPT', id: t.departmentId } : ORDER_AREA });
+    items.push({ when: w, date: t.dueDate, text: `Task${t.priority === 'HIGH' ? ' [High]' : ''}: ${t.title}${who ? ` (${who})` : ''}${t.status === 'WAITING' ? ' · waiting' : ''}${lateBy}${at}`, link: `/work/${t.id}`, open: { label: 'Open task', link: `/work/${t.id}` }, act: { kind: 'TASK', taskId: t.id }, area: t.departmentId ? { kind: 'DEPT', id: t.departmentId } : ORDER_AREA });
   }
 
   if (args.backupDue) {

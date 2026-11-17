@@ -81,6 +81,17 @@ describe('awaited from outside', () => {
     expect(items[0]).toMatchObject({ what: 'Embossing', outstanding: '340 of 900 pcs still out', poNo: '456', lateDays: 3 });
     expect(items[1]!.outstanding).toBe('516 pcs · not ordered yet');
   });
+  it('carries where to write a landing or a new date, and Today offers the actions (17 Nov 2026)', () => {
+    const e = line('1', 'e', 900);
+    let s = completeCurrent(e.steps!, '2026-11-03T06:30:00.000Z')!;
+    s = setPromise(s, 2, { supplierId: 'v1', expectedOn: '2026-11-06' }, 't')!;
+    const jo = order([{ ...e, steps: s }]);
+    const [job] = awaitedItems([jo], ctx, '2026-11-10');
+    expect(job!.target).toEqual({ kind: 'STEPS', lineId: '1', promiseKey: s[2]!.key, landingKey: s[3]!.key });
+    const t = buildToday({ jobOrders: [jo], ctx, today: '2026-11-10', processes, suppliers });
+    const late = t.items.find((i) => /Embossing from Vendor B/.test(i.text))!;
+    expect(late.act).toEqual({ kind: 'AWAIT', joId: jo.id, target: job!.target });
+  });
   it('late items reach Today', () => {
     const e = line('1', 'e', 900);
     let s = completeCurrent(e.steps!, '2026-11-03T06:30:00.000Z')!;
