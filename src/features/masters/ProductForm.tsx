@@ -1,3 +1,4 @@
+import { SHAPES, type Shape } from '../../lib/orderExtras';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
@@ -48,6 +49,9 @@ export function ProductForm() {
   const [supplyType, setSupplyType] = useState<SupplyType>('MANUFACTURED');
   const [usualSupply, setUsualSupply] = useState<'MAKE' | 'BUY' | ''>('');
   const [specifications, setSpecs] = useState('');
+  const [coloursText, setColours] = useState('');
+  const [platesText, setPlates] = useState('');
+  const [shape, setShape] = useState<Shape | ''>('');
   const [notes, setNotes] = useState('');
   const [active, setActive] = useState(true);
   const [lenText, setLen] = useState('');
@@ -85,6 +89,9 @@ export function ProductForm() {
     setSupplyType(item.supplyType);
     setUsualSupply(item.usualSupply ?? '');
     setSpecs(item.specifications ?? '');
+    setColours(item.colours ? String(item.colours) : '');
+    setPlates(item.stencilPlates ? String(item.stencilPlates) : '');
+    setShape(item.shape ?? '');
     setNotes(item.notes ?? '');
     setActive(item.active !== false);
     setLen(numText(item.size?.length));
@@ -122,7 +129,14 @@ export function ProductForm() {
   const weightP = trackedFromDraft(weight, 'Weight per piece');
   const unitsP = customUnitsFromDrafts(units);
   const routeP = routeFromDrafts(route);
-  const parseError = sizeError ?? [gsmP, thickP, weightP, unitsP, routeP].find((x): x is string => typeof x === 'string') ?? null;
+  const wholeOrNull = (t: string, label: string): number | null | string => {
+    if (!t.trim()) return null;
+    const n = Number(t.trim());
+    return Number.isInteger(n) && n >= 0 && n <= 50 ? n : `${label}: a whole number from 0 to 50`;
+  };
+  const coloursP = wholeOrNull(coloursText, 'Colours');
+  const platesP = wholeOrNull(platesText, 'Stencil plates');
+  const parseError = sizeError ?? (typeof coloursP === 'string' ? coloursP : null) ?? (typeof platesP === 'string' ? platesP : null) ?? [gsmP, thickP, weightP, unitsP, routeP].find((x): x is string => typeof x === 'string') ?? null;
 
   const draftProduct: Product | null =
     parseError === null && typeof gsmP !== 'string' && typeof thickP !== 'string' && typeof weightP !== 'string' && typeof unitsP !== 'string' && typeof routeP !== 'string'
@@ -143,6 +157,9 @@ export function ProductForm() {
           route: routeP,
           routeConfirmed,
           ...groupFields(group),
+          ...(typeof coloursP === 'number' && coloursP > 0 ? { colours: coloursP } : {}),
+          ...(typeof platesP === 'number' && platesP > 0 ? { stencilPlates: platesP } : {}),
+          ...(shape ? { shape } : {}),
           ...(erpCode.trim() ? { erpCode: erpCode.trim() } : {}),
           ...(item?.importSource ? { importSource: item.importSource } : {}),
           ...(guessed ? { baseUnitStatus: confirmUnit ? 'USER_PROVIDED' : 'ESTIMATED' } : item?.baseUnitStatus ? { baseUnitStatus: item.baseUnitStatus } : {}),
@@ -215,6 +232,31 @@ export function ProductForm() {
         <GroupFields value={group} onChange={setGroup} existing={all.items} product />
         <TextField label="Product code (optional)" value={code} onChange={setCode} max={40} />
         <TextField label="Specifications" multiline value={specifications} onChange={setSpecs} />
+        <details className="refs" open={!!(coloursText || platesText || shape)}>
+          <summary className="small">Design (optional): colours, stencil plates, shape</summary>
+          <div className="grid3">
+            <label>
+              Colours
+              <input inputMode="numeric" value={coloursText} onChange={(e) => setColours(e.target.value)} />
+            </label>
+            <label>
+              Stencil plates
+              <input inputMode="numeric" value={platesText} onChange={(e) => setPlates(e.target.value)} />
+            </label>
+            <label>
+              Shape
+              <select value={shape} onChange={(e) => setShape(e.target.value as Shape | '')}>
+                <option value="">—</option>
+                {SHAPES.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <span className="muted small block">Used to suggest stencil plates and cutting plates as order items. As on the company WO form; nothing is filled in by guess.</span>
+        </details>
 
         <fieldset className="tracked">
           <legend>Size of one piece</legend>

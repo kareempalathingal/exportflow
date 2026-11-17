@@ -126,6 +126,17 @@ describe('indent on an in-house step', () => {
   });
 });
 
+describe('round 2 in Today', () => {
+  it('a late order item and a requirement due soon show up', () => {
+    const base = jo([line('1', 'a', 100)]);
+    const j = { ...base, deliveryDate: '2026-11-30', orderItems: [{ id: 'x', item: 'Swing tags', expectedOn: '2026-11-04' }], checklist: [{ id: 'y', text: 'Sample approved', due: '2026-11-07' }, { id: 'z', text: 'Done one', due: '2026-11-05', doneOn: '2026-11-05' }] };
+    const s = buildToday({ jobOrders: [j], ctx, today: '2026-11-06', tasks: [], deptName: () => '', processes, suppliers: new Map(), alertDays: 2 });
+    expect(s.items.some((i) => i.when === 'OVERDUE' && i.text.includes('Swing tags expected'))).toBe(true);
+    expect(s.items.some((i) => i.when !== 'OVERDUE' && i.text.includes('Sample approved - due'))).toBe(true);
+    expect(s.items.some((i) => i.text.includes('Done one'))).toBe(false);
+  });
+});
+
 describe('waits for all items of this order', () => {
   it('packing of an item waits until every other item has finished its steps before packing', () => {
     const l1 = line('1', 'a', 100); // printing 1 day

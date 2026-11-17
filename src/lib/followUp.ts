@@ -3,6 +3,7 @@
  * (confirmed 5 Nov 2026, mockup canvas "Follow-up & readiness"). Built only from
  * data recorded in the app; nothing is guessed and nothing is sent.
  */
+import { itemsMissingAt } from './orderExtras';
 import { addWorkingDays, workingDaysBetween } from './calendar';
 import { effectiveSupply, firstPromise, formatDay, type JobOrder, type JoStep } from './jobOrders';
 import type { Process, Supplier } from './masters';
@@ -224,6 +225,9 @@ export function startChecks(
             prev.state === 'DONE' ? { ok: true, text: `${prev.step.label}: done` } : prev.step.startedAt ? { ok: true, text: `${prev.step.label}: running` } : st.start <= today ? { ok: false, text: `${prev.step.label} has not started yet` } : { ok: true, text: `${prev.step.label}: planned to have work ready by the start` },
           );
         }
+        // Order items needed before this process (round 2, 17 Nov 2026): landed or not.
+        for (const it of itemsMissingAt(jo, s.processId ?? s.outsideOf)) auto.push({ ok: false, text: `${it.item}: not landed yet${it.expectedOn ? ` (expected ${formatDay(it.expectedOn)})` : ''}` });
+        for (const it of (jo.orderItems ?? []).filter((x) => x.landedOn && x.neededAt && x.neededAt === (s.processId ?? s.outsideOf))) auto.push({ ok: true, text: `${it.item}: landed ${formatDay(it.landedOn!)}` });
         // Outside work and bought items need a supplier and a date to follow up.
         const holder = s.outsideOf ? raw.find((x) => x.outside && x.processId === s.outsideOf) : s.outside ? raw[i] : s.processId === null && s.label === PURCHASE_STEPS[0] ? raw[i] : undefined;
         if (holder) {

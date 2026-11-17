@@ -631,3 +631,7 @@ table.board tr.muted a { color: var(--muted); }
 details.refs { margin: 4px 0 8px; }
 details.refs summary { cursor: pointer; color: var(--muted); }
 .step-editor .route-row { flex-wrap: wrap; }
+.extra-row { list-style: none; border-top: 1px solid var(--line); padding: 8px 0; margin-left: -1.1rem; }
+.extra-row:first-child { border-top: 0; }
+.extra-row.done { opacity: 0.6; }
+.extra-row .row.gap { margin-top: 4px; }

@@ -90,6 +90,10 @@ export interface Product extends MasterBase, ItemExtras {
   route?: RouteStep[];
   /** False until the order of the steps is confirmed with the company. */
   routeConfirmed?: boolean;
+  /** Design (17 Nov 2026, from the company WO form), optional: colours, stencil plates, shape. */
+  colours?: number | null;
+  stencilPlates?: number | null;
+  shape?: 'RECTANGULAR' | 'SHAPED' | 'HALFROUND' | null;
 }
 
 /** A process or treatment (weaving, bleaching, packing…), shared by many products. */

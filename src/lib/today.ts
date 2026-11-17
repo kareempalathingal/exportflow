@@ -3,6 +3,7 @@
  * the next 2 working days. Shown on Home and shareable as text or PDF; the
  * app never sends it by itself. Pure and deterministic.
  */
+import { checkDue } from './orderExtras';
 import { addWorkingDays, dayOff, workingDaysBetween, type WorkCalendar } from './calendar';
 import { addDays, daysBetween, formatDay, type JobOrder } from './jobOrders';
 import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route';
@@ -91,6 +92,21 @@ export function buildToday(args: {
     const dw = when(jo.deliveryDate);
     if (dw && dw !== 'OVERDUE') items.push({ when: dw, date: jo.deliveryDate, text: `${jo.joNumber}: cargo ready ${day(jo.deliveryDate)}`, link, area: ORDER_AREA, ...woActs });
 
+    // Round 2 (17 Nov 2026): order items awaited and customer requirements due.
+    const clLink = `${link}?tab=checklist`;
+    for (const it of jo.orderItems ?? []) {
+      if (it.landedOn || !it.expectedOn) continue;
+      const w = when(it.expectedOn);
+      if (!w) continue;
+      items.push({ when: w, date: it.expectedOn, text: w === 'OVERDUE' ? `${jo.joNumber}: ${it.item} expected ${formatDay(it.expectedOn)} - not landed yet` : `${jo.joNumber}: ${it.item} expected ${day(it.expectedOn)} - confirm`, link: clLink, area: PURCHASE_AREA, open: { label: 'Open checklist', link: clLink }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
+    }
+    for (const c of jo.checklist ?? []) {
+      if (c.doneOn) continue;
+      const due = checkDue(c, jo, cal);
+      const w = due ? when(due) : null;
+      if (!due || !w) continue;
+      items.push({ when: w, date: due, text: w === 'OVERDUE' ? `${jo.joNumber}: ${c.text} - was due ${formatDay(due)}` : `${jo.joNumber}: ${c.text} - due ${day(due)}`, link: clLink, area: ORDER_AREA, open: { label: 'Open checklist', link: clLink }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
+    }
     for (const { line, lp } of lineProgresses(jo, today, ctx)) {
       const stepLink = (key: string) => `${link}?tab=products&line=${encodeURIComponent(line.id)}&step=${encodeURIComponent(key)}`;
       // Indent targets of in-house steps (17 Nov 2026): "required by" passed or coming up.

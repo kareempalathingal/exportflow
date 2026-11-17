@@ -324,6 +324,35 @@ report the discrepancy and ask; do not silently choose.
     every product that goes together. Pill "waits for all items".
 -   No Firestore rules change (no key lists on Work Orders).
 
+## Round 2 from the WO 12/2026 files (built 17-18 Nov 2026, no mockup on request)
+
+-   Product design fields (optional, collapsed "Design" on the product form):
+    `colours`, `stencilPlates` (whole numbers 0-50), `shape` (`SHAPES`:
+    Rectangular / Shaped / Half round). Never filled by guess.
+-   WO "Checklist" tab (`?tab=checklist`, `ChecklistTab.tsx`, logic
+    `src/lib/orderExtras.ts`), saved with `saveJoFields()` (one history
+    entry each):
+    -   Items to arrange (`JobOrder.orderItems`): things outside any BOM
+        (stencil plates, plotter prints, tags, labels, shipping marks): item,
+        qty + unit, supplier, Supplier PO, ordered on, supplier's date (old
+        date kept in `expectedHistory`), landed on, "needed before" a process
+        of the order, note. State Landed / Late / Expected / Ordered · no date
+        / To order. "+ N from product designs" (`suggestedItems()`: stencil
+        plates per design, a cutting plate per shaped / half-round design,
+        needed before the printing process) is a suggestion the user adds and
+        checks. "Needed before" feeds Ready to start? (`startChecks()`).
+        Today: expected date passed = Overdue, coming = "confirm"
+        (Purchase and suppliers group).
+    -   Customer requirements (`JobOrder.checklist`): text, due = fixed date
+        or N working days before cargo ready (`checkDue()`), done on, note;
+        "Copy N from the last WO of this customer" (`lastChecklist()`: text
+        and the days-before rule only). Today: overdue / due soon (Whole order
+        group). The app never marks anything approved.
+-   Fix: `jobOrderData()` (now in `jobOrders.ts`) keeps every data field
+    (only record meta dropped); before, step saves dropped `refs`.
+-   Not yet: these lists in the WO PDFs / Excel, and in the Awaited tab.
+-   No Firestore rules change.
+
 ## Order items at a glance (confirmed 26 Oct 2026)
 
 -   WO page, under the deadline / delivery / buffer boxes: numbered list

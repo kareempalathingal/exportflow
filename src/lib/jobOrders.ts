@@ -2,6 +2,7 @@
  * Work Order core (Phase 3a): shapes and pure, deterministic calculations.
  * Requirements v1.9 §31.4 (10% buffer) and CLAUDE.md phase-plan decisions.
  */
+import type { CheckItem, OrderItem } from './orderExtras';
 import type { PlanBaseline } from './baseline';
 import type { ProgressEntry } from './progress';
 import {
@@ -267,6 +268,10 @@ export interface JobOrder {
   baselines?: PlanBaseline[];
   /** Order references from the company WO form (17 Nov 2026): all optional. */
   refs?: OrderRefs;
+  /** Things to arrange for this order outside the BOM (stencil plates, tags…), round 2. */
+  orderItems?: OrderItem[];
+  /** Customer requirements checklist (approvals, certificates, booking…), round 2. */
+  checklist?: CheckItem[];
 }
 
 /** Order references of the company WO form (customer code, PO date, PI, revision). */
@@ -312,6 +317,19 @@ export function refPairs(r: OrderRefs | undefined): [string, string][] {
   const c = cleanRefs(r);
   if (!c) return [];
   return ORDER_REF_FIELDS.filter((f) => c[f.id]).map((f) => [f.label, f.date ? formatDay(c[f.id]!) : c[f.id]!]);
+}
+
+/** Sync metadata of a stored record (written by saveRecord, never copied). */
+const META = new Set(['id', 'pending', 'rev', 'updatedAt', 'updatedBy', 'lastAuditId', 'createdAt', 'createdBy']);
+
+/**
+ * The business fields of a Work Order record (without sync metadata). Every other field is kept,
+ * so a field added later (order references, order items, checklist…) is never dropped by a save
+ * of steps or dates (fixed 18 Nov 2026: the earlier fixed list lost `refs`).
+ */
+export function jobOrderData(jo: JobOrder): JobOrder {
+  const out = Object.fromEntries(Object.entries(jo).filter(([k]) => !META.has(k))) as unknown as JobOrder;
+  return { ...out, stock: jo.stock ?? {}, progress: jo.progress ?? null, progressLog: jo.progressLog ?? [], completedOn: jo.completedOn ?? null };
 }
 
 /** Completion date after a status change: set on completion, cleared on reopen, else kept. */

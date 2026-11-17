@@ -41,6 +41,7 @@ import { newId, useCollection, useDocument } from '../masters/useCollection';
 import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { MaterialsTab } from './MaterialsTab';
+import { ChecklistTab } from './ChecklistTab';
 import { IMPORT_DRAFT_KEY, type ImportDraft } from './ImportPage';
 import { ItemsCard } from './ItemsCard';
 import { ProgressCard } from './ProgressCard';
@@ -171,9 +172,9 @@ export function JobOrderPage() {
   if (!isNew && !item) return <p className="error">Work Order not found.</p>;
 
   const status: JoStatus = item?.status ?? 'DRAFT';
-  const tab: 'products' | 'order' | 'materials' = isNew
+  const tab: 'products' | 'order' | 'materials' | 'checklist' = isNew
     ? 'order'
-    : requestedTab === 'materials' || requestedTab === 'order' || requestedTab === 'products'
+    : requestedTab === 'materials' || requestedTab === 'order' || requestedTab === 'products' || requestedTab === 'checklist'
       ? requestedTab
       : status === 'DRAFT'
         ? 'order'
@@ -265,6 +266,8 @@ export function JobOrderPage() {
       ...(next === 'CONFIRMED' && (isNew || status === 'DRAFT') ? { itemOrderRule: 'PRIORITY' as const } : item?.itemOrderRule ? { itemOrderRule: item.itemOrderRule } : {}),
       ...(item?.baselines ? { baselines: item.baselines } : {}),
       ...(cleanRefs(d.refs) ? { refs: cleanRefs(d.refs) } : {}),
+      ...(item?.orderItems ? { orderItems: item.orderItems } : {}),
+      ...(item?.checklist ? { checklist: item.checklist } : {}),
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;
@@ -479,9 +482,9 @@ export function JobOrderPage() {
       )}
       {!isNew && (
         <div className="tabs" role="tablist">
-          {(['products', 'order', 'materials'] as const).map((x) => (
+          {(['products', 'order', 'materials', 'checklist'] as const).map((x) => (
             <button key={x} type="button" role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setParams({ tab: x }, { replace: true })}>
-              {x === 'products' ? 'Products' : x === 'order' ? 'Order' : 'Materials & stock'}
+              {x === 'products' ? 'Products' : x === 'order' ? 'Order' : x === 'materials' ? 'Materials & stock' : 'Checklist'}
             </button>
           ))}
         </div>
@@ -497,6 +500,7 @@ export function JobOrderPage() {
           {master.notReady ? <p className="muted small">Materials are shown once Masters have loaded.</p> : <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} company={company} />}
         </div>
       )}
+      {!isNew && item && tab === 'checklist' && <ChecklistTab jo={item} allJos={all.items} products={md.products} processes={processMap} suppliers={suppliers.items} editable={status !== 'CANCELLED'} />}
       <form className="card" onSubmit={submit} noValidate hidden={tab !== 'order'}>
         <fieldset className="plain" disabled={!editable}>
           {!editable && <p className="muted small">This order is {status.toLowerCase()} and read-only. Reopen it to make changes.</p>}
