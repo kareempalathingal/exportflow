@@ -1,3 +1,4 @@
+import { MaterialUseSection } from './MaterialUseSection';
 import { useMemo, useState } from 'react';
 import { useProcessUnits } from '../masters/useProcessUnits';
 import { Link } from 'react-router-dom';
@@ -174,6 +175,8 @@ export function ReportsPage() {
           </Link>
 
           <StockSection jos={jos.items} md={master.md} counts={stockCounts.items} today={today} company={company} generatedAt={generatedAt} />
+
+          <MaterialUseSection jos={jos.items} md={master.md} today={today} company={company} generatedAt={generatedAt} warnPct={profile?.useWarnPct} badPct={profile?.useBadPct} />
 
           <SettingSection title="To buy — all orders" summary={`${toBuy.rows.length} item${toBuy.rows.length === 1 ? '' : 's'}`}>
             <div className="card doc-card">

@@ -18,6 +18,9 @@ export interface Profile extends VersionedRecord {
   workHours?: number | null;
   /** Working days before a step starts that "Ready to start?" and supplier follow-ups are shown (default 2). */
   alertDays?: number;
+  /** Material use vs BOM (18 Nov 2026): difference % from which a figure is amber / red; null = no colour. */
+  useWarnPct?: number | null;
+  useBadPct?: number | null;
 }
 
 export interface ProfileState {

@@ -1,3 +1,4 @@
+import { UseImportPage } from './features/orders/UseImportPage';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './AppContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -57,6 +58,7 @@ function Gate() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="orders/import" element={<ImportPage />} />
+        <Route path="orders/use-import" element={<UseImportPage />} />
         <Route path="orders/:id" element={<JobOrderPage />} />
         <Route path="masters" element={<MastersPage />} />
         <Route path="masters/products/:id" element={<ProductForm />} />

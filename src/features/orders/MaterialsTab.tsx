@@ -1,3 +1,4 @@
+import { MaterialUseCard } from './MaterialUseCard';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, firstPromise, formatDay, isEditable, withExpected, type JobOrder, type MaterialDates, type StockEntry } from '../../lib/jobOrders';
@@ -301,6 +302,7 @@ export function MaterialsTab(props: {
           {saved && <p className="ok small">{t('saved')}</p>}
         </div>
       )}
+      <MaterialUseCard jo={jo} md={md} />
     </section>
   );
 }

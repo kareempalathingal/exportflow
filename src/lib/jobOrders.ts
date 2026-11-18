@@ -3,6 +3,7 @@
  * Requirements v1.9 §31.4 (10% buffer) and CLAUDE.md phase-plan decisions.
  */
 import type { CheckItem, OrderItem } from './orderExtras';
+import type { UseEntry } from './materialUse';
 import type { PlanBaseline } from './baseline';
 import type { ProgressEntry } from './progress';
 import {
@@ -269,6 +270,8 @@ export interface JobOrder {
   /** Order references from the company WO form (17 Nov 2026): all optional. */
   refs?: OrderRefs;
   /** Things to arrange for this order outside the BOM (stencil plates, tags…), round 2. */
+  /** Actual material use (Round 3, 18 Nov 2026), compared with the BOMs. */
+  materialUse?: UseEntry[];
   orderItems?: OrderItem[];
   /** Customer requirements checklist (approvals, certificates, booking…), round 2. */
   checklist?: CheckItem[];

@@ -268,6 +268,7 @@ export function JobOrderPage() {
       ...(cleanRefs(d.refs) ? { refs: cleanRefs(d.refs) } : {}),
       ...(item?.orderItems ? { orderItems: item.orderItems } : {}),
       ...(item?.checklist ? { checklist: item.checklist } : {}),
+      ...(item?.materialUse ? { materialUse: item.materialUse } : {}),
     };
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;

@@ -359,6 +359,44 @@ report the discrepancy and ask; do not silently choose.
     awaited list (no second entry) with "Landed" / "New date" actions.
 -   No Firestore rules change.
 
+## Round 3: material use vs BOM (confirmed 18 Nov 2026, no mockup on request)
+
+-   Material use is quantity, not money: every entry is kept (the data rule's
+    "not kept long-term" covers amounts / prices). The ERP production data is
+    actual issue from stores (user, 18 Nov 2026).
+-   `JobOrder.materialUse` (`UseEntry`: production date, item made = an
+    ordered product or a made sub-product such as the base mat, qty + unit,
+    material lines in any convertible unit, note, source "Imported: <file>"
+    or by hand; logic `src/lib/materialUse.ts`). Confirmed and completed WOs.
+-   WO Materials tab card "Material use vs BOM" (`MaterialUseCard.tsx`):
+    per material BOM need (the WO's BOMs: the copy saved at confirmation,
+    incl. wastage; `compareEntry()` via `explodeBom()`), used, difference %;
+    totals count only entries where both figures exist ("not entered in N
+    entries", "not in the BOM" shown apart). Entries list (remove with a
+    history entry), "+ Add entry" (materials of the item's BOM prefilled),
+    link to the import.
+-   Orders → Import → "Import material use" (`/orders/use-import`,
+    `UseImportPage.tsx`, `parseUseGrid()`): blocks with "WO" / "Production
+    Date" / "Size- Cm W L" / "Quantity -Pcs" / "Sq Mtr" / "Material …
+    Consumption-Kg"; several WOs per file, each block to its confirmed WO
+    (`woKey()`: spaces ignored); item made per WO (default the made item in
+    sq m), quantity in sq m when the item converts, else pieces; material
+    names matched by remembered text (phone only, `exportflow:useAliases:<ws>`),
+    ERP code or same name, else chosen or skipped; an entry with the same
+    date, item and quantity is not added again; nothing saved before "Save";
+    one history entry per WO. Prices are never read.
+-   Colours: Settings → profile "Material use vs BOM: amber from / red from
+    (±%)" (`useWarnPct`, `useBadPct`), the user's own values; empty = no
+    colour (`materialTone()`).
+-   Reports → "Material use vs BOM" (`MaterialUseSection.tsx`, PDF / Excel
+    `src/lib/docs/useDoc.ts`, `materialUseReport()`): per BOM line of the
+    item that lists the material directly (`directParents()`, e.g. kg coir
+    yarn per sq m of base mat): entries, WOs, current BOM per unit (live
+    Masters, incl. wastage), median actual per unit, difference; a suggested
+    BOM line (median ÷ (1 + wastage)) only with >= 5 entries and >= 15%
+    (same rule as step benchmarks). The app never changes a BOM.
+-   No Firestore rules change.
+
 ## Order items at a glance (confirmed 26 Oct 2026)
 
 -   WO page, under the deadline / delivery / buffer boxes: numbered list

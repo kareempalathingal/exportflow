@@ -102,6 +102,8 @@ function ProfileForm() {
   const [materialsText, setMaterialsText] = useState(String(DEFAULT_MATERIALS_DAYS));
   const [purchaseText, setPurchaseText] = useState(String(DEFAULT_PURCHASE_DAYS));
   const [hoursText, setHoursText] = useState(String(DEFAULT_WORK_HOURS));
+  const [warnText, setWarnText] = useState('');
+  const [badText, setBadText] = useState('');
 
   // Load saved values only when a new revision arrives (or the workspace
   // changes), not on every sync-metadata update, so typing is never lost.
@@ -121,6 +123,8 @@ function ProfileForm() {
     setMaterialsText(profile.materialsDays === null ? '' : String(profile.materialsDays ?? DEFAULT_MATERIALS_DAYS));
     setPurchaseText(profile.purchaseDays === null ? '' : String(profile.purchaseDays ?? DEFAULT_PURCHASE_DAYS));
     setHoursText(profile.workHours === null ? '' : String(profile.workHours ?? DEFAULT_WORK_HOURS));
+    setWarnText(profile.useWarnPct === null || profile.useWarnPct === undefined ? '' : String(profile.useWarnPct));
+    setBadText(profile.useBadPct === null || profile.useBadPct === undefined ? '' : String(profile.useBadPct));
   }, [profile, workspaceId]);
 
   function submit(e: FormEvent) {
@@ -157,6 +161,19 @@ function ProfileForm() {
       setFormError('Working hours per day must be between 1 and 24, or empty');
       return;
     }
+    const pctOf = (text: string) => (text.trim() === '' ? null : Number(text.replace(',', '.')));
+    const useWarnPct = pctOf(warnText);
+    const useBadPct = pctOf(badText);
+    for (const v of [useWarnPct, useBadPct]) {
+      if (v !== null && (!Number.isFinite(v) || v <= 0 || v > 100)) {
+        setFormError('Material use colours: a % from 0.1 to 100, or empty');
+        return;
+      }
+    }
+    if (useWarnPct !== null && useBadPct !== null && useBadPct < useWarnPct) {
+      setFormError('Material use: red must be the same as or higher than amber');
+      return;
+    }
     const alertDays = Math.floor(Number(alertText));
     if (!Number.isFinite(alertDays) || alertDays < 1 || alertDays > 10) {
       setFormError('Ready-to-start alert must be 1 to 10 working days');
@@ -169,7 +186,7 @@ function ProfileForm() {
       docId: PROFILE_DOC,
       entity: 'Profile',
       before: profile,
-      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning, materialsDays, purchaseDays, workHours, alertDays },
+      data: { companyName, preparedByName: person.trim(), preparedByDesignation: designation.trim(), planningDays: planning, materialsDays, purchaseDays, workHours, alertDays, useWarnPct, useBadPct },
       reason,
     });
     setReason('');
@@ -233,6 +250,17 @@ function ProfileForm() {
         <input inputMode="decimal" value={hoursText} onChange={(e) => setHoursText(e.target.value)} placeholder="not shown" style={{ maxWidth: 90 }} />
       </label>
       <p className="muted small">Shown next to the planned days of each step (rounded up to a whole hour). Plans and dates stay in working days. Empty = hours not shown.</p>
+      <div className="grid2">
+        <label>
+          Material use vs BOM: amber from (±%)
+          <input inputMode="decimal" value={warnText} onChange={(e) => setWarnText(e.target.value)} placeholder="no colour" />
+        </label>
+        <label>
+          Red from (±%)
+          <input inputMode="decimal" value={badText} onChange={(e) => setBadText(e.target.value)} placeholder="no colour" />
+        </label>
+      </div>
+      <p className="muted small">Your own limits for the difference between the material actually used and the BOM. Empty = the difference is shown without colour.</p>
       <label>
         Ready-to-start and follow-up alerts (working days before)
         <input inputMode="numeric" value={alertText} onChange={(e) => setAlertText(e.target.value)} style={{ maxWidth: 90 }} />

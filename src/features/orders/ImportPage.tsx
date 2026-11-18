@@ -341,6 +341,13 @@ function StartStep({ layouts, onOpen, onForget }: { layouts: ImportLayout[]; onO
         </div>
         <p className="muted small">First use downloads the reading engine once (about 10 MB, Wi-Fi recommended).</p>
       </div>
+      <div className="card import-card">
+        <strong>Material use (ERP production data)</strong>
+        <p className="muted small">Material used per WO and production day, compared with the BOMs on the WO's Materials tab.</p>
+        <Link className="button secondary" to="/orders/use-import">
+          Import material use
+        </Link>
+      </div>
       {layouts.length > 0 && (
         <div className="card">
           <strong>Remembered layouts</strong>
