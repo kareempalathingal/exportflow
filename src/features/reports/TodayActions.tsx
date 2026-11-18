@@ -1,3 +1,4 @@
+import { overPrevQuestion, prevLimit } from '../../lib/stepUpdates';
 import { useState } from 'react';
 import { useApp } from '../../AppContext';
 import { formatDay, withExpected, type JobOrder, type StepOutput } from '../../lib/jobOrders';
@@ -141,7 +142,11 @@ export function TodayActions({ act, c, today }: { act: TodayAct; c: TodayActCont
         step={v.step}
         product={product}
         today={today}
-        onAdd={(entry: StepOutput) => write(outputUpdate(raw, i, v, entry, i === firstOpen, line.productName, today, (q) => window.confirm(q)))}
+        onAdd={(entry: StepOutput) => {
+          const over = overPrevQuestion(prevLimit(lp.steps, key), (v.step.outputQty ?? 0) + entry.qty, entry.unit, v.step.label);
+          if (over && !window.confirm(over)) return;
+          write(outputUpdate(raw, i, v, entry, i === firstOpen, line.productName, today, (q) => window.confirm(q)));
+        }}
         onRemove={() => undefined}
       />
     );

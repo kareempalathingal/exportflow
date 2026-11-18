@@ -7,6 +7,7 @@
  *    day's running total; the app adds only the difference).
  *  - Outside work: Dispatched / Landed with the quantity of that lot (several lots allowed).
  */
+import { prevLimit } from './stepUpdates';
 import { workingDaysBetween } from './calendar';
 import { formatDay, type JobOrder, type JoLine, type JoStep } from './jobOrders';
 import type { Department, Process } from './masters';
@@ -258,6 +259,9 @@ export interface BoardRow {
   /** Whole quantity reached: the raw steps up to this index can be marked done (null = the step before is not done). */
   finishUpTo: number | null;
   overDays: number;
+  /** What the step before has made so far still covers (this step's unit); null = no limit (18 Nov 2026). */
+  prevLeft: number | null;
+  prevLabel: string | null;
 }
 
 /** The items an update of `processId` goes to, in plan order. */
@@ -293,6 +297,8 @@ export function boardRows(jos: Jo[], processId: string, date: string, today: str
         const minDate = mode !== 'MAKE' ? confirmed : started ? dayOf(raw[i]!.startedAt) : i === firstOpen ? (dayOf(prev?.doneAt) ?? confirmed) : (dayOf(prev?.startedAt) ?? dayOf(prev?.doneAt));
         const tooEarly = !!minDate && date < minDate;
         const left = cap !== null ? Math.max(0, cap - made) : null;
+        const lim = mode === 'LAND' ? null : prevLimit(lp.steps, s.key);
+        const prevLeft = lim && lim.unit === unit ? Math.max(0, lim.allowed - made) : null;
         // Done in order: in-house / dispatch only when it is the first open step; landing also
         // closes the dispatch / outside steps of the same process just before it.
         const group = (x: JoStep) => x.outsideOf === processId || (x.processId === processId && !!x.outside);
@@ -330,6 +336,8 @@ export function boardRows(jos: Jo[], processId: string, date: string, today: str
                   : null,
           finishUpTo: canFinish ? i : null,
           overDays: v.overrunDays && v.overrunDays > 0 ? v.overrunDays : 0,
+          prevLeft,
+          prevLabel: lim?.prevLabel ?? null,
         });
       }
     });
@@ -364,12 +372,18 @@ export const rowKey = (r: Pick<BoardRow, 'joId' | 'lineId' | 'stepKey'>) => `${r
 export function allocate(rows: BoardRow[], total: number, unit: string): Allocation {
   const given = new Map<string, number>();
   let rest = total > 0 ? total : 0;
-  for (const r of rows) {
-    if (rest <= 1e-9) break;
-    if (!r.open || r.unit !== unit || r.left === null || r.left <= 1e-9) continue;
-    const q = Math.min(rest, r.left);
-    given.set(rowKey(r), q);
-    rest -= q;
+  // First what the step before already covers (18 Nov 2026), then the rest up to each item's quantity.
+  for (const pass of [0, 1]) {
+    for (const r of rows) {
+      if (rest <= 1e-9) break;
+      if (!r.open || r.unit !== unit || r.left === null || r.left <= 1e-9) continue;
+      const had = given.get(rowKey(r)) ?? 0;
+      const room = (pass === 0 && r.prevLeft !== null ? Math.min(r.left, r.prevLeft) : r.left) - had;
+      if (room <= 1e-9) continue;
+      const q = Math.min(rest, room);
+      given.set(rowKey(r), had + q);
+      rest -= q;
+    }
   }
   return { given, extra: rest > 1e-9 ? rest : 0 };
 }
@@ -433,4 +447,12 @@ export function boardWrites(jos: Jo[], rows: BoardRow[], alloc: Allocation, proc
     });
   }
   return { writes, done, notDone };
+}
+
+/** Items given more than the step before has made so far covers (asked before saving, 18 Nov 2026). */
+export function overPrevRows(rows: BoardRow[], alloc: Allocation): BoardRow[] {
+  return rows.filter((r) => {
+    const q = alloc.given.get(rowKey(r));
+    return q !== undefined && r.prevLeft !== null && q > r.prevLeft + 1e-9;
+  });
 }

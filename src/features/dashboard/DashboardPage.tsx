@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTION_JOB_ORDERS, formatDay, type JobOrder } from '../../lib/jobOrders';
 import { COLLECTIONS, type Department, type Process } from '../../lib/masters';
-import { addedSince, allocate, boardRows, boardWrites, completes, processCards, rowKey, type BoardMode, type ProcessCard } from '../../lib/processBoard';
+import { addedSince, allocate, boardRows, boardWrites, completes, overPrevRows, processCards, rowKey, type BoardMode, type ProcessCard } from '../../lib/processBoard';
 import { gapColor, type Track } from '../../lib/progress';
 import { readRedAt } from '../../lib/theme';
 import { istDateKey, istTimeKey } from '../../lib/time';
@@ -209,6 +209,8 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone, onSaved }: { c: P
 
   function save() {
     if (!alloc || !workspaceId || bad || alloc.given.size === 0) return;
+    const over = overPrevRows(rows, alloc);
+    if (over.length && !window.confirm(`The step before has not recorded enough yet for: ${over.map((r) => `${r.joNumber} · ${r.no}. ${r.product} (${r.prevLabel} covers ${formatQty(r.prevLeft ?? 0)}, this update gives ${formatQty(alloc.given.get(rowKey(r)) ?? 0)} ${unitLabel(r.unit ?? '')})`).join('; ')}. Save anyway?`)) return;
     const whole = completes(rows, alloc);
     const word = mode === 'DISPATCH' ? 'dispatched' : mode === 'LAND' ? 'landed' : 'made';
     const markDone = whole.length > 0 && window.confirm(`Whole quantity ${word}: mark it done for ${whole.map((r) => `${r.joNumber} · ${r.no}. ${r.product}`).join(', ')}?`);
@@ -319,6 +321,12 @@ function UpdateForm({ c, jos, today, ctx, workspaceId, onDone, onSaved }: { c: P
                     {r.start && r.state !== 'NOW' && ` · planned ${formatDay(r.start)}`}
                     {r.overDays > 0 && <span className="error"> · {formatQty(r.overDays)} days over</span>}
                     {r.waiting && <span className="muted"> · {r.waiting}</span>}
+                    {r.open && r.prevLeft !== null && r.left !== null && r.prevLeft < r.left - 1e-9 && (
+                      <span className={q && q > r.prevLeft + 1e-9 ? 'warn' : 'muted'}>
+                        {' '}
+                        · {r.prevLabel} covers {formatQty(r.prevLeft)} so far
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="num">{r.qty !== null ? `${formatQty(r.made)} / ${formatQty(r.qty)} ${unitLabel(r.unit ?? '')}` : '-'}</td>

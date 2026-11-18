@@ -1,3 +1,4 @@
+import { overPrevQuestion, prevLimit } from '../../lib/stepUpdates';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../AppContext';
@@ -327,6 +328,8 @@ function LineCard(props: {
             product={product}
             today={today}
             onAdd={(entry) => {
+              const over = overPrevQuestion(prevLimit(lp.steps, v.step.key), (v.step.outputQty ?? 0) + entry.qty, entry.unit, label);
+              if (over && !window.confirm(over)) return;
               const u = outputUpdate(rawSteps, i, v, entry, isFirst, line.productName, today, (q) => window.confirm(q));
               if (u) props.onSteps(u.steps, u.what);
             }}

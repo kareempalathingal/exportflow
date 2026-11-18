@@ -862,6 +862,19 @@ report the discrepancy and ask; do not silently choose.
     shows what was saved. Plans, expected dates and KPIs stay in
     working days (hour planning later). Today department groups have
     "Update all" (`/dashboard?dept=`: that department's cards).
+-   Previous step covers (confirmed 18 Nov 2026, `prevLimit()` /
+    `overPrevQuestion()` in `src/lib/stepUpdates.ts`): a step's output may go
+    only as far as the step before has recorded: allowed = this step's
+    quantity × (previous made ÷ previous quantity), so units may differ (base
+    mat sq m → mat pcs). No limit when there is no previous step, it is done,
+    it has nothing to make or no known quantity, and for landings (already
+    limited by dispatch); dispatch is limited by the in-house step before it.
+    Beyond it the app ASKS ("<prev> has recorded only X of Y … Save anyway?"),
+    never blocks (entries may arrive late): Products tab "+ Day's output",
+    Today actions and the Dashboard. The Dashboard fills each item first up to
+    what is covered (`BoardRow.prevLeft`), then the rest in plan order, shows
+    "<prev> covers N so far" and asks once for the items beyond it
+    (`overPrevRows()`).
 -   WO performance report (`src/lib/performance.ts`, Reports →
     Work Order performance): presets This month / Last month / Last 90
     days / Custom. Completed orders in the range: working days vs
