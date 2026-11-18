@@ -449,6 +449,12 @@ export function JobOrderPage() {
               </button>
             )}
           </div>
+          {error && tab !== 'order' && (
+            <p className="error pre" role="alert">
+              {error}
+              {/choose Make or Outright purchase|choose a product|quantity/i.test(error) ? '\nChange it on the Order tab, then Save.' : ''}
+            </p>
+          )}
           {isDemoWorkspace(workspaceId) && item && (
             <p className="small">
               <button
