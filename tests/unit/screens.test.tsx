@@ -269,6 +269,18 @@ describe('Phase 4 process steps', () => {
   });
 });
 
+describe('Order flow and milestones (18 Nov 2026)', () => {
+  it('a WO without milestones offers to set them up; Settings shows the order flow', () => {
+    const html = render('/orders/j1?tab=milestones', '/orders/:id', <JobOrderPage />);
+    expect(html).toContain('Set up milestones from the order flow');
+    expect(html).toContain('Forwarder booking');
+    const form = render('/orders/j1?tab=order', '/orders/:id', <JobOrderPage />);
+    expect(form).toContain('Sampling WO');
+    const settings = render('/settings', '/settings', <SettingsPage />);
+    expect(settings).toContain('Order flow');
+  });
+});
+
 describe('Data safety', () => {
   it('settings offer restore with a preview and a system health summary', () => {
     const restore = render('/settings', '/settings', <RestoreCard />);

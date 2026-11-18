@@ -2,7 +2,7 @@
  * Plan documents (split out of model.ts, 15 Nov 2026): the plan to submit and the working plan
  * of a Work Order (`productionPlanDoc()`), with the overview used by the plan to submit.
  */
-import { orderExtrasTables } from './extrasDoc';
+import { milestonesTable, orderExtrasTables } from './extrasDoc';
 import { refPairs, addDays, bufferText, DELIVERY_DATE_TYPES, formatDay, effectiveSupply, type JobOrder } from '../jobOrders';
 import { isWorkingDay, workingDaysBetween, type WorkCalendar } from '../calendar';
 import { ITEM_ORDER_RULE, LISTED_RULE, daysLeftText, gainText } from '../itemOrder';
@@ -29,7 +29,7 @@ export interface PlanDocInput {
   /** 'submit' = clean plan for superiors (no benchmarks or calculation details); 'working' = full details. */
   variant?: 'submit' | 'working';
   /** For the department column of "Plan by process". */
-  departments?: Department[];
+  departments?: (Department & { id?: string })[];
 }
 
 /** Two days or less before the internal deadline counts as "tight". */
@@ -545,7 +545,7 @@ export function productionPlanDoc(input: PlanDocInput): DocModel {
   }
 
   // Checklist tab (18 Nov 2026): order items and customer requirements, before the open points.
-  tables.splice(tables.length - 1, 0, ...orderExtrasTables(order, { today, cal, processName: (id) => input.processes.get(id)?.name ?? '-', supplierName: input.supplierById }));
+  tables.splice(tables.length - 1, 0, ...orderExtrasTables(order, { today, cal, processName: (id) => input.processes.get(id)?.name ?? '-', supplierName: input.supplierById }), ...milestonesTable(order, { today, ctx, departmentName: (id) => input.departments?.find((d) => d.id === id)?.name ?? '' }));
 
   const uniq = [...new Set(provisional)];
   const overview = clean ? planOverview({ order, lines, md, cal, today, draft, track, expected, spare }) : null;

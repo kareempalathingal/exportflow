@@ -4,6 +4,7 @@
  */
 import type { CheckItem, OrderItem } from './orderExtras';
 import type { UseEntry } from './materialUse';
+import type { Milestone } from './milestones';
 import type { PlanBaseline } from './baseline';
 import type { ProgressEntry } from './progress';
 import {
@@ -275,6 +276,10 @@ export interface JobOrder {
   orderItems?: OrderItem[];
   /** Customer requirements checklist (approvals, certificates, booking…), round 2. */
   checklist?: CheckItem[];
+  /** Order flow milestones before and after production (18 Nov 2026), copied from Settings at confirmation. */
+  milestones?: Milestone[];
+  /** Sampling WO (18 Nov 2026); absent = a customer PO "Sampling" makes it one (`isSamplingWo`). */
+  sampling?: boolean;
 }
 
 /** Order references of the company WO form (customer code, PO date, PI, revision). */

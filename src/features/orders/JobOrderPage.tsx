@@ -30,7 +30,11 @@ import {
   type JoLine,
   type JoStatus,
   type SupplyMethod,
+  jobOrderData,
 } from '../../lib/jobOrders';
+import { isSamplingWo, milestonesFor } from '../../lib/milestones';
+import { useOrderFlow } from './useOrderFlow';
+import { MilestonesTab } from './MilestonesTab';
 import { COLLECTIONS, productContext, suppliersOf, type Customer, type Product, type Supplier } from '../../lib/masters';
 import { istDateKey } from '../../lib/time';
 import { availableUnits, formatQty, unitLabel } from '../../lib/units';
@@ -79,6 +83,8 @@ interface Draft {
   notes: string;
   lines: LineDraft[];
   refs: OrderRefs;
+  /** Sampling WO; absent = from the customer PO ("Sampling"). */
+  sampling?: boolean;
 }
 
 const SUPPLY_SHORT = { MANUFACTURED: 'made', TRADED: 'outright purchase', BOTH: 'made / outright purchase' } as const;
@@ -107,6 +113,7 @@ function draftFrom(jo: JobOrder | null, today: string): Draft {
     notes: jo.notes,
     lines: jo.lines.map((l) => ({ id: l.id, productId: l.productId, qtyText: String(l.qty), unit: l.unit, supply: l.supply, ...(l.rush ? { rush: true } : {}), ...(l.articleNo ? { articleNo: l.articleNo } : {}), ...(l.barcode ? { barcode: l.barcode } : {}) })),
     refs: jo.refs ?? {},
+    ...(jo.sampling !== undefined ? { sampling: jo.sampling } : {}),
   };
 }
 
@@ -129,6 +136,7 @@ export function JobOrderPage() {
   const requestedTab = params.get('tab');
   const customers = useCollection<Customer>(workspaceId, COLLECTIONS.customers);
   const master = useMasterData(workspaceId);
+  const orderFlow = useOrderFlow(workspaceId);
   const { md, bomRev } = master;
   const { cal } = useWorkCalendar();
 
@@ -173,9 +181,9 @@ export function JobOrderPage() {
   if (!isNew && !item) return <p className="error">Work Order not found.</p>;
 
   const status: JoStatus = item?.status ?? 'DRAFT';
-  const tab: 'products' | 'order' | 'materials' | 'checklist' = isNew
+  const tab: 'products' | 'order' | 'materials' | 'checklist' | 'milestones' = isNew
     ? 'order'
-    : requestedTab === 'materials' || requestedTab === 'order' || requestedTab === 'products' || requestedTab === 'checklist'
+    : requestedTab === 'materials' || requestedTab === 'order' || requestedTab === 'products' || requestedTab === 'checklist' || requestedTab === 'milestones'
       ? requestedTab
       : status === 'DRAFT'
         ? 'order'
@@ -243,7 +251,12 @@ export function JobOrderPage() {
       confirmedOn = null;
     }
 
+    // Every other data field of the record is kept as it is (Checklist, milestones, material use, plans…).
+    const kept = item ? jobOrderData(item) : null;
+    const sampling = d.sampling;
+    const isConfirming = next === 'CONFIRMED' && (isNew || status === 'DRAFT');
     const data: JobOrder = {
+      ...(kept ?? {}),
       joNumber: d.joNumber.trim(),
       customerId: d.customerId,
       customerName: customer?.name ?? item?.customerName ?? '',
@@ -265,12 +278,13 @@ export function JobOrderPage() {
       ...(item?.materialDates || (next === 'CONFIRMED' && status === 'DRAFT') ? { materialDates: item?.materialDates ?? {} } : {}),
       // Item priority (15 Nov 2026): saved when the WO is confirmed; older WOs keep the listed order until changed.
       ...(next === 'CONFIRMED' && (isNew || status === 'DRAFT') ? { itemOrderRule: 'PRIORITY' as const } : item?.itemOrderRule ? { itemOrderRule: item.itemOrderRule } : {}),
-      ...(item?.baselines ? { baselines: item.baselines } : {}),
-      ...(cleanRefs(d.refs) ? { refs: cleanRefs(d.refs) } : {}),
-      ...(item?.orderItems ? { orderItems: item.orderItems } : {}),
-      ...(item?.checklist ? { checklist: item.checklist } : {}),
-      ...(item?.materialUse ? { materialUse: item.materialUse } : {}),
+      // Order flow milestones (18 Nov 2026): copied from Settings → Order flow when the WO is confirmed.
+      ...(isConfirming && !item?.milestones ? { milestones: milestonesFor(orderFlow.flow, isSamplingWo({ poNumber: d.poNumber, ...(sampling !== undefined ? { sampling } : {}) })) } : {}),
     };
+    if (cleanRefs(d.refs)) data.refs = cleanRefs(d.refs);
+    else delete data.refs;
+    if (sampling !== undefined) data.sampling = sampling;
+    else delete data.sampling;
     setError(null);
     const docId = isNew ? newId(workspaceId, COLLECTION_JOB_ORDERS) : id;
     saveRecord({
@@ -508,9 +522,9 @@ export function JobOrderPage() {
       )}
       {!isNew && (
         <div className="tabs" role="tablist">
-          {(['products', 'order', 'materials', 'checklist'] as const).map((x) => (
+          {(['products', 'order', 'materials', 'checklist', 'milestones'] as const).map((x) => (
             <button key={x} type="button" role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setParams({ tab: x }, { replace: true })}>
-              {x === 'products' ? 'Products' : x === 'order' ? 'Order' : x === 'materials' ? 'Materials & stock' : 'Checklist'}
+              {x === 'products' ? 'Products' : x === 'order' ? 'Order' : x === 'materials' ? 'Materials & stock' : x === 'checklist' ? 'Checklist' : 'Milestones'}
             </button>
           ))}
         </div>
@@ -526,6 +540,7 @@ export function JobOrderPage() {
           {master.notReady ? <p className="muted small">Materials are shown once Masters have loaded.</p> : <MaterialsTab jo={item} md={md} allJos={all.items} counts={counts.items} company={company} />}
         </div>
       )}
+      {!isNew && item && tab === 'milestones' && <MilestonesTab jo={item} flow={orderFlow.flow} allJos={all.items} departments={departments.items} editable={status !== 'CANCELLED'} />}
       {!isNew && item && tab === 'checklist' && <ChecklistTab jo={item} allJos={all.items} products={md.products} processes={processMap} suppliers={suppliers.items} editable={status !== 'CANCELLED'} />}
       <form className="card" onSubmit={submit} noValidate hidden={tab !== 'order'}>
         <fieldset className="plain" disabled={!editable}>
@@ -548,6 +563,10 @@ export function JobOrderPage() {
                 ),
               )}
             </div>
+            <label className="check">
+              <input type="checkbox" checked={isSamplingWo({ poNumber: d.poNumber, ...(d.sampling !== undefined ? { sampling: d.sampling } : {}) })} onChange={(e) => set({ sampling: e.target.checked })} /> Sampling WO
+              <span className="muted small block">{d.sampling === undefined ? 'Set from the customer PO No. ("Sampling").' : 'Set by you.'} A sampling WO has no "Samples approved" and no milestones after production.</span>
+            </label>
           </details>
           <label>
             Customer<span className="req"> *</span>

@@ -635,3 +635,5 @@ details.refs summary { cursor: pointer; color: var(--muted); }
 .extra-row:first-child { border-top: 0; }
 .extra-row.done { opacity: 0.6; }
 .extra-row .row.gap { margin-top: 4px; }
+.flow-phase { border-top: 1px solid var(--line); padding-top: 0.5rem; margin-top: 0.5rem; }
+.flow-phase:first-of-type { border-top: 0; }

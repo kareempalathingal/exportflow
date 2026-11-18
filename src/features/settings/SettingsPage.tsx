@@ -10,6 +10,7 @@ import { BackupCard } from './BackupCard';
 import { RestoreCard } from './RestoreCard';
 import { HealthCard, useErrors } from './HealthCard';
 import { KpiTargetsCard } from './KpiTargetsCard';
+import { OrderFlowCard } from './OrderFlowCard';
 import { SettingSection } from './SettingSection';
 import { useSyncOps } from '../sync/syncStore';
 import { summarize } from '../../lib/syncState';
@@ -336,6 +337,9 @@ export function SettingsPage() {
         <SyncPanel />
       </SettingSection>
 
+      <SettingSection title="Order flow" summary="Milestones before and after production, production order">
+        <OrderFlowCard />
+      </SettingSection>
       <SettingSection title="KPI targets" summary="Your own targets">
         <KpiTargetsCard />
       </SettingSection>

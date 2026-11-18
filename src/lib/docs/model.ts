@@ -2,7 +2,7 @@
  * Printable documents (Phase 3c). A document is built as plain data here
  * (testable, deterministic) and drawn to PDF elsewhere. English only for now.
  */
-import { orderExtrasTables } from './extrasDoc';
+import { milestonesTable, orderExtrasTables } from './extrasDoc';
 import { refPairs, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, type WorkCalendar } from '../calendar';
 import { orderStepProgress, orderTrack } from '../route';
@@ -205,6 +205,7 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
         empty: 'No products on this order.',
       },
       ...orderExtrasTables(jo, { today: opts.today, cal: ctx.cal, processName: opts.processName, supplierName: opts.supplierName }),
+      ...milestonesTable(jo, { today: opts.today, ctx }),
     ],
     notes: jo.notes ? [`Notes: ${jo.notes}`] : [],
     provisional: reasons.length > 0 || jo.status === 'DRAFT',

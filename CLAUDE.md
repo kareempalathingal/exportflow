@@ -402,6 +402,62 @@ report the discrepancy and ask; do not silently choose.
     (same rule as step benchmarks). The app never changes a BOM.
 -   No Firestore rules change.
 
+## Order flow and milestones (confirmed 18 Nov 2026, mockups "after production stages" and "order flow three phases")
+
+-   Every WO runs in three phases (from the WO process tree in the private
+    project): 1 · Before production and 3 · After production are order-level
+    milestones; 2 · Production is the products' routes (Products tab). Logic
+    `src/lib/milestones.ts`.
+-   Settings → "Order flow" (`settings/orderFlow`, per workspace,
+    `OrderFlowCard.tsx`, `useOrderFlow()`): the stages of phase 1 and 3 (name,
+    department optional, due rule: N working days after the WO date / before
+    cargo ready / after production is ready, or a date set on the WO) and the
+    standard production order (default `processOrder()` of the routes; ↑ / ↓).
+    Defaults (`DEFAULT_STAGES`): Samples approved, Indents, Raw materials
+    landed, Vendor orders (job work), Tag artwork approved, GS1 test, Tags and
+    labels landed, Packing materials landed | Forwarder booking, Fumigation,
+    Export documents, Loading and B/L, Documents to customer, Vendor bills
+    paid, Payment received, e-BRC, Export incentives. No PI (it comes with the
+    WO). No due rule is filled in by default: "date to be set". Dates only,
+    never amounts (data rule).
+-   Route check (`routeDiffs()`): a product route that changes the standard
+    order or uses a process not in the list is listed in Settings with a link;
+    a process a product does not need is never a difference; nothing changed.
+    Standard order for now: shape cutting before printing (user, 18 Nov 2026).
+-   Copied to the WO when it is confirmed (`JobOrder.milestones`,
+    `milestonesFor()`); older confirmed WOs get "Set up milestones from the
+    order flow"; drafts show a preview. Changes per WO (WO "Milestones" tab,
+    `MilestonesTab.tsx`): Done today / Edit (due, department, done on, note,
+    not needed, remove), "+ Add milestone"; a new fixed date keeps the old one
+    (`dueHistory`); every change is a history entry (`saveJoFields`).
+-   Filled from the WO's own data (`link`, never a second entry; a date typed
+    by the user also marks it done): INDENTS (every in-house step has an
+    indent; date = latest indent date), VENDOR_ORDERS (every outside step has
+    a vendor and order date / PO; no outside work = not needed), MATERIALS
+    (Materials ready step; nothing to buy = not needed), ORDER_ITEMS (the
+    Checklist items ticked on the milestone have landed). SAMPLES: "Record
+    approval" with the sampling WOs (chosen from the app or typed), approved
+    by and on; the app never approves anything.
+-   Sampling WO (`JobOrder.sampling`, `isSamplingWo()`): automatic when the
+    Customer PO No. says "Sampling" (also from the import), or ticked on the
+    WO form (Order references). A sampling WO gets no "Samples approved" and
+    no phase 3.
+-   Today: late / due soon milestones (same window as other Today items) in
+    the department of the milestone, else "Whole order"; button "Open
+    milestones". WO summary and both plan PDFs / Excel: a "Milestones" table
+    (`milestonesTable()` in `src/lib/docs/extrasDoc.ts`). The road map of the
+    plan to submit is unchanged.
+-   The WO form save now keeps every other data field of the record
+    (`jobOrderData()` spread, refs / sampling removed when emptied), so a new
+    WO field can no longer be dropped by a form save (the cleanup noted 18 Nov
+    2026).
+-   Asked, then allowed: a done or due date before the WO date (not for
+    "Samples approved"), and a phase 3 milestone done while production is not
+    finished. A done date is never in the future.
+-   Not yet: "Passing" (meaning to ask), QC as a process, vendor bill due from
+    the PO's payment terms, milestones in Look ahead / KPIs. No Firestore rules
+    change.
+
 ## Order items at a glance (confirmed 26 Oct 2026)
 
 -   WO page, under the deadline / delivery / buffer boxes: numbered list

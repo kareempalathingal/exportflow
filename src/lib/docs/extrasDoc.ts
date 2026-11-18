@@ -2,6 +2,8 @@ import type { WorkCalendar } from '../calendar';
 import { formatDay, type JobOrder } from '../jobOrders';
 import { checkDue, itemState } from '../orderExtras';
 import { formatQty, unitLabel } from '../units';
+import { milestoneSummary, PHASE_LABEL, type MilestoneView } from '../milestones';
+import type { PlanContext } from '../route';
 import type { DocTable, DocTone } from './model';
 
 /**
@@ -39,4 +41,18 @@ export function orderExtrasTables(jo: Pick<JobOrder, 'orderItems' | 'checklist' 
     out.push({ title: 'Customer requirements', columns: [{ label: 'Requirement' }, { label: 'Due' }, { label: 'Status' }, { label: 'Note' }], rows, rowTones: tones, empty: '' });
   }
   return out;
+}
+
+/** Order flow milestones (18 Nov 2026): one table, phase 1 then phase 3; only when the WO has them. */
+export function milestonesTable(jo: JobOrder, opts: { today: string; ctx: PlanContext; departmentName?: (id: string) => string }): DocTable[] {
+  if (!jo.milestones?.length) return [];
+  const sum = milestoneSummary(jo, opts.today, opts.ctx);
+  const tones: (DocTone | null)[] = [];
+  const row = (v: MilestoneView) => {
+    tones.push(v.state === 'DONE' ? 'done' : v.state === 'LATE' ? 'late' : v.state === 'NO_DATE' ? 'unknown' : null);
+    const status = v.state === 'DONE' ? `Done${v.doneOn ? ` ${formatDay(v.doneOn)}` : ''}` : v.state === 'NOT_NEEDED' ? 'Not needed' : v.state === 'LATE' ? 'Overdue' : v.state === 'NO_DATE' ? 'Date to be set' : 'Open';
+    return [PHASE_LABEL[v.m.phase], v.m.name, v.due ? formatDay(v.due) : 'to be set', status, v.m.departmentId ? (opts.departmentName?.(v.m.departmentId) ?? '') : '', v.m.note ?? ''];
+  };
+  const rows = [...sum.before.map(row), ...sum.after.map(row)];
+  return [{ title: `Milestones (${sum.done} of ${sum.total} done)`, columns: [{ label: 'Phase' }, { label: 'Milestone' }, { label: 'Due' }, { label: 'Status' }, { label: 'Department' }, { label: 'Note' }], rows, rowTones: tones, empty: '' }];
 }

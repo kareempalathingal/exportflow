@@ -4,6 +4,7 @@
  * app never sends it by itself. Pure and deterministic.
  */
 import { checkDue } from './orderExtras';
+import { milestoneSummary } from './milestones';
 import { addWorkingDays, dayOff, workingDaysBetween, type WorkCalendar } from './calendar';
 import { addDays, daysBetween, formatDay, type JobOrder } from './jobOrders';
 import { DEFAULT_PLANNING_DAYS, lineProgresses, type PlanContext } from './route';
@@ -100,6 +101,17 @@ export function buildToday(args: {
       const w = due ? when(due) : null;
       if (!due || !w) continue;
       items.push({ when: w, date: due, text: w === 'OVERDUE' ? `${jo.joNumber}: ${c.text} - was due ${formatDay(due)}` : `${jo.joNumber}: ${c.text} - due ${day(due)}`, link: clLink, area: ORDER_AREA, open: { label: 'Open checklist', link: clLink }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
+    }
+    // Order flow milestones (18 Nov 2026): late or due soon; filled ones (indents, vendor orders…) count as done.
+    if (jo.milestones?.length) {
+      const msLink = `${link}?tab=milestones`;
+      const ms = milestoneSummary(jo, today, ctx);
+      for (const v of [...ms.before, ...ms.after]) {
+        if ((v.state !== 'LATE' && v.state !== 'OPEN') || !v.due) continue;
+        const w = when(v.due);
+        if (!w) continue;
+        items.push({ when: w, date: v.due, text: w === 'OVERDUE' ? `${jo.joNumber}: ${v.m.name} - was due ${formatDay(v.due)}` : `${jo.joNumber}: ${v.m.name} - due ${day(v.due)}`, link: msLink, area: v.m.departmentId ? { kind: 'DEPT', id: v.m.departmentId } : ORDER_AREA, open: { label: 'Open milestones', link: msLink }, followUp: { joId: jo.id, joNumber: jo.joNumber } });
+      }
     }
     for (const { line, lp } of lineProgresses(jo, today, ctx)) {
       const stepLink = (key: string) => `${link}?tab=products&line=${encodeURIComponent(line.id)}&step=${encodeURIComponent(key)}`;
