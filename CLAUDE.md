@@ -350,7 +350,13 @@ report the discrepancy and ask; do not silently choose.
         group). The app never marks anything approved.
 -   Fix: `jobOrderData()` (now in `jobOrders.ts`) keeps every data field
     (only record meta dropped); before, step saves dropped `refs`.
--   Not yet: these lists in the WO PDFs / Excel, and in the Awaited tab.
+-   In documents and Awaited (18 Nov 2026, `src/lib/docs/extrasDoc.ts`):
+    the WO summary and both plan PDFs / Excel get "Items to arrange for
+    this order" and "Customer requirements" tables (only when there are
+    entries; before the open points). Orders → Awaited has kind "Order
+    items" (`ITEM`): an item counts once it is ordered (supplier, PO, order
+    or expected date) and until it lands; Today takes order items from the
+    awaited list (no second entry) with "Landed" / "New date" actions.
 -   No Firestore rules change.
 
 ## Order items at a glance (confirmed 26 Oct 2026)

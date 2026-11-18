@@ -469,6 +469,7 @@ export function JobOrderPage() {
                   generatedAt: `${formatDateTime(new Date())} IST`,
                   preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
                   supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
+                  supplierById: (id) => suppliers.items.find((s) => s.id === id)?.name ?? '-',
                   variant,
                   departments: departments.items,
                 })
@@ -491,7 +492,7 @@ export function JobOrderPage() {
       )}
       {!isNew && item && tab === 'order' && (
         <div className="card doc-card">
-          <DocButtons label="Work Order summary" build={() => joSummaryDoc(item, md, { company, today, cal, generatedAt: `${formatDateTime(new Date())} IST` })} />
+          <DocButtons label="Work Order summary" build={() => joSummaryDoc(item, md, { company, today, cal, generatedAt: `${formatDateTime(new Date())} IST`, processName: (id) => processMap.get(id)?.name ?? '-', supplierName: (id) => suppliers.items.find((s) => s.id === id)?.name ?? '-' })} />
         </div>
       )}
       {!isNew && item && tab === 'products' && <ProductsTab jo={item} md={md} processes={processMap} />}

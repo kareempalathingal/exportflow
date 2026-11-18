@@ -2,6 +2,7 @@
  * Printable documents (Phase 3c). A document is built as plain data here
  * (testable, deterministic) and drawn to PDF elsewhere. English only for now.
  */
+import { orderExtrasTables } from './extrasDoc';
 import { refPairs, bufferText, DELIVERY_DATE_TYPES, formatDay, JO_STATUS_LABEL, resolveLine, effectiveSupply, type JobOrder } from '../jobOrders';
 import { DEFAULT_CALENDAR, type WorkCalendar } from '../calendar';
 import { orderStepProgress, orderTrack } from '../route';
@@ -156,7 +157,7 @@ export function base(jo: Pick<JobOrder, 'joNumber' | 'customerName' | 'poNumber'
   };
 }
 
-export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: string; today: string; generatedAt: string; cal?: WorkCalendar }): DocModel {
+export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: string; today: string; generatedAt: string; cal?: WorkCalendar; processName?: (id: string) => string; supplierName?: (id: string) => string }): DocModel {
   const b = base(jo, opts.company, opts.generatedAt);
   const reasons: string[] = [];
   const withCodes = jo.lines.some((l) => l.articleNo || l.barcode);
@@ -203,6 +204,7 @@ export function joSummaryDoc(jo: JobOrder, md: MasterData, opts: { company: stri
         rows,
         empty: 'No products on this order.',
       },
+      ...orderExtrasTables(jo, { today: opts.today, cal: ctx.cal, processName: opts.processName, supplierName: opts.supplierName }),
     ],
     notes: jo.notes ? [`Notes: ${jo.notes}`] : [],
     provisional: reasons.length > 0 || jo.status === 'DRAFT',

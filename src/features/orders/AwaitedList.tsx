@@ -24,12 +24,12 @@ export function AwaitedList(props: { jos: (JobOrder & { id: string })[]; ctx: Pl
 
   return (
     <section>
-      <p className="muted small">Job work dispatched, outright purchases and materials still to land, from every confirmed order. Dates are the ones the supplier or vendor gave.</p>
+      <p className="muted small">Job work dispatched, outright purchases, materials and order items (Checklist tab) still to land, from every confirmed order. Dates are the ones the supplier or vendor gave.</p>
       <div className="chips" role="group" aria-label="Filter">
         <button type="button" className={kind === 'ALL' ? 'chip on' : 'chip'} onClick={() => setKind('ALL')}>
           All {all.length}
         </button>
-        {(['JOB_WORK', 'BOUGHT', 'MATERIAL'] as AwaitedKind[]).map((k) => (
+        {(['JOB_WORK', 'BOUGHT', 'MATERIAL', 'ITEM'] as AwaitedKind[]).map((k) => (
           <button key={k} type="button" className={kind === k ? 'chip on' : 'chip'} onClick={() => setKind(k)}>
             {AWAITED_KIND_LABEL[k]} {count(k)}
           </button>

@@ -147,6 +147,7 @@ export function ReportsPage() {
                         generatedAt: generatedAt(),
                         preparedBy: { name: profile?.preparedByName ?? '', designation: profile?.preparedByDesignation ?? '' },
                         supplierNames: (k) => suppliersOf(k, suppliers.items).map((s) => s.name),
+                        supplierById: (id) => suppliers.items.find((s) => s.id === id)?.name ?? '-',
                         variant,
                         departments: departments.items,
                       })

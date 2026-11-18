@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_CALENDAR } from '../../src/lib/calendar';
 import { jobOrderData, type JobOrder } from '../../src/lib/jobOrders';
 import type { Product } from '../../src/lib/masters';
+import { orderExtrasTables } from '../../src/lib/docs/extrasDoc';
+import { awaitedItems } from '../../src/lib/followUp';
 import { checkDue, itemState, itemsMissingAt, lastChecklist, suggestedItems, upsertItem, type OrderItem } from '../../src/lib/orderExtras';
 
 // Round 2 (17 Nov 2026): order items, customer requirements, design fields. Sample values only.
@@ -68,5 +70,22 @@ describe('jobOrderData', () => {
     expect(d.orderItems).toHaveLength(1);
     expect(d.checklist).toHaveLength(1);
     expect('rev' in d || 'id' in d || 'lastAuditId' in d).toBe(false);
+  });
+});
+
+describe('order items in Awaited and documents (18 Nov 2026)', () => {
+  it('only ordered, not landed items are awaited', () => {
+    const j = jo({ orderItems: [{ id: 'a', item: 'Plates', supplierId: 's1', expectedOn: '2026-11-04' }, { id: 'b', item: 'Tags' }, { id: 'c', item: 'Marks', poNo: '9', landedOn: '2026-11-03' }] });
+    const md = { products: new Map(), rawMaterials: new Map(), boms: new Map() };
+    const a = awaitedItems([j], { md, cal: DEFAULT_CALENDAR }, '2026-11-06');
+    expect(a.map((x) => [x.kind, x.what, x.bucket, x.lateDays])).toEqual([['ITEM', 'Plates', 'LATE', 2]]);
+    expect(a[0]?.target).toEqual({ kind: 'ITEM', itemId: 'a', name: 'Plates' });
+  });
+  it('documents get a table per list with entries', () => {
+    expect(orderExtrasTables(jo(), { today: '2026-11-06', cal: DEFAULT_CALENDAR })).toEqual([]);
+    const t = orderExtrasTables(jo({ orderItems: [{ id: 'a', item: 'Plates', qty: 3, unit: 'pcs', poNo: '7', expectedOn: '2026-11-04', neededAt: 'pr' }], checklist: [{ id: 'b', text: 'Sample approved', daysBefore: 3 }] }), { today: '2026-11-06', cal: DEFAULT_CALENDAR, processName: () => 'Printing' });
+    expect(t.map((x) => x.title)).toEqual(['Items to arrange for this order', 'Customer requirements']);
+    expect(t[0]?.rows[0]).toEqual(['Plates', '3 pcs', 'PO 7', 'Late - expected 04 Nov 2026', 'Printing']);
+    expect(t[1]?.rows[0]).toEqual(['Sample approved', '26 Nov 2026', 'Open', '']);
   });
 });

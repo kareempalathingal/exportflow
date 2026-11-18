@@ -7,7 +7,7 @@ import type { Task } from '../../lib/tasks';
 import type { TodayAct } from '../../lib/today';
 import type { WithMeta } from '../masters/useCollection';
 import { OutputForm, StepDate } from '../orders/StepParts';
-import { canEnterOutput, doneUpdate, outputUpdate, saveJoLines, saveMaterialDates, withLineSteps } from '../orders/stepSave';
+import { canEnterOutput, doneUpdate, outputUpdate, saveJoFields, saveJoLines, saveMaterialDates, withLineSteps } from '../orders/stepSave';
 import { CloseTask, markDone } from '../work/WorkPage';
 
 /** The records the Today actions write to (from the page that shows the card). */
@@ -92,6 +92,26 @@ export function TodayActions({ act, c, today }: { act: TodayAct; c: TodayActCont
         {open === 'DATE' && (
           <DateSave label="New expected date" value={date} min={today} onChange={setDate} button="Save new date" onSave={() => date >= today && save(withExpected(d, date, new Date().toISOString()), `expected ${formatDay(date)}`)} />
         )}
+        {msg && <p className="ok small">{msg}</p>}
+      </div>
+    );
+  }
+
+  if (act.kind === 'AWAIT' && act.target.kind === 'ITEM') {
+    const it = jo.orderItems?.find((x) => x.id === (act.target as { itemId: string }).itemId);
+    if (!it) return null;
+    const save = (next: typeof it, what: string) => {
+      saveJoFields(workspaceId, jo, { orderItems: (jo.orderItems ?? []).map((x) => (x.id === it.id ? next : x)) }, `${it.item}: ${what}`);
+      saved('Saved.');
+    };
+    return (
+      <div className="today-quick">
+        <div className="row gap wrap">
+          {btn('LANDED', 'Landed', true)}
+          {btn('DATE', 'New date')}
+        </div>
+        {open === 'LANDED' && <DateSave label="Landed on" value={date} max={today} onChange={setDate} button="Save landed" onSave={() => date <= today && save({ ...it, landedOn: date }, `landed ${formatDay(date)}`)} />}
+        {open === 'DATE' && <DateSave label="New expected date" value={date} min={today} onChange={setDate} button="Save new date" onSave={() => date >= today && save(withExpected(it, date, new Date().toISOString()), `expected ${formatDay(date)}`)} />}
         {msg && <p className="ok small">{msg}</p>}
       </div>
     );

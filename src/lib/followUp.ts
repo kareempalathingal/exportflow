@@ -14,11 +14,11 @@ import { formatQty, unitLabel } from './units';
 /** Working days before a step starts that the "ready to start?" check is shown (confirmed: one value for all). */
 export const DEFAULT_ALERT_DAYS = 2;
 
-export type AwaitedKind = 'JOB_WORK' | 'BOUGHT' | 'MATERIAL';
+export type AwaitedKind = 'JOB_WORK' | 'BOUGHT' | 'MATERIAL' | 'ITEM';
 export type AwaitedBucket = 'LATE' | 'SOON' | 'LATER' | 'UNKNOWN';
 
 /** A material of the WO (materialDates key), or the steps of a line: where the promise sits and where it lands. */
-export type AwaitTarget = { kind: 'MATERIAL'; key: string; name: string } | { kind: 'STEPS'; lineId: string; promiseKey: string; landingKey: string };
+export type AwaitTarget = { kind: 'MATERIAL'; key: string; name: string } | { kind: 'ITEM'; itemId: string; name: string } | { kind: 'STEPS'; lineId: string; promiseKey: string; landingKey: string };
 
 export interface AwaitedItem {
   kind: AwaitedKind;
@@ -80,6 +80,27 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
           link: `/orders/${jo.id}?tab=materials`,
         });
       }
+    }
+    // Order items outside the BOM (Checklist tab, 18 Nov 2026): once ordered (supplier, PO, order or expected date).
+    for (const it of jo.orderItems ?? []) {
+      if (it.landedOn || !(it.orderedOn || it.expectedOn || it.supplierId || it.poNo)) continue;
+      const exp = it.expectedOn ?? null;
+      out.push({
+        ...base,
+        kind: 'ITEM',
+        target: { kind: 'ITEM', itemId: it.id, name: it.item },
+        bucket: bucket(exp),
+        what: it.item,
+        product: null,
+        supplierId: it.supplierId ?? null,
+        poNo: it.poNo ?? '',
+        expectedOn: exp,
+        promisedFirst: firstPromise(it) !== exp ? firstPromise(it) : null,
+        lateDays: late(exp),
+        outstanding: `${it.qty ? `${formatQty(it.qty)} ${unitLabel(it.unit ?? 'pcs')}` : 'quantity not entered'}${it.orderedOn ? '' : ' · order date not entered'}`,
+        note: it.neededAt ? 'needed before a process' : '',
+        link: `/orders/${jo.id}?tab=checklist`,
+      });
     }
     for (const line of jo.lines) {
       const ss = line.steps ?? [];
@@ -145,7 +166,7 @@ export function awaitedItems(jos: (JobOrder & { id: string })[], ctx: PlanContex
 }
 
 export const AWAITED_BUCKET_LABEL: Record<AwaitedBucket, string> = { LATE: 'Late', SOON: 'Next working days · ask now', LATER: 'Later', UNKNOWN: 'Date to be confirmed' };
-export const AWAITED_KIND_LABEL: Record<AwaitedKind, string> = { JOB_WORK: 'Job work', BOUGHT: 'Outright purchases', MATERIAL: 'Materials' };
+export const AWAITED_KIND_LABEL: Record<AwaitedKind, string> = { JOB_WORK: 'Job work', BOUGHT: 'Outright purchases', MATERIAL: 'Materials', ITEM: 'Order items' };
 
 /** Plain text of the awaited list, for the share sheet. */
 export function awaitedText(items: AwaitedItem[], supplierName: (id: string | null) => string, dateText: (d: string) => string, today: string): string {

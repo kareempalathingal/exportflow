@@ -131,7 +131,8 @@ describe('round 2 in Today', () => {
     const base = jo([line('1', 'a', 100)]);
     const j = { ...base, deliveryDate: '2026-11-30', orderItems: [{ id: 'x', item: 'Swing tags', expectedOn: '2026-11-04' }], checklist: [{ id: 'y', text: 'Sample approved', due: '2026-11-07' }, { id: 'z', text: 'Done one', due: '2026-11-05', doneOn: '2026-11-05' }] };
     const s = buildToday({ jobOrders: [j], ctx, today: '2026-11-06', tasks: [], deptName: () => '', processes, suppliers: new Map(), alertDays: 2 });
-    expect(s.items.some((i) => i.when === 'OVERDUE' && i.text.includes('Swing tags expected'))).toBe(true);
+    expect(s.items.some((i) => i.when === 'OVERDUE' && i.text.includes('Swing tags from no supplier yet 2 working days late') && i.act?.kind === 'AWAIT')).toBe(true);
+    expect(s.items.filter((i) => i.text.includes('Swing tags'))).toHaveLength(1);
     expect(s.items.some((i) => i.when !== 'OVERDUE' && i.text.includes('Sample approved - due'))).toBe(true);
     expect(s.items.some((i) => i.text.includes('Done one'))).toBe(false);
   });
