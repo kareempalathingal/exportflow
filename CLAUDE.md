@@ -1088,6 +1088,15 @@ report the discrepancy and ask; do not silently choose.
 -   Clear DEMO (Settings → Sample data, type CLEAR DEMO): deletes every
     record and audit event in the DEMO workspace; rules allow deletes only in
     `<uid>_demo`. ACTUAL is never deleted.
+-   Delete Work Orders in DEMO (confirmed 18 Nov 2026,
+    `src/features/settings/demoDelete.ts`, no rules change: deletes were
+    already allowed only in `<uid>_demo`): Settings → Sample data "Delete all
+    Work Orders (keep masters)" (type DELETE WORK ORDERS) and on the WO page
+    "Delete this WO (DEMO only)" (one question). The WO and its history
+    entries go; masters, stock counts and settings stay; Work tasks linked to
+    it stay with `joId` removed (WO number kept as text, normal history
+    entry). "Add new sample records" brings the sample WOs back. Never shown
+    or allowed in ACTUAL (`isDemoWorkspace()`).
 -   Restore may change a GUESSED base unit (stored `baseUnitStatus`
     ESTIMATED), as the form can; a fixed unit is still skipped (4 Nov 2026).
 -   A real work order (plan + recipe) from the company was used for a second

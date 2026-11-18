@@ -10,6 +10,7 @@ import { buildSampleData, SAMPLE_MARKER_ID } from '../../lib/sampleData';
 import { istDateKey } from '../../lib/time';
 import { useMasterData } from '../masters/useMasterData';
 import { saveRecord } from '../sync/records';
+import { deleteDemoJobOrders, isDemoWorkspace } from './demoDelete';
 
 /** DEMO only: fill the practice space with clearly marked sample records. */
 export function SampleDataCard() {
@@ -18,6 +19,7 @@ export function SampleDataCard() {
   const [msg, setMsg] = useState<string | null>(null);
   const [word, setWord] = useState('');
   const [busy, setBusy] = useState(false);
+  const [woWord, setWoWord] = useState('');
   if (mode !== 'DEMO' || !workspaceId) return null;
   const loaded = master.md.products.has(SAMPLE_MARKER_ID);
 
@@ -78,6 +80,23 @@ export function SampleDataCard() {
     }
   }
 
+  async function deleteOrders() {
+    if (!isDemoWorkspace(workspaceId)) return; // never ACTUAL
+    setBusy(true);
+    setMsg('Deleting the Work Orders…');
+    try {
+      const r = await deleteDemoJobOrders(workspaceId, null);
+      setWoWord('');
+      setMsg(`${r.orders} Work Order${r.orders === 1 ? '' : 's'} and ${r.history} history entries deleted; ${r.tasks} linked task${r.tasks === 1 ? '' : 's'} kept without the link. Masters and ACTUAL were not touched.`);
+    } catch (e) {
+      logError(e, 'delete-demo-orders');
+      const text = e instanceof Error ? e.message : String(e);
+      setMsg(/permission/i.test(text) ? 'Stopped: the Firestore rules do not allow it yet. Publish the latest rules, then try again.' : `Stopped: ${text} (needs internet). Try again to finish.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="card">
       <h3>Sample data (DEMO)</h3>
@@ -93,6 +112,19 @@ export function SampleDataCard() {
           Add new sample records
         </button>
       )}
+      <details className="clear-demo">
+        <summary className="small">Delete all Work Orders (keep masters)</summary>
+        <p className="small">
+          Deletes every Work Order in DEMO with its history. Products, raw materials, BOMs, routes, processes, departments, suppliers, stock counts and settings stay. Work tasks linked to a deleted WO stay, without the link. “Add new sample records” brings the sample WOs back. ACTUAL is never touched. Needs internet.
+        </p>
+        <label className="small">
+          Type DELETE WORK ORDERS to confirm
+          <input value={woWord} onChange={(e) => setWoWord(e.target.value)} autoComplete="off" />
+        </label>
+        <button type="button" className="danger small" disabled={busy || woWord.trim().toUpperCase() !== 'DELETE WORK ORDERS'} onClick={() => void deleteOrders()}>
+          {busy ? 'Deleting…' : 'Delete all DEMO Work Orders'}
+        </button>
+      </details>
       <details className="clear-demo">
         <summary className="small">Clear DEMO (start fresh)</summary>
         <p className="small">

@@ -42,6 +42,7 @@ import { useMasterData } from '../masters/useMasterData';
 import { DeadlinePill, permissionHint, StatusPill } from './OrderBits';
 import { MaterialsTab } from './MaterialsTab';
 import { ChecklistTab } from './ChecklistTab';
+import { deleteDemoJobOrders, isDemoWorkspace } from '../settings/demoDelete';
 import { IMPORT_DRAFT_KEY, type ImportDraft } from './ImportPage';
 import { ItemsCard } from './ItemsCard';
 import { ProgressCard } from './ProgressCard';
@@ -448,6 +449,23 @@ export function JobOrderPage() {
               </button>
             )}
           </div>
+          {isDemoWorkspace(workspaceId) && item && (
+            <p className="small">
+              <button
+                type="button"
+                className="secondary small danger"
+                onClick={() => {
+                  if (!window.confirm(`Delete Work Order ${item.joNumber} and its history from DEMO? Linked tasks stay without the link. This cannot be undone.`)) return;
+                  deleteDemoJobOrders(workspaceId, [item.id]).then(
+                    () => navigate('/orders', { replace: true }),
+                    (e: unknown) => window.alert(`Not deleted: ${e instanceof Error ? e.message : String(e)} (needs internet).`),
+                  );
+                }}
+              >
+                Delete this WO (DEMO only)
+              </button>
+            </p>
+          )}
         </>
       )}
 
