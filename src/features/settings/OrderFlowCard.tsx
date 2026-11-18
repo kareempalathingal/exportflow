@@ -2,18 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { COLLECTIONS, type Department } from '../../lib/masters';
-import { DUE_KIND_LABEL, LINK_LABEL, ORDER_FLOW_DOC, PHASE_LABEL, routeDiffs, type DueKind, type FlowPhase, type FlowStage, type OrderFlow } from '../../lib/milestones';
+import { LINK_LABEL, ORDER_FLOW_DOC, PHASE_LABEL, routeDiffs, type FlowPhase, type FlowStage, type OrderFlow } from '../../lib/milestones';
+import { RuleFields, ruleText, useRuleFields } from '../orders/RuleFields';
 import { newExtraId } from '../../lib/orderExtras';
 import { useCollection } from '../masters/useCollection';
 import { useOrderFlow } from '../orders/useOrderFlow';
 import { saveRecord } from '../sync/records';
-
-/** One line on how a stage gets its date. */
-export function ruleText(s: Pick<FlowStage, 'rule'>): string {
-  const r = s.rule;
-  if (!r) return 'date set on each WO';
-  return r.days === 0 && r.kind !== 'AFTER_WO' ? (r.kind === 'BEFORE_CARGO' ? 'on the cargo ready date' : 'when production is ready') : `${r.days} ${DUE_KIND_LABEL[r.kind]}`;
-}
 
 /** Settings → Order flow (18 Nov 2026): the standard milestones before and after production, and the production order. */
 export function OrderFlowCard() {
@@ -72,10 +66,11 @@ export function OrderFlowCard() {
                   </button>
                 </span>
               </div>
-              <div className="small muted">{[ruleText(s), deptName(s.departmentId), s.link && `filled from ${LINK_LABEL[s.link]}`].filter(Boolean).join(' · ')}</div>
+              <div className="small muted">{[ruleText(s, (id) => draft.stages.find((x) => x.id === id)?.name), deptName(s.departmentId), s.link && `filled from ${LINK_LABEL[s.link]}`].filter(Boolean).join(' · ')}</div>
               {edit === s.id && (
                 <StageForm
                   value={s}
+                  others={draft.stages.filter((x) => x.id !== s.id).map((x) => ({ id: x.id, name: x.name }))}
                   departments={departments.items}
                   onCancel={() => setEdit(null)}
                   onSave={(v) => (setStages(draft.stages.map((x) => (x.id === s.id ? v : x))), setEdit(null))}
@@ -182,38 +177,18 @@ export function OrderFlowCard() {
   );
 }
 
-function StageForm({ value, departments, onSave, onCancel, onRemove }: { value: FlowStage; departments: (Department & { id: string })[]; onSave: (v: FlowStage) => void; onCancel: () => void; onRemove: () => void }) {
+function StageForm({ value, others, departments, onSave, onCancel, onRemove }: { value: FlowStage; others: { id: string; name: string }[]; departments: (Department & { id: string })[]; onSave: (v: FlowStage) => void; onCancel: () => void; onRemove: () => void }) {
   const [name, setName] = useState(value.name);
-  const [kind, setKind] = useState<DueKind | ''>(value.rule?.kind ?? '');
-  const [days, setDays] = useState(value.rule ? String(value.rule.days) : '');
+  const rf = useRuleFields(value.rule, false);
   const [dept, setDept] = useState(value.departmentId ?? '');
-  const n = Number(days.trim());
-  const badDays = kind !== '' && (!days.trim() || !Number.isInteger(n) || n < 0 || n > 365);
-  const bad = !name.trim() || badDays;
+  const bad = !name.trim() || rf.bad;
   return (
     <div className="card subtle output-form">
       <label>
         Name
         <input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
       </label>
-      <label>
-        Due
-        <select value={kind} onChange={(e) => setKind(e.target.value as DueKind | '')}>
-          <option value="">{DUE_KIND_LABEL.FIXED} (or to be set)</option>
-          {(['AFTER_WO', 'BEFORE_CARGO', 'AFTER_PRODUCTION'] as DueKind[]).map((k) => (
-            <option key={k} value={k}>
-              N {DUE_KIND_LABEL[k]}
-            </option>
-          ))}
-        </select>
-      </label>
-      {kind !== '' && (
-        <label>
-          N (working days)
-          <input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
-        </label>
-      )}
-      {badDays && <p className="error small">Enter whole working days from 0 to 365.</p>}
+      <RuleFields f={rf} allowFixed={false} others={others} />
       <label>
         Department (optional)
         <select value={dept} onChange={(e) => setDept(e.target.value)}>
@@ -229,7 +204,7 @@ function StageForm({ value, departments, onSave, onCancel, onRemove }: { value: 
       </label>
       {value.link && <p className="muted small">Filled from {LINK_LABEL[value.link]}; you can still mark it done yourself.</p>}
       <div className="row gap">
-        <button type="button" className="primary small" disabled={bad} onClick={() => onSave({ ...value, name: name.trim(), rule: kind === '' ? null : { kind, days: n }, departmentId: dept || null })}>
+        <button type="button" className="primary small" disabled={bad} onClick={() => onSave({ ...value, name: name.trim(), rule: rf.value, departmentId: dept || null })}>
           Done
         </button>
         <button type="button" className="secondary small" onClick={onCancel}>

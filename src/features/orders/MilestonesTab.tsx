@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../../AppContext';
 import { daysBetween, formatDay, type JobOrder } from '../../lib/jobOrders';
 import type { Department } from '../../lib/masters';
-import { DUE_KIND_LABEL, isSamplingWo, LINK_LABEL, milestonesFor, milestoneSummary, PHASE_LABEL, withDue, type DueKind, type FlowPhase, type Milestone, type MilestoneView, type OrderFlow } from '../../lib/milestones';
+import { isSamplingWo, LINK_LABEL, milestonesFor, milestoneSummary, PHASE_LABEL, stageIdOf, withDue, type FlowPhase, type Milestone, type MilestoneView, type OrderFlow } from '../../lib/milestones';
 import { newExtraId } from '../../lib/orderExtras';
 import { istDateKey } from '../../lib/time';
 import type { WithMeta } from '../masters/useCollection';
-import { ruleText } from '../settings/OrderFlowCard';
+import { RuleFields, ruleText, useRuleFields } from './RuleFields';
 import { usePlanContext } from '../settings/usePlanContext';
 import { saveJoFields } from './stepSave';
 
@@ -70,6 +70,8 @@ export function MilestonesTab({ jo, flow, allJos, departments, editable }: { jo:
   }
 
   const sum = milestoneSummary(jo, today, ctx);
+  const others = (self: Milestone | null) => list.filter((x) => x !== self).map((x) => ({ id: stageIdOf(x), name: x.name }));
+  const nameOf = (id: string) => list.find((x) => stageIdOf(x) === id)?.name;
   const update = (m: Milestone, what: string) => (save(list.map((x) => (x.id === m.id ? m : x)), `${m.name}: ${what}`), setEdit(null));
 
   const row = (v: MilestoneView) => {
@@ -81,7 +83,7 @@ export function MilestonesTab({ jo, flow, allJos, departments, editable }: { jo:
           <span className={`pill ${STATE_PILL[v.state]}`}>{stateText(v, today)}</span>
         </div>
         <div className="small muted">
-          {[v.state === 'DONE' && v.due ? `due ${formatDay(v.due)}` : null, m.due ? 'date set on this WO' : ruleText(m), deptName(m.departmentId), v.auto, m.approvedBy && `approved by ${m.approvedBy}`, m.samplingWos?.length && `sampling WO ${m.samplingWos.map((s) => s.joNumber).join(', ')}`].filter(Boolean).join(' · ')}
+          {[v.state === 'DONE' && v.due ? `due ${formatDay(v.due)}` : null, m.due ? 'date set on this WO' : ruleText(m, nameOf), deptName(m.departmentId), v.auto, m.approvedBy && `approved by ${m.approvedBy}`, m.samplingWos?.length && `sampling WO ${m.samplingWos.map((s) => s.joNumber).join(', ')}`].filter(Boolean).join(' · ')}
         </div>
         {m.note && <div className="small">{m.note}</div>}
         {editable && edit !== m.id && (
@@ -99,6 +101,7 @@ export function MilestonesTab({ jo, flow, allJos, departments, editable }: { jo:
         {edit === m.id && (
           <MilestoneForm
             value={m}
+            others={others(m)}
             jo={jo}
             allJos={allJos}
             departments={departments}
@@ -128,6 +131,7 @@ export function MilestonesTab({ jo, flow, allJos, departments, editable }: { jo:
       {adding === ph && (
         <MilestoneForm
           value={{ id: newExtraId(), name: '', phase: ph }}
+          others={others(null)}
           jo={jo}
           allJos={allJos}
           departments={departments}
@@ -171,10 +175,10 @@ export function MilestonesTab({ jo, flow, allJos, departments, editable }: { jo:
   );
 }
 
-function MilestoneForm({ value, jo, allJos, departments, today, productionDone, onSave, onCancel, onRemove }: { value: Milestone; productionDone: string | null; jo: JobOrder & { id: string }; allJos: (JobOrder & { id: string })[]; departments: (Department & { id: string })[]; today: string; onSave: (m: Milestone, what: string) => void; onCancel: () => void; onRemove?: () => void }) {
+function MilestoneForm({ value, others, jo, allJos, departments, today, productionDone, onSave, onCancel, onRemove }: { value: Milestone; others: { id: string; name: string }[]; productionDone: string | null; jo: JobOrder & { id: string }; allJos: (JobOrder & { id: string })[]; departments: (Department & { id: string })[]; today: string; onSave: (m: Milestone, what: string) => void; onCancel: () => void; onRemove?: () => void }) {
   const [name, setName] = useState(value.name);
-  const [kind, setKind] = useState<DueKind | 'FIXED' | ''>(value.due ? 'FIXED' : (value.rule?.kind ?? ''));
-  const [days, setDays] = useState(value.rule ? String(value.rule.days) : '');
+  const rf = useRuleFields(value.rule, !!value.due);
+  const kind = rf.kind;
   const [due, setDue] = useState(value.due ?? '');
   const [dept, setDept] = useState(value.departmentId ?? '');
   const [doneOn, setDoneOn] = useState(value.doneOn ?? '');
@@ -184,10 +188,8 @@ function MilestoneForm({ value, jo, allJos, departments, today, productionDone, 
   const [wos, setWos] = useState(value.samplingWos ?? []);
   const [woText, setWoText] = useState('');
   const [itemIds, setItemIds] = useState<string[]>(value.itemIds ?? []);
-  const n = Number(days.trim());
-  const badDays = kind !== '' && kind !== 'FIXED' && (!days.trim() || !Number.isInteger(n) || n < 0 || n > 365);
   const badDone = !!doneOn && doneOn > today;
-  const bad = !name.trim() || badDays || badDone || (kind === 'FIXED' && !due);
+  const bad = !name.trim() || rf.bad || badDone || (kind === 'FIXED' && !due);
   const samplingWos = allJos.filter((j) => j.id !== jo.id && isSamplingWo(j)).sort((a, b) => (a.customerId === jo.customerId ? -1 : 0) - (b.customerId === jo.customerId ? -1 : 0) || b.receivedDate.localeCompare(a.receivedDate));
 
   function submit() {
@@ -202,7 +204,7 @@ function MilestoneForm({ value, jo, allJos, departments, today, productionDone, 
     let m: Milestone = {
       ...value,
       name: name.trim(),
-      rule: kind === '' || kind === 'FIXED' ? null : { kind, days: n },
+      rule: rf.value,
       departmentId: dept || null,
       doneOn: doneOn || null,
       note: note.trim(),
@@ -221,18 +223,7 @@ function MilestoneForm({ value, jo, allJos, departments, today, productionDone, 
         Name
         <input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
       </label>
-      <label>
-        Due
-        <select value={kind} onChange={(e) => setKind(e.target.value as DueKind | 'FIXED' | '')}>
-          <option value="">To be set</option>
-          <option value="FIXED">On a date</option>
-          {(['AFTER_WO', 'BEFORE_CARGO', 'AFTER_PRODUCTION'] as DueKind[]).map((k) => (
-            <option key={k} value={k}>
-              N {DUE_KIND_LABEL[k]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <RuleFields f={rf} allowFixed others={others} />
       {kind === 'FIXED' && (
         <label>
           Due date
@@ -240,13 +231,7 @@ function MilestoneForm({ value, jo, allJos, departments, today, productionDone, 
           {value.dueHistory?.length ? <span className="muted small block">Earlier: {value.dueHistory.map((h) => formatDay(h.on)).join(', ')}</span> : null}
         </label>
       )}
-      {kind !== '' && kind !== 'FIXED' && (
-        <label>
-          N (working days)
-          <input inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
-        </label>
-      )}
-      {badDays && <p className="error small">Enter whole working days from 0 to 365.</p>}
+
       <label>
         Department (optional)
         <select value={dept} onChange={(e) => setDept(e.target.value)}>

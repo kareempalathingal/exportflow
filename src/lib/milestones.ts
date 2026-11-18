@@ -13,6 +13,7 @@
  * Pure functions, no I/O.
  */
 import { addWorkingDays, type WorkCalendar } from './calendar';
+import { addDays } from './dates';
 import type { JobOrder, JoStep } from './jobOrders';
 import type { Product } from './masters';
 import { newExtraId } from './orderExtras';
@@ -33,16 +34,23 @@ export const LINK_LABEL: Record<MilestoneLink, string> = {
   ORDER_ITEMS: 'items to arrange you tick (Checklist tab)',
 };
 
-export type DueKind = 'AFTER_WO' | 'BEFORE_CARGO' | 'AFTER_PRODUCTION';
+export type DueKind = 'AFTER_WO' | 'BEFORE_CARGO' | 'AFTER_PRODUCTION' | 'AFTER_MILESTONE' | 'AFTER_LANDING';
 export const DUE_KIND_LABEL: Record<DueKind | 'FIXED', string> = {
-  AFTER_WO: 'working days after the WO date',
-  BEFORE_CARGO: 'working days before cargo ready',
-  AFTER_PRODUCTION: 'working days after production is ready',
+  AFTER_WO: 'after the WO date',
+  BEFORE_CARGO: 'before cargo ready',
+  AFTER_PRODUCTION: 'after production is ready',
+  AFTER_MILESTONE: 'after another milestone is done',
+  AFTER_LANDING: 'after the last landing of outside work',
   FIXED: 'a date set on the WO',
 };
+export const DUE_KINDS: DueKind[] = ['AFTER_WO', 'BEFORE_CARGO', 'AFTER_PRODUCTION', 'AFTER_MILESTONE', 'AFTER_LANDING'];
 export interface DueRule {
   kind: DueKind;
   days: number;
+  /** Calendar days (18 Nov 2026: payment "30 days sight", vendor bills "30 days from delivery"); absent = working days. */
+  calendar?: boolean;
+  /** AFTER_MILESTONE: the stage id of the milestone it follows. */
+  after?: string;
 }
 
 export interface FlowStage {
@@ -55,6 +63,9 @@ export interface FlowStage {
   departmentId?: string | null;
 }
 
+/** The stage id a milestone came from (rules refer to it); milestones added on a WO use their own id. */
+export const stageIdOf = (m: Pick<Milestone, 'id' | 'stageId'>) => m.stageId ?? m.id;
+
 export interface OrderFlow {
   stages: FlowStage[];
   /** Standard order of the production processes (process ids); product routes are compared with it. */
@@ -63,6 +74,8 @@ export interface OrderFlow {
 
 /** One milestone on a WO (copied from the order flow at confirmation). */
 export interface Milestone extends FlowStage {
+  /** The order-flow stage it was copied from (AFTER_MILESTONE rules point to it). */
+  stageId?: string;
   /** Fixed due date on this WO (used instead of the rule). */
   due?: string | null;
   /** Old due dates (first = the original). */
@@ -113,7 +126,7 @@ export function isSamplingWo(jo: Pick<JobOrder, 'poNumber'> & { sampling?: boole
 
 /** The milestones a WO gets from the flow (a sampling WO has no "Samples approved" and no phase 3). */
 export function milestonesFor(flow: OrderFlow, sampling: boolean): Milestone[] {
-  return flow.stages.filter((s) => !(sampling && (s.phase === 'AFTER' || s.link === 'SAMPLES'))).map((s) => ({ ...s, id: newExtraId() + s.id.slice(0, 4) }));
+  return flow.stages.filter((s) => !(sampling && (s.phase === 'AFTER' || s.link === 'SAMPLES'))).map((s) => ({ ...s, stageId: s.id, id: newExtraId() + s.id.slice(0, 4) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +156,8 @@ export interface MilestoneFacts {
   materialsDone: string | null | undefined;
   /** Every step of the order (for indents and vendor orders). */
   steps: JoStep[];
+  /** Every landing of outside work done: the day of the last one; null when not all landed or no outside work. */
+  lastLanding: string | null;
 }
 
 const latest = (ds: (string | null | undefined)[]) => ds.filter((d): d is string => !!d).sort().at(-1) ?? null;
@@ -158,19 +173,40 @@ export function milestoneFacts(jo: Parameters<typeof orderPlan>[0], today: strin
     productionPct: withSteps.length ? Math.round(withSteps.reduce((s, { lp }) => s + lp.actualPct, 0) / withSteps.length) : 0,
     materialsDone: materials.length === 0 ? undefined : materials.every((v) => v.state === 'DONE') ? latest(materials.map((v) => v.doneOn)) : null,
     steps: jo.lines.flatMap((l) => l.steps ?? []),
+    lastLanding: (() => {
+      const ls = plan.lines.flatMap(({ lp }) => lp.steps.filter((v) => v.step.outsideOf && !v.step.label.startsWith('Dispatch')));
+      return ls.length && ls.every((v) => v.state === 'DONE') ? latest(ls.map((v) => v.doneOn)) : null;
+    })(),
   };
 }
 
+/** N working days (or calendar days) from a date; negative goes back. */
+function shift(from: string, n: number, calendar: boolean | undefined, cal: WorkCalendar): string | null {
+  if (n === 0) return from;
+  return calendar ? addDays(from, n) : addWorkingDays(from, n, cal);
+}
+
 /** The due date of a milestone: its own date, or its rule. */
-export function milestoneDue(m: Milestone, jo: Pick<JobOrder, 'receivedDate' | 'deliveryDate'>, facts: Pick<MilestoneFacts, 'productionDone' | 'productionReady'>, cal: WorkCalendar): string | null {
+export function milestoneDue(
+  m: Milestone,
+  jo: Pick<JobOrder, 'receivedDate' | 'deliveryDate'>,
+  facts: Pick<MilestoneFacts, 'productionDone' | 'productionReady'> & Partial<Pick<MilestoneFacts, 'lastLanding'>>,
+  cal: WorkCalendar,
+  /** Done date of another milestone by its stage id (AFTER_MILESTONE). */
+  doneOf?: (stageId: string) => string | null,
+): string | null {
   if (m.due) return m.due;
   const r = m.rule;
   if (!r || !Number.isFinite(r.days)) return null;
   const n = Math.abs(r.days);
-  if (r.kind === 'AFTER_WO') return jo.receivedDate ? addWorkingDays(jo.receivedDate, n, cal) : null;
-  if (r.kind === 'BEFORE_CARGO') return !jo.deliveryDate ? null : n === 0 ? jo.deliveryDate : addWorkingDays(jo.deliveryDate, -n, cal);
-  const from = facts.productionDone ?? facts.productionReady;
-  return from ? (n === 0 ? from : addWorkingDays(from, n, cal)) : null;
+  const from =
+    r.kind === 'AFTER_WO' ? jo.receivedDate
+    : r.kind === 'BEFORE_CARGO' ? jo.deliveryDate
+    : r.kind === 'AFTER_PRODUCTION' ? (facts.productionDone ?? facts.productionReady)
+    : r.kind === 'AFTER_LANDING' ? (facts.lastLanding ?? null)
+    : r.after && doneOf ? doneOf(r.after) : null;
+  if (!from) return null;
+  return shift(from, r.kind === 'BEFORE_CARGO' ? -n : n, r.calendar, cal);
 }
 
 /** In-house process steps (not built-in, not outside, not dispatch / landing). */
@@ -207,8 +243,8 @@ function autoState(m: Milestone, jo: Pick<JobOrder, 'orderItems'>, f: MilestoneF
   }
 }
 
-export function milestoneView(m: Milestone, jo: Pick<JobOrder, 'receivedDate' | 'deliveryDate' | 'orderItems'>, facts: MilestoneFacts, cal: WorkCalendar, today: string): MilestoneView {
-  const due = milestoneDue(m, jo, facts, cal);
+export function milestoneView(m: Milestone, jo: Pick<JobOrder, 'receivedDate' | 'deliveryDate' | 'orderItems'>, facts: MilestoneFacts, cal: WorkCalendar, today: string, doneOf?: (stageId: string) => string | null): MilestoneView {
+  const due = milestoneDue(m, jo, facts, cal, doneOf);
   if (m.notNeeded) return { m, state: 'NOT_NEEDED', due, doneOn: null, auto: null };
   const a = autoState(m, jo, facts);
   if (m.doneOn) return { m, state: 'DONE', due, doneOn: m.doneOn, auto: a?.auto ?? null };
@@ -228,7 +264,11 @@ export interface MilestoneSummary {
 
 export function milestoneSummary(jo: JobOrder, today: string, ctx: PlanContext): MilestoneSummary {
   const facts = milestoneFacts(jo, today, ctx);
-  const views = (jo.milestones ?? []).map((m) => milestoneView(m, jo, facts, ctx.cal, today));
+  const list = jo.milestones ?? [];
+  // Done dates first (they never depend on due dates), then the due dates that follow other milestones.
+  const first = list.map((m) => milestoneView({ ...m, rule: null, due: null }, jo, facts, ctx.cal, today));
+  const done = new Map(first.map((v, i) => [stageIdOf(list[i]!), v.state === 'DONE' ? v.doneOn : null]));
+  const views = list.map((m) => milestoneView(m, jo, facts, ctx.cal, today, (id) => done.get(id) ?? null));
   const counted = views.filter((v) => v.state !== 'NOT_NEEDED');
   return {
     before: views.filter((v) => v.m.phase === 'BEFORE'),

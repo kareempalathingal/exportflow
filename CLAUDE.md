@@ -424,6 +424,13 @@ report the discrepancy and ask; do not silently choose.
     order or uses a process not in the list is listed in Settings with a link;
     a process a product does not need is never a difference; nothing changed.
     Standard order for now: shape cutting before printing (user, 18 Nov 2026).
+-   Due rules (extended 18 Nov 2026, `RuleFields.tsx`): N days after the WO
+    date / before cargo ready / after production is ready / after another
+    milestone is done (`after` = its stage id; WO milestones keep `stageId`)
+    / after the last landing of outside work (all landed); each in working
+    days (default) or calendar days (`calendar`, e.g. payment "30 days
+    sight", vendor bills "30 days from delivery"). A rule whose starting
+    point is not there yet shows "date to be set".
 -   Copied to the WO when it is confirmed (`JobOrder.milestones`,
     `milestonesFor()`); older confirmed WOs get "Set up milestones from the
     order flow"; drafts show a preview. Changes per WO (WO "Milestones" tab,
@@ -454,8 +461,9 @@ report the discrepancy and ask; do not silently choose.
 -   Asked, then allowed: a done or due date before the WO date (not for
     "Samples approved"), and a phase 3 milestone done while production is not
     finished. A done date is never in the future.
--   Not yet: "Passing" (meaning to ask), QC as a process, vendor bill due from
-    the PO's payment terms, milestones in Look ahead / KPIs. No Firestore rules
+-   Not yet: "Passing" (meaning to ask), QC as a process, vendor bills per
+    vendor (today one milestone after the last landing), milestones in Look
+    ahead / KPIs. No Firestore rules
     change.
 
 ## Order items at a glance (confirmed 26 Oct 2026)

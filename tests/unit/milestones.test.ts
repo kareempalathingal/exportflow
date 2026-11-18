@@ -4,14 +4,14 @@ import type { JobOrder, JoStep } from '../../src/lib/jobOrders';
 import type { Product } from '../../src/lib/masters';
 import { buildToday } from '../../src/lib/today';
 import { milestonesTable } from '../../src/lib/docs/extrasDoc';
-import { DEFAULT_STAGES, isSamplingWo, milestoneDue, milestonesFor, milestoneView, orderFlowOf, routeDiffs, withDue, type Milestone, type MilestoneFacts } from '../../src/lib/milestones';
+import { DEFAULT_STAGES, isSamplingWo, milestoneDue, milestonesFor, milestoneSummary, milestoneView, orderFlowOf, routeDiffs, withDue, type Milestone, type MilestoneFacts } from '../../src/lib/milestones';
 
 // Order flow and milestones (18 Nov 2026). Sample values only.
 
 const jo = (p: Partial<JobOrder> = {}): JobOrder & { id: string } =>
   ({ id: 'j1', joNumber: 'S-1', customerId: 'c1', customerName: 'Sample', poNumber: 'PO-1', receivedDate: '2026-11-02', deliveryDate: '2026-11-30', status: 'CONFIRMED', deadline: { internalDeadline: '2026-11-26' }, lines: [], ...p }) as unknown as JobOrder & { id: string };
 const step = (p: Partial<JoStep>): JoStep => ({ key: 'k', processId: 'pr', label: 'Step', forProduct: 'Mat', productId: 'p1', perDay: null, perDayUnit: null, fixedDays: null, doneAt: null, ...p });
-const facts = (p: Partial<MilestoneFacts> = {}): MilestoneFacts => ({ productionDone: null, productionReady: null, productionPct: 0, materialsDone: null, steps: [], ...p });
+const facts = (p: Partial<MilestoneFacts> = {}): MilestoneFacts => ({ productionDone: null, productionReady: null, productionPct: 0, materialsDone: null, steps: [], lastLanding: null, ...p });
 const ms = (p: Partial<Milestone>): Milestone => ({ id: 'm', name: 'Stage', phase: 'AFTER', ...p });
 const today = '2026-11-18';
 
@@ -52,6 +52,16 @@ describe('due dates', () => {
     expect(milestoneDue(ms({ rule: { kind: 'AFTER_PRODUCTION', days: 1 } }), j, facts({ productionReady: '2026-11-20', productionDone: '2026-11-17' }), DEFAULT_CALENDAR)).toBe('2026-11-18');
     expect(milestoneDue(ms({ rule: { kind: 'AFTER_PRODUCTION', days: 1 } }), j, facts(), DEFAULT_CALENDAR)).toBeNull();
     expect(milestoneDue(ms({}), j, facts(), DEFAULT_CALENDAR)).toBeNull();
+  });
+  it('calendar days, after another milestone, after the last landing', () => {
+    // 2 Nov + 30 calendar days = 2 Dec; working days skip Sundays.
+    expect(milestoneDue(ms({ rule: { kind: 'AFTER_WO', days: 30, calendar: true } }), j, facts(), DEFAULT_CALENDAR)).toBe('2026-12-02');
+    expect(milestoneDue(ms({ rule: { kind: 'BEFORE_CARGO', days: 14, calendar: true } }), j, facts(), DEFAULT_CALENDAR)).toBe('2026-11-16');
+    expect(milestoneDue(ms({ rule: { kind: 'AFTER_LANDING', days: 30, calendar: true } }), j, facts({ lastLanding: '2026-11-10' }), DEFAULT_CALENDAR)).toBe('2026-12-10');
+    expect(milestoneDue(ms({ rule: { kind: 'AFTER_LANDING', days: 30, calendar: true } }), j, facts(), DEFAULT_CALENDAR)).toBeNull();
+    const pay = ms({ rule: { kind: 'AFTER_MILESTONE', days: 30, calendar: true, after: 'docs' } });
+    expect(milestoneDue(pay, j, facts(), DEFAULT_CALENDAR, (id) => (id === 'docs' ? '2026-11-15' : null))).toBe('2026-12-15');
+    expect(milestoneDue(pay, j, facts(), DEFAULT_CALENDAR, () => null)).toBeNull();
   });
   it('a new date keeps the old one', () => {
     const m = withDue(ms({ due: '2026-11-20' }), '2026-11-24', '2026-11-20', 't');
@@ -109,6 +119,17 @@ describe('product routes against the standard order', () => {
       ['p2', [['pr', 'sc']], []],
       ['p3', [], ['zz']],
     ]);
+  });
+});
+
+describe('milestones that follow another', () => {
+  it('the due date appears once the other is done (by stage id)', () => {
+    const ctx = { md: { products: new Map(), rawMaterials: new Map(), boms: new Map() }, cal: DEFAULT_CALENDAR };
+    const [docs, pay] = milestonesFor({ production: [], stages: [{ id: 'docs', name: 'Documents', phase: 'AFTER' }, { id: 'pay', name: 'Payment', phase: 'AFTER', rule: { kind: 'AFTER_MILESTONE', days: 30, calendar: true, after: 'docs' } }] }, false);
+    expect(docs?.stageId).toBe('docs');
+    expect(milestoneSummary(jo({ milestones: [docs!, pay!] }), today, ctx).after[1]?.state).toBe('NO_DATE');
+    const s = milestoneSummary(jo({ milestones: [{ ...docs!, doneOn: '2026-11-15' }, pay!] }), today, ctx);
+    expect([s.after[1]?.due, s.after[1]?.state]).toEqual(['2026-12-15', 'OPEN']);
   });
 });
 
