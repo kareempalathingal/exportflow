@@ -71,6 +71,8 @@ interface ReviewRow extends ImportRow {
   productId: string;
   by: MatchBy | null;
   candidates: string[];
+  /** Absent in review sessions saved before 18 Nov 2026. */
+  sameCode?: string[];
   qtyEdit: string;
   unitEdit: string;
   remember: boolean;
@@ -197,7 +199,7 @@ export function ImportPage() {
     const rows: ReviewRow[] = raw.map((r) => {
       const m = matchRow(r, items, aliases);
       const p = m.productId ? master.md.products.get(m.productId) : undefined;
-      return { ...r, productId: m.productId ?? '', by: m.by, candidates: m.candidates, qtyEdit: r.qty !== null ? String(r.qty) : r.qtyText, unitEdit: r.unit ?? p?.baseUnit ?? '', remember: true };
+      return { ...r, productId: m.productId ?? '', by: m.by, candidates: m.candidates, sameCode: m.sameCode, qtyEdit: r.qty !== null ? String(r.qty) : r.qtyText, unitEdit: r.unit ?? p?.baseUnit ?? '', remember: true };
     });
     const customerText = vals.customer?.value ?? '';
     if (cur.remember && !cur.fromPhoto) {
@@ -619,6 +621,7 @@ function ReviewStep({
                 </strong>
                 {!r.productId ? <span className="pill bad">not found</span> : r.unclear ? <span className="pill warn">check qty</span> : <span className="pill ok">matched</span>}
               </div>
+              {!r.productId && (r.sameCode ?? []).length > 1 && <span className="warn small block">{(r.sameCode ?? []).length} products have item code {r.code}: choose the right one (listed first), then keep "Remember" ticked.</span>}
               {p && <span className="muted small block">Row {r.row}: {label}{r.by ? ` · matched by ${r.by === 'remembered' ? 'remembered text' : r.by === 'code' ? 'item code' : 'name'}` : ''}</span>}
               <label>
                 {r.productId ? 'Product' : 'Match to a product'}
@@ -627,9 +630,18 @@ function ReviewStep({
                   setRow(i, { productId: e.target.value, by: null, unitEdit: r.unitEdit && np && availableUnits(productContext(np)).includes(r.unitEdit) ? r.unitEdit : (np?.baseUnit ?? r.unitEdit) });
                 }}>
                   <option value="">— choose · closest first —</option>
+                  {(r.sameCode ?? []).length > 1 && (
+                    <optgroup label={`Same item code (${(r.sameCode ?? []).length})`}>
+                      {(r.sameCode ?? []).filter((id) => products.some((x) => x.id === id)).map((id) => (
+                        <option key={`s-${id}`} value={id}>
+                          {nameOf(id)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                   {r.candidates.length > 0 && (
                     <optgroup label="Closest">
-                      {r.candidates.filter((id) => products.some((x) => x.id === id)).map((id) => (
+                      {r.candidates.filter((id) => !(r.sameCode ?? []).includes(id) && products.some((x) => x.id === id)).map((id) => (
                         <option key={`c-${id}`} value={id}>
                           {nameOf(id)}
                         </option>

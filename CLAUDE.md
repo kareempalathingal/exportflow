@@ -266,6 +266,11 @@ report the discrepancy and ask; do not silently choose.
     row, base-unit equivalent, Make / Buy from the product. Totals within one
     unit, to compare with the sheet. "Create draft WO" only when every row
     has a product, quantity and unit.
+-   Several products with the same item / ERP code (18 Nov 2026; the ERP
+    keeps e.g. a design with and without its CAD code as two SKUs): no
+    automatic match; they are listed first in an optgroup "Same item code
+    (N)" with "N products have item code X: choose the right one, then keep
+    Remember ticked" (`RowMatch.sameCode`). One hit still matches by code.
 -   Nothing is saved by the import itself: it fills the normal New Work Order
     form (`?from=import`, banner "Filled from the import… check… then Save"),
     which saves a Draft as usual (duplicate-number check, deadline, history).

@@ -152,3 +152,19 @@ describe('waits for all items of this order', () => {
     expect(packTied.start! >= print2.finish!).toBe(true);
   });
 });
+
+describe('several products with one item code (18 Nov 2026)', () => {
+  it('lists them first and lets the user choose', async () => {
+    const { matchRow } = await import('../../src/lib/joImport');
+    const items = [
+      { id: 'a', name: 'Mat A plain', erpCode: 'SAMPLE 1' },
+      { id: 'b', name: 'Mat A with design code', erpCode: 'SAMPLE 1' },
+      { id: 'c', name: 'Other mat', erpCode: 'SAMPLE 2' },
+    ];
+    const m = matchRow({ name: 'Mat', code: 'sample  1', size: '' }, items, {});
+    expect(m.productId).toBeNull();
+    expect(m.sameCode).toEqual(['a', 'b']);
+    expect(m.candidates.slice(0, 2)).toEqual(['a', 'b']);
+    expect(matchRow({ name: 'x', code: 'SAMPLE 2', size: '' }, items, {})).toMatchObject({ productId: 'c', by: 'code', sameCode: [] });
+  });
+});

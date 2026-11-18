@@ -381,6 +381,8 @@ export interface RowMatch {
   by: MatchBy | null;
   /** Closest first (ids), for the "Match to a product" list. */
   candidates: string[];
+  /** Products sharing the row's item code when there are several (18 Nov 2026): the user chooses one. */
+  sameCode: string[];
 }
 
 /** The text remembered for "this text means that product". */
@@ -394,17 +396,18 @@ export function matchRow(row: Pick<ImportRow, 'name' | 'code' | 'size'>, items: 
   const ids = new Set(items.map((i) => i.id));
   const remembered = aliases[aliasKey(row)];
   const scored = rank(row, items);
-  if (remembered && ids.has(remembered)) return { productId: remembered, by: 'remembered', candidates: scored };
   const code = norm(row.code);
-  if (code) {
-    const hit = items.filter((i) => norm(i.code ?? '') === code || norm(i.erpCode ?? '') === code);
-    if (hit.length === 1) return { productId: hit[0]!.id, by: 'code', candidates: scored };
-  }
+  const hit = code ? items.filter((i) => norm(i.code ?? '') === code || norm(i.erpCode ?? '') === code) : [];
+  const sameCode = hit.length > 1 ? hit.map((i) => i.id) : [];
+  // Products with the same code come first in the list, then the closest by words.
+  const candidates = [...sameCode, ...scored.filter((id) => !sameCode.includes(id))];
+  if (remembered && ids.has(remembered)) return { productId: remembered, by: 'remembered', candidates, sameCode };
+  if (hit.length === 1) return { productId: hit[0]!.id, by: 'code', candidates, sameCode };
   const full = norm([row.name, row.size].filter(Boolean).join(' '));
   const name = norm(row.name);
   const exact = items.filter((i) => norm(i.name) === name || (row.size && norm(i.name) === full));
-  if (exact.length === 1) return { productId: exact[0]!.id, by: 'name', candidates: scored };
-  return { productId: null, by: null, candidates: scored };
+  if (exact.length === 1) return { productId: exact[0]!.id, by: 'name', candidates, sameCode };
+  return { productId: null, by: null, candidates, sameCode };
 }
 
 /** Closest products by shared words (a size like 45x75 counts double). */
